@@ -32,9 +32,23 @@ class CloseExpiredLoginSessionsMiddleware:
         ):
             auth_logout(request)
 
+        current_user_id = request.user.pk if request.user.is_authenticated else None
         response = self.get_response(request)
 
         if request.user.is_authenticated and request.session.session_key:
+            if (
+                current_user_id == request.user.pk
+                and current_session_key
+                and current_session_key != request.session.session_key
+            ):
+                # Password changes rotate the browser key without a login signal.
+                # Keep the same attendance row and its original fixed deadline.
+                UserLoginSession.objects.filter(
+                    user_id=current_user_id,
+                    session_key=current_session_key,
+                    logout_at__isnull=True,
+                ).update(session_key=request.session.session_key)
+
             UserLoginSession.objects.filter(
                 user_id=request.user.pk,
                 session_key=request.session.session_key,

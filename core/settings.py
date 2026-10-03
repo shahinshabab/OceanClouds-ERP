@@ -37,6 +37,7 @@ env = environ.Env(
     DB_PORT=(str, ""),
     DB_CONN_MAX_AGE=(int, 60),
     APP_VERSION=(str, "dev"),
+    REDIS_URL=(str, ""),
     AWS_REGION=(str, ""),
     AWS_SES_SENDER=(str, ""),
     AWS_ACCESS_KEY_ID=(str, ""),
@@ -107,6 +108,7 @@ DJANGO_APPS = [
 ]
 
 THIRD_PARTY_APPS = [
+    "channels",
     "django_crontab",
     "storages",
 ]
@@ -147,6 +149,29 @@ MIDDLEWARE = [
 ROOT_URLCONF = "core.urls"
 WSGI_APPLICATION = "core.wsgi.application"
 ASGI_APPLICATION = "core.asgi.application"
+
+# ------------------------------------------------------------------------------
+# Live updates (Django Channels)
+# ------------------------------------------------------------------------------
+# Redis carries websocket pushes between Gunicorn/Uvicorn workers. Without
+# REDIS_URL (local runserver, tests) an in-process layer is used instead.
+REDIS_URL = env("REDIS_URL")
+
+if REDIS_URL:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {
+                "hosts": [REDIS_URL],
+                "capacity": 200,
+                "expiry": 30,
+            },
+        }
+    }
+else:
+    CHANNEL_LAYERS = {
+        "default": {"BACKEND": "channels.layers.InMemoryChannelLayer"}
+    }
 
 # ------------------------------------------------------------------------------
 # Templates (global templates live in ui/templates)

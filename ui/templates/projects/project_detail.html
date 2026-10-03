@@ -1,6 +1,7 @@
 {% extends "ui/base.html" %}
 {% load static %}
 {% load roles_tags %}
+{% block live_topics %}task-project:{{ project.pk }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid py-4">

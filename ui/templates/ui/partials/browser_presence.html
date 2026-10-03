@@ -1,0 +1,9 @@
+{% load static %}
+{% if request.user.is_authenticated %}
+<script src="{% static 'ui/browser_presence.js' %}" defer
+        data-heartbeat-url="{% url 'common:session_heartbeat' %}"
+        data-interval-ms="{{ browser_heartbeat_interval_ms }}"
+        data-storage-key="oceanclouds-browser-presence-{{ request.user.pk }}"
+        data-csrf-token="{{ csrf_token }}"
+        data-csrf-cookie-name="{{ browser_csrf_cookie_name }}"></script>
+{% endif %}

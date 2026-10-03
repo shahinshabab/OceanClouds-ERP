@@ -22,6 +22,7 @@ from common.models import (
     LeaveStatus,
     UserLoginSession,
 )
+from common.browser_presence import session_presence
 from common.roles import (
     ROLE_ADMIN,
     ROLE_CRM_MANAGER,
@@ -331,7 +332,16 @@ class AttendanceDashboardView(AttendanceAccessMixin, TemplateView):
             leaves = leaves.filter(user_id=selected_id)
 
         session_rows = []
+        presence_now = timezone.now()
         for session in sessions.order_by("-login_at"):
+            if (
+                session.user_id == self.request.user.pk
+                and session.session_key == self.request.session.session_key
+                and session.is_active
+            ):
+                # This page request proves presence before middleware saves it.
+                session.last_activity_at = presence_now
+            session.browser_presence = session_presence(session, now=presence_now)
             display_end = session.approved_logout_at
             if session.logout_at is None:
                 display_end = min(timezone.now(), session.expires_at or timezone.now())
@@ -339,7 +349,7 @@ class AttendanceDashboardView(AttendanceAccessMixin, TemplateView):
                 int((display_end - session.login_at).total_seconds()),
                 0,
             ) if display_end else 0
-            session.display_logout_at = display_end
+            session.display_logout_at = session.approved_logout_at
             session.display_duration_hm = _format_seconds_hm(seconds)
             session.can_submit_correction = (
                 session.user_id == self.request.user.id

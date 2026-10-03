@@ -3,16 +3,40 @@ from urllib.parse import urlencode
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Q
-from django.http import HttpResponseNotAllowed, JsonResponse
+from django.http import HttpResponse, HttpResponseNotAllowed, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views import View
 from django.views.generic import ListView
+from django.views.decorators.cache import never_cache
+from django.views.decorators.http import require_POST
 
-from .models import ImportantNotice, Notification, UserNoticeAcknowledgement
+from .models import ImportantNotice, Notification, UserLoginSession, UserNoticeAcknowledgement
+from .browser_presence import heartbeat_interval
 from .signals import get_client_ip
+
+
+@never_cache
+@require_POST
+def session_heartbeat(request):
+    """Refresh only this authenticated browser's row, at most once a minute."""
+    if not request.user.is_authenticated or not request.session.session_key:
+        return JsonResponse({"error": "Session ended"}, status=401)
+
+    now = timezone.now()
+    current_login = UserLoginSession.objects.filter(
+        user_id=request.user.pk,
+        session_key=request.session.session_key,
+        logout_at__isnull=True,
+    ).filter(Q(expires_at__gt=now) | Q(expires_at__isnull=True))
+    updated = current_login.filter(
+        last_activity_at__lte=now - heartbeat_interval()
+    ).update(last_activity_at=now)
+    if not updated and not current_login.exists():
+        return JsonResponse({"error": "Session ended"}, status=401)
+    return HttpResponse(status=204)
 
 
 class NotificationListView(LoginRequiredMixin, ListView):

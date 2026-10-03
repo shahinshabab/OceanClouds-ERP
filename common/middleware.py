@@ -23,6 +23,11 @@ class CloseExpiredLoginSessionsMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
+        if request.path_info == reverse("common:session_heartbeat"):
+            # The endpoint checks its own session deadline and throttles writes.
+            # The scheduled cleanup still closes expired attendance sessions.
+            return self.get_response(request)
+
         expired_keys = set(close_expired_login_sessions())
 
         current_session_key = request.session.session_key
@@ -74,6 +79,9 @@ class RequireNoticeAcknowledgementMiddleware:
 
     def __call__(self, request):
         if not request.user.is_authenticated:
+            return self.get_response(request)
+
+        if request.path_info == reverse("common:session_heartbeat"):
             return self.get_response(request)
 
         notice_url = reverse("common:important_notice")

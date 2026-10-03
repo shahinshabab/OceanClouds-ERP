@@ -57,3 +57,36 @@ certificate only after both production DNS names resolve to the main server.
 Do not use `docker compose down --volumes` in production; it removes the named
 data volumes. Back up PostgreSQL with `pg_dump` and back up the media volume
 before upgrades.
+
+## Browser presence
+
+Authenticated application and Django admin pages send a CSRF-protected POST to
+`/common/session/heartbeat/` about once per minute. Tabs share a timestamp in
+local storage and use Web Locks where available to avoid duplicate requests.
+If storage is unavailable, each tab may send its own heartbeat, but the endpoint
+still limits timestamp updates to once per minute for the current login.
+
+Presence reuses `UserLoginSession.last_activity_at`; there is no new table,
+migration, or per-heartbeat history. `BROWSER_HEARTBEAT_INTERVAL_SECONDS` is 60
+and `BROWSER_OFFLINE_THRESHOLD_SECONDS` is 180 in `core/settings.py`.
+Attendance & Leave shows presence as of page load; refresh to see updates.
+Offline since is calculated as last seen plus the three-minute grace period.
+It is an estimate: browser suspension, computer sleep, or network loss can also
+stop heartbeats. It is not an exact browser-close or attendance checkout time.
+
+Heartbeats never extend the fixed 16-hour authentication deadline, acknowledge
+notices, mark checkout, or pause active work. The existing scheduled session
+cleanup and missed-checkout correction workflow continue to apply. Heartbeat
+requests skip the per-request global expiry scan and notice query, while still
+checking authentication, CSRF, the current login key, and its expiry deadline.
+Standard server access logs may include these requests; existing Docker log
+rotation still limits their size. Collect static files when deploying.
+
+Local validation with a dedicated test database and integrations disabled:
+
+```text
+python manage.py test common ui projects reports --verbosity 1
+node --test ui/tests_js/browser_presence.test.cjs
+python manage.py check
+python manage.py makemigrations --check --dry-run
+```

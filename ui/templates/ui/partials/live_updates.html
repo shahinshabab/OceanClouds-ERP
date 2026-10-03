@@ -1,0 +1,19 @@
+{% load static %}
+{% if request.user.is_authenticated %}
+<div id="liveToastContainer" class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1090;"></div>
+
+<div id="liveUpdateBanner"
+     class="d-none position-fixed bottom-0 start-50 translate-middle-x mb-3 shadow rounded-pill bg-dark text-white px-3 py-2 small"
+     style="z-index: 1080;"
+     role="status">
+  <i class="bi bi-arrow-repeat me-1"></i>
+  <span class="js-live-banner-text">This page has updates.</span>
+  <button type="button" class="btn btn-sm btn-light rounded-pill py-0 ms-2 js-live-refresh">Refresh</button>
+</div>
+
+<script src="{% static 'ui/live_updates.js' %}" defer
+        data-socket-path="/ws/live/"
+        data-panel-url="{% url 'common:notification_panel' %}"
+        data-notifications-url="{% url 'common:notification_list' %}"
+        data-inquiry-url-template="{% url 'crm:inquiry_detail' 0 %}"></script>
+{% endif %}

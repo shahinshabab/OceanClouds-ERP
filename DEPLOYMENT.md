@@ -1,6 +1,7 @@
 # Docker deployment
 
-The stack contains Django/Gunicorn, PostgreSQL, and Nginx. PostgreSQL data,
+The stack contains Django/Gunicorn (ASGI with Uvicorn workers), PostgreSQL,
+Redis, and Nginx. PostgreSQL data,
 uploaded media, and collected static files are stored in named Docker volumes.
 
 ## Configure
@@ -57,6 +58,33 @@ certificate only after both production DNS names resolve to the main server.
 Do not use `docker compose down --volumes` in production; it removes the named
 data volumes. Back up PostgreSQL with `pg_dump` and back up the media volume
 before upgrades.
+
+## Live updates
+
+Pages get pushes over one websocket per tab at `/ws/live/` (Django Channels,
+with Redis carrying messages between Gunicorn workers):
+
+- Notifications: the bell badge and dropdown refresh and a toast appears.
+- Inquiries: a new inquiry shows a toast everywhere; the inquiry list and
+  detail pages refresh themselves.
+- Tasks and to-dos: list, kanban, detail, and project pages refresh when a
+  task or to-do the user can see changes.
+
+Pages refresh only when the user is idle. If they are typing in a form or have
+a dialog open, a "Refresh" banner appears instead. Pushes carry ids and short
+labels only and go to the same people the views already allow (admins, the
+project manager, assignees, owners); data still loads through normal views.
+Saves never fail because of Redis: pushes are sent after commit and errors are
+only logged. Sockets close on logout, when a newer login replaces the session,
+and at the fixed 16-hour deadline. They do not count as presence activity.
+
+The host Nginx must pass websocket upgrades. Both files in `deploy/` include a
+`location /ws/` block; after Certbot has added the HTTPS server block, copy the
+same `location /ws/` block into the `listen 443` server as well, then
+`sudo nginx -t && sudo systemctl reload nginx`.
+
+Redis is capped at 64 MB with no persistence (`compose.yaml`); restarting it
+only drops in-flight pushes, and browsers reconnect on their own.
 
 ## Browser presence
 

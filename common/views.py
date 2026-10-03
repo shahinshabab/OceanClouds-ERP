@@ -5,6 +5,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Q
 from django.http import HttpResponse, HttpResponseNotAllowed, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -87,6 +88,15 @@ class NotificationListView(LoginRequiredMixin, ListView):
         ]
 
         return context
+
+
+@never_cache
+@login_required
+def notification_panel(request):
+    """Fresh bell badge count and dropdown body for live updates."""
+    html = render_to_string("ui/partials/notifications_panel.html", request=request)
+    count = Notification.objects.filter(recipient=request.user, is_read=False).count()
+    return JsonResponse({"count": count, "html": html})
 
 
 @login_required

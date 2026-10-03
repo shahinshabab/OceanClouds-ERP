@@ -150,16 +150,20 @@ class Lead(TimeStamped, Owned):
     STATUS_CONTACTED = "contacted"
     STATUS_QUALIFIED = "qualified"
     STATUS_PROPOSAL_SENT = "proposal_sent"
+    STATUS_PROPOSAL_ACCEPTED = "proposal_accepted"
     STATUS_LOST = "lost"
     STATUS_CONVERTED_TO_DEAL = "converted_to_deal"
+    STATUS_CONVERTED_TO_CLIENT = "converted_to_client"
 
     STATUS_CHOICES = [
         (STATUS_NEW, "New"),
         (STATUS_CONTACTED, "Contacted"),
         (STATUS_QUALIFIED, "Qualified"),
         (STATUS_PROPOSAL_SENT, "Proposal Sent"),
+        (STATUS_PROPOSAL_ACCEPTED, "Proposal Accepted"),
         (STATUS_LOST, "Lost"),
         (STATUS_CONVERTED_TO_DEAL, "Converted to Deal"),
+        (STATUS_CONVERTED_TO_CLIENT, "Converted to Client"),
     ]
 
     SOURCE_CHOICES = Inquiry.CHANNEL_CHOICES

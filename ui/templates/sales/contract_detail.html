@@ -58,7 +58,23 @@
               View Invoice
             </a>
           {% endwith %}
-        {% else %}
+
+          {% if contract.status == "signed" %}
+            {% if contract.deal.client and contract.events.exists %}
+              <a href="{% url 'crm:client_detail' contract.deal.client.pk %}"
+                 class="btn btn-outline-success btn-sm">
+                View Client
+              </a>
+            {% else %}
+              <form method="post" action="{% url 'sales:contract_create_client_event' contract.pk %}" class="d-inline">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-success btn-sm">
+                  Create Client &amp; Event
+                </button>
+              </form>
+            {% endif %}
+          {% endif %}
+        {% elif contract.status == "signed" %}
           <a href="{% url 'sales:contract_generate_invoice' contract.pk %}"
              class="btn btn-success btn-sm">
             Generate Invoice
@@ -127,6 +143,9 @@
               <a href="{% url 'crm:client_detail' contract.deal.client.pk %}" class="text-decoration-none">
                 {{ contract.deal.client }}
               </a>
+            {% elif contract.deal.customer %}
+              {{ contract.deal.customer }}
+              <div class="text-muted small fw-normal">Lead. Client is created after signing and invoicing.</div>
             {% else %}
               <span class="text-muted">—</span>
             {% endif %}
@@ -310,7 +329,7 @@
       <span>Invoices</span>
 
       {% if is_admin or is_crm_manager %}
-        {% if not contract.invoices.exists %}
+        {% if not contract.invoices.exists and contract.status == "signed" %}
           <a href="{% url 'sales:contract_generate_invoice' contract.pk %}"
              class="btn btn-light btn-sm">
             Generate Invoice
@@ -367,18 +386,38 @@
         </div>
       {% else %}
         <div class="text-center text-muted py-4">
-          <p class="mb-2">No invoice generated from this contract yet.</p>
+          {% if contract.status == "signed" %}
+            <p class="mb-2">No invoice generated from this contract yet.</p>
 
-          {% if is_admin or is_crm_manager %}
-            <a href="{% url 'sales:contract_generate_invoice' contract.pk %}"
-               class="btn btn-success btn-sm">
-              Generate Invoice
-            </a>
+            {% if is_admin or is_crm_manager %}
+              <a href="{% url 'sales:contract_generate_invoice' contract.pk %}"
+                 class="btn btn-success btn-sm">
+                Generate Invoice
+              </a>
+            {% endif %}
+          {% else %}
+            <p class="mb-0">The invoice can be generated once the contract is signed.</p>
           {% endif %}
         </div>
       {% endif %}
     </div>
   </div>
+
+  {% if contract.events.exists %}
+    <div class="card mb-4 shadow-sm">
+      <div class="card-header bg-light">
+        <strong>Events</strong>
+      </div>
+      <ul class="list-group list-group-flush">
+        {% for event in contract.events.all %}
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            <a href="{% url 'events:event_detail' event.pk %}" class="text-decoration-none">{{ event.name }}</a>
+            <span class="text-muted small">{{ event.date }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
 
 </div>
 {% endblock %}

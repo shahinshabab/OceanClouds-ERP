@@ -149,7 +149,7 @@
 </head>
 
 <body>
-{% with client=invoice.deal.client %}
+{% with client=invoice.deal.customer %}
 
 <div class="invoice-wrapper">
 
@@ -269,6 +269,12 @@
       <td class="totals-label">Tax ({{ invoice.tax_rate }}%)</td>
       <td class="totals-value">{{ invoice.tax }}</td>
     </tr>
+    {% if invoice.advance_adjustment %}
+    <tr>
+      <td class="totals-label">Less: Advance Received</td>
+      <td class="totals-value">-{{ invoice.advance_adjustment }}</td>
+    </tr>
+    {% endif %}
     <tr>
       <td class="totals-label">Total</td>
       <td class="totals-value totals-strong">{{ invoice.total }}</td>

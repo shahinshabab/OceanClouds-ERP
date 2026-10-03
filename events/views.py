@@ -14,6 +14,7 @@ from django.views.generic import (
 )
 
 from common.mixins import EventManageMixin, EventCalendarAccessMixin
+from crm.models import Client
 from .models import (
     Venue,
     Event,
@@ -372,6 +373,22 @@ class EventCreateView(EventManageMixin, CreateView):
     form_class = EventForm
     template_name = "events/event_form.html"
     success_url = reverse_lazy("events:event_list")
+
+    def get_initial(self):
+        initial = super().get_initial()
+
+        # Existing customers: Client page -> New Event.
+        client_id = self.request.GET.get("client")
+        if client_id and client_id.isdigit():
+            client = Client.objects.filter(pk=client_id).first()
+            if client:
+                initial["client"] = client.pk
+                initial["name"] = f"{client} - Wedding"
+                primary = client.primary_contact
+                if primary:
+                    initial["primary_contact"] = primary.pk
+
+        return initial
 
     def form_valid(self, form):
         form.instance.owner = self.request.user

@@ -116,6 +116,15 @@ class Event(TimeStamped, Owned):
         blank=True,
     )
 
+    contract = models.ForeignKey(
+        "sales.Contract",
+        on_delete=models.SET_NULL,
+        related_name="events",
+        null=True,
+        blank=True,
+        help_text=_("Signed contract this event was created from."),
+    )
+
     name = models.CharField(max_length=255)
 
     event_type = models.CharField(

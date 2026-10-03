@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 from django.core.exceptions import ValidationError
+from django.urls import reverse
 from django.utils import timezone
 
 from common.models import Notification
@@ -30,6 +31,19 @@ class ProjectsTests(AuthenticatedViewTestMixin):
         "projects:deliverable_list",
         "projects:deliverable_kanban",
     ]
+
+    def test_standard_pages_use_shared_ui_and_kanban_opts_out(self):
+        self.client.force_login(self.user)
+
+        standard_response = self.client.get(reverse("projects:project_list"))
+        kanban_response = self.client.get(reverse("projects:project_kanban"))
+
+        standard_html = standard_response.content.decode()
+        kanban_html = kanban_response.content.decode()
+
+        self.assertIn('class="app-shell standard-page"', standard_html)
+        self.assertIn('class="app-shell kanban-page"', kanban_html)
+        self.assertNotIn('class="app-shell standard-page"', kanban_html)
 
     def test_project_progress_and_completion_flow(self):
         project = Project.objects.create(name="Production")
@@ -169,11 +183,13 @@ class ProjectsTests(AuthenticatedViewTestMixin):
             deliverable=deliverable,
         )
 
-        pause_active_work_sessions_for_user(user.id)
+        paused_at = timezone.now()
+        pause_active_work_sessions_for_user(user.id, paused_at=paused_at)
 
         session.refresh_from_db()
         deliverable.refresh_from_db()
         self.assertEqual(session.status, WorkSessionStatus.PAUSED)
+        self.assertEqual(session.paused_at, paused_at)
         self.assertEqual(deliverable.status, DeliverableStatus.PAUSED)
 
     def test_project_manager_is_notified_when_project_assignment_changes(self):

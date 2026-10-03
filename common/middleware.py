@@ -1,80 +1,87 @@
 # common/middleware.py
 
-from urllib.parse import urlparse
+from urllib.parse import urlencode, urlparse
 
+from django.contrib.auth import logout as auth_logout
 from django.contrib.messages import get_messages
-from django.contrib.sessions.models import Session
-from datetime import timedelta
-
-from django.conf import settings
 from django.db.models import Q
+from django.shortcuts import redirect
+from django.urls import reverse
 from django.utils import timezone
 
-from common.models import UserLoginSession, UserSessionEndReason
-from projects.utils import pause_active_work_sessions_for_user
+from common.models import ImportantNotice, UserLoginSession
+from common.session_management import close_expired_login_sessions
 
 
 class CloseExpiredLoginSessionsMiddleware:
     """
-    Closes login sessions that passed SESSION_COOKIE_AGE.
-
-    Also pauses active project work sessions for the same user,
-    so task/deliverable timers do not keep running after auto logout.
-
-    Important:
-    We pause the work session, not end it.
+    Enforces the fixed login deadline without treating page inactivity as work
+    inactivity. A scheduled command performs the same cleanup between requests.
     """
 
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
-        max_age = getattr(settings, "SESSION_COOKIE_AGE", 10 * 60 * 60)
-        now = timezone.now()
-        cutoff = now - timedelta(seconds=max_age)
+        expired_keys = set(close_expired_login_sessions())
 
-        active_login_sessions = UserLoginSession.objects.filter(
-            logout_at__isnull=True,
-        )
-        active_session_keys = list(
-            active_login_sessions.values_list("session_key", flat=True).distinct()
-        )
-        valid_session_keys = set(
-            Session.objects.filter(
-                session_key__in=active_session_keys,
-                expire_date__gt=now,
-            ).values_list("session_key", flat=True)
-        )
-        stale_session_keys = [
-            session_key
-            for session_key in active_session_keys
-            if session_key not in valid_session_keys
-        ]
+        current_session_key = request.session.session_key
+        if (
+            current_session_key in expired_keys
+            and request.user.is_authenticated
+        ):
+            auth_logout(request)
 
-        expired_login_sessions = list(
-            UserLoginSession.objects
-            .filter(
+        response = self.get_response(request)
+
+        if request.user.is_authenticated and request.session.session_key:
+            UserLoginSession.objects.filter(
+                user_id=request.user.pk,
+                session_key=request.session.session_key,
                 logout_at__isnull=True,
-            )
+            ).update(last_activity_at=timezone.now())
+
+        return response
+
+
+class RequireNoticeAcknowledgementMiddleware:
+    """Keep authenticated users on the notice page until required notices are agreed."""
+
+    allowed_prefixes = (
+        "/admin/",
+        "/static/",
+        "/media/",
+        "/healthz",
+        "/logout/",
+    )
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        if not request.user.is_authenticated:
+            return self.get_response(request)
+
+        notice_url = reverse("common:important_notice")
+        if request.path == notice_url or request.path.startswith(self.allowed_prefixes):
+            return self.get_response(request)
+
+        now = timezone.now()
+        has_pending_notice = (
+            ImportantNotice.objects
             .filter(
-                Q(login_at__lt=cutoff)
-                | Q(session_key__in=stale_session_keys)
+                is_active=True,
+                requires_acknowledgement=True,
+                published_at__lte=now,
             )
-            .select_related("user")
+            .filter(Q(expires_at__isnull=True) | Q(expires_at__gt=now))
+            .exclude(acknowledgements__user=request.user)
+            .exists()
         )
-
-        expired_user_ids = {
-            session.user_id
-            for session in expired_login_sessions
-        }
-
-        for login_session in expired_login_sessions:
-            login_session.logout_at = now
-            login_session.end_reason = UserSessionEndReason.AUTO_TIMEOUT
-            login_session.save(update_fields=["logout_at", "end_reason"])
-
-        for user_id in expired_user_ids:
-            pause_active_work_sessions_for_user(user_id)
+        if has_pending_notice:
+            response = redirect(notice_url)
+            response["Location"] += "?" + urlencode({"next": request.get_full_path()})
+            return response
 
         return self.get_response(request)
 

@@ -1,15 +1,35 @@
 {% load user_groups %}
 
-<aside class="sidebar text-bg-dark offcanvas-lg offcanvas-start" tabindex="-1" id="sidebar" aria-labelledby="sidebarLabel" data-bs-theme="dark" style="background-color: #000 !important; color: #fff !important;">
-    <div class="offcanvas-header d-lg-none" style="background-color: #000 !important; color: #fff !important;">
-        <h5 class="offcanvas-title sidebar-title mb-0" id="sidebarLabel">OCEAN CLOUDS</h5>
+<aside class="sidebar text-bg-dark offcanvas-lg offcanvas-start" tabindex="-1" id="sidebar" aria-labelledby="sidebarLabel" data-bs-theme="dark">
+    <div class="offcanvas-header d-lg-none">
+        <div class="sidebar-brand" id="sidebarLabel">
+            <span class="sidebar-brand-mark" aria-hidden="true"><i class="bi bi-cloud-fill"></i></span>
+            <span>
+                <strong>Ocean Clouds</strong>
+                <small>Workspace</small>
+            </span>
+        </div>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" data-bs-target="#sidebar" aria-label="Close"></button>
     </div>
 
-    <div class="offcanvas-body d-block" style="background-color: #000 !important; color: #fff !important;">
-    <div class="sidebar-title d-none d-lg-block">
-        OCEAN CLOUDS
+    <div class="offcanvas-body">
+    <div class="sidebar-brand d-none d-lg-flex">
+        <span class="sidebar-brand-mark" aria-hidden="true"><i class="bi bi-cloud-fill"></i></span>
+        <span>
+            <strong>Ocean Clouds</strong>
+            <small>ERP workspace</small>
+        </span>
     </div>
+
+    {% if request.user.is_authenticated %}
+        <label class="sidebar-search" for="sidebarSearch">
+            <i class="bi bi-search" aria-hidden="true"></i>
+            <input id="sidebarSearch" type="search" placeholder="Find a page..." autocomplete="off" aria-label="Search navigation">
+            <kbd>/</kbd>
+        </label>
+    {% endif %}
+
+    <div class="sidebar-navigation" id="sidebarNavigation">
 
     {% if request.user.is_authenticated %}
         {% if request.user.is_superuser or request.user|has_group:"Admin" %}
@@ -17,6 +37,7 @@
             <nav class="nav flex-column mb-3">
                 <a class="nav-link" href="{% url 'ui:home' %}">Dashboard</a>
                 <a class="nav-link" href="{% url 'reports:dashboard' %}">Reports</a>
+                <a class="nav-link" href="{% url 'reports:attendance' %}">Attendance &amp; Leave</a>
                 <a class="nav-link" href="{% url 'todos:todo_list' %}">To Do</a>
             </nav>
 
@@ -117,6 +138,7 @@
             <nav class="nav flex-column mb-3">
                 <a class="nav-link" href="{% url 'ui:home' %}">Dashboard</a>
                 <a class="nav-link" href="{% url 'reports:dashboard' %}">Reports</a>
+                <a class="nav-link" href="{% url 'reports:attendance' %}">Attendance &amp; Leave</a>
                 <a class="nav-link" href="{% url 'todos:todo_list' %}">To Do</a>
             </nav>
 
@@ -151,7 +173,7 @@
             <p class="sidebar-section-title">My Day</p>
             <nav class="nav flex-column mb-3">
                 <a class="nav-link" href="{% url 'ui:home' %}">Dashboard</a>
-                <a class="nav-link" href="{% url 'reports:dashboard' %}">Reports</a>
+                <a class="nav-link" href="{% url 'reports:attendance' %}">My Attendance &amp; Leave</a>
                 <a class="nav-link" href="{% url 'todos:todo_list' %}">To Do</a>
             </nav>
 
@@ -184,11 +206,64 @@
             <a class="nav-link" href="{% url 'ui:login' %}">Login</a>
         </nav>
     {% endif %}
+    </div>
 
-    <hr class="border-secondary opacity-25 mt-3 mb-2">
-
-    <div class="small text-white-50 text-center">
-        Version {{ APP_VERSION|default:"dev" }}
+    <div class="sidebar-footer">
+        <div class="sidebar-version">Ocean Clouds &middot; {{ APP_VERSION|default:"dev" }}</div>
     </div>
     </div>
 </aside>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const sidebar = document.getElementById("sidebar");
+    if (!sidebar) return;
+
+    const navigation = document.getElementById("sidebarNavigation");
+    const links = Array.from(navigation.querySelectorAll("a.nav-link[href]"));
+    const normalizePath = (path) => path.replace(/\/+$/, "") || "/";
+    const currentPath = normalizePath(window.location.pathname);
+
+    links.forEach((link) => {
+        if (link.getAttribute("href") === "#") return;
+        const linkPath = normalizePath(new URL(link.href, window.location.origin).pathname);
+        if (linkPath === currentPath) {
+            link.classList.add("active");
+            link.setAttribute("aria-current", "page");
+        }
+    });
+
+    const search = document.getElementById("sidebarSearch");
+    const filterNavigation = () => {
+        const query = search.value.trim().toLowerCase();
+        navigation.querySelectorAll("nav").forEach((group) => {
+            const groupLinks = Array.from(group.querySelectorAll("a.nav-link"));
+            groupLinks.forEach((link) => {
+                link.classList.toggle("d-none", Boolean(query) && !link.textContent.toLowerCase().includes(query));
+            });
+            const hasVisibleLink = groupLinks.some((link) => !link.classList.contains("d-none"));
+            group.classList.toggle("d-none", !hasVisibleLink);
+            const heading = group.previousElementSibling;
+            if (heading?.classList.contains("sidebar-section-title")) {
+                heading.classList.toggle("d-none", !hasVisibleLink);
+            }
+        });
+    };
+
+    if (search) {
+        search.addEventListener("input", filterNavigation);
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "/" && !event.ctrlKey && !event.metaKey && !event.altKey &&
+                !["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName)) {
+                event.preventDefault();
+                search.focus();
+            }
+            if (event.key === "Escape" && document.activeElement === search) {
+                search.value = "";
+                filterNavigation();
+                search.blur();
+            }
+        });
+    }
+});
+</script>

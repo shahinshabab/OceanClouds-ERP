@@ -71,7 +71,6 @@ REPORT_ACCESS_ROLES = [
     ROLE_ADMIN,
     ROLE_CRM_MANAGER,
     ROLE_PROJECT_MANAGER,
-    ROLE_EMPLOYEE,
 ]
 
 SALES_REPORT_ACCESS_ROLES = [
@@ -85,6 +84,11 @@ PROJECT_REPORT_ACCESS_ROLES = [
 ]
 
 EMPLOYEE_REPORT_ACCESS_ROLES = [
+    ROLE_ADMIN,
+    ROLE_PROJECT_MANAGER,
+]
+
+ATTENDANCE_ACCESS_ROLES = [
     ROLE_ADMIN,
     ROLE_PROJECT_MANAGER,
     ROLE_EMPLOYEE,
@@ -168,3 +172,7 @@ def can_access_project_report(user):
 
 def can_access_employee_report(user):
     return user_has_role(user, *EMPLOYEE_REPORT_ACCESS_ROLES)
+
+
+def can_access_attendance(user):
+    return user_has_role(user, *ATTENDANCE_ACCESS_ROLES)

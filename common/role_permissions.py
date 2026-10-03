@@ -46,6 +46,10 @@ ROLE_DEFINITIONS = {
             "sales": ["view"],
             "todos": ["add", "change", "delete", "view"],
         },
+        "permissions": [
+            ("common", "review_attendance"),
+            ("common", "review_leave_requests"),
+        ],
     },
     ROLE_EMPLOYEE: {
         "apps": {
@@ -54,6 +58,10 @@ ROLE_DEFINITIONS = {
             "projects": ["view"],
             "todos": ["add", "change", "view"],
         },
+        "permissions": [
+            ("common", "add_leaverequest"),
+            ("common", "view_leaverequest"),
+        ],
     },
 }
 
@@ -87,6 +95,14 @@ def _permissions_for_role(definition):
         permission_ids.update(
             _permissions_for_actions(app_label, actions)
             .values_list("id", flat=True)
+        )
+
+    for app_label, codename in definition.get("permissions", []):
+        permission_ids.update(
+            Permission.objects.filter(
+                content_type__app_label=app_label,
+                codename=codename,
+            ).values_list("id", flat=True)
         )
 
     return Permission.objects.filter(id__in=permission_ids)

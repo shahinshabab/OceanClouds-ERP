@@ -173,7 +173,7 @@ def user_has_active_work(user):
     ).exists()
 
 
-def pause_active_work_sessions_for_user(user):
+def pause_active_work_sessions_for_user(user, paused_at=None):
     user_filter = {"user_id": user} if isinstance(user, int) else {"user": user}
     sessions = (
         WorkSession.objects
@@ -185,7 +185,7 @@ def pause_active_work_sessions_for_user(user):
     )
 
     for session in sessions:
-        session.pause()
+        session.pause(paused_at=paused_at)
 
         if session.task_id:
             session.task.status = TaskStatus.PAUSED

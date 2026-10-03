@@ -1,8 +1,12 @@
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 from django.db import connection, transaction
+from django.db.models import Q
 from django.test import Client
 from django.urls import reverse
+from django.utils import timezone
+
+from common.models import ImportantNotice, UserNoticeAcknowledgement
 
 
 class Command(BaseCommand):
@@ -26,6 +30,7 @@ class Command(BaseCommand):
         "reports:sales_report",
         "reports:project_report",
         "reports:employee_work_report",
+        "reports:attendance",
     ]
 
     def handle(self, *args, **options):
@@ -53,6 +58,21 @@ class Command(BaseCommand):
         failures = []
         with transaction.atomic():
             client.force_login(user)
+            now = timezone.now()
+            required_notices = (
+                ImportantNotice.objects
+                .filter(
+                    is_active=True,
+                    requires_acknowledgement=True,
+                    published_at__lte=now,
+                )
+                .filter(Q(expires_at__isnull=True) | Q(expires_at__gt=now))
+            )
+            for notice in required_notices:
+                UserNoticeAcknowledgement.objects.get_or_create(
+                    notice=notice,
+                    user=user,
+                )
             for url_name in self.workflow_urls:
                 response = client.get(reverse(url_name), secure=True)
                 if response.status_code != 200:

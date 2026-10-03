@@ -358,8 +358,17 @@ class Notification(models.Model):
 class UserSessionEndReason(models.TextChoices):
     LOGOUT = "logout", "Manual Logout"
     AUTO_TIMEOUT = "auto_timeout", "Auto Timeout"
+    SESSION_EXPIRED = "session_expired", "Fixed Session Expired"
+    SESSION_REPLACED = "session_replaced", "Replaced by New Login"
     SYSTEM = "system", "System"
     UNKNOWN = "unknown", "Unknown"
+
+
+class CheckoutReviewStatus(models.TextChoices):
+    NOT_REQUIRED = "not_required", "Not Required"
+    PENDING = "pending", "Missing Checkout"
+    APPROVED = "approved", "Approved"
+    REJECTED = "rejected", "Rejected"
 
 
 class UserLoginSession(models.Model):
@@ -379,6 +388,8 @@ class UserLoginSession(models.Model):
     session_key = models.CharField(max_length=100, db_index=True)
 
     login_at = models.DateTimeField(default=timezone.now, db_index=True)
+    last_activity_at = models.DateTimeField(default=timezone.now, db_index=True)
+    expires_at = models.DateTimeField(null=True, blank=True, db_index=True)
     logout_at = models.DateTimeField(null=True, blank=True, db_index=True)
 
     end_reason = models.CharField(
@@ -388,6 +399,24 @@ class UserLoginSession(models.Model):
         default="",
         db_index=True,
     )
+
+    checkout_review_status = models.CharField(
+        max_length=20,
+        choices=CheckoutReviewStatus.choices,
+        default=CheckoutReviewStatus.NOT_REQUIRED,
+        db_index=True,
+    )
+    requested_logout_at = models.DateTimeField(null=True, blank=True)
+    checkout_request_note = models.TextField(blank=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="attendance_checkout_reviews",
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    review_note = models.TextField(blank=True)
 
     ip_address = models.GenericIPAddressField(null=True, blank=True)
     user_agent = models.TextField(blank=True)
@@ -399,6 +428,16 @@ class UserLoginSession(models.Model):
             models.Index(fields=["user", "logout_at"]),
             models.Index(fields=["session_key"]),
             models.Index(fields=["logout_at", "end_reason"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user"],
+                condition=models.Q(logout_at__isnull=True),
+                name="one_active_login_session_per_user",
+            ),
+        ]
+        permissions = [
+            ("review_attendance", "Can review missing attendance checkouts"),
         ]
 
     def __str__(self):
@@ -424,3 +463,116 @@ class UserLoginSession(models.Model):
         self.logout_at = timezone.now()
         self.end_reason = reason
         self.save(update_fields=["logout_at", "end_reason"])
+
+    @property
+    def approved_logout_at(self):
+        if self.checkout_review_status == CheckoutReviewStatus.APPROVED:
+            return self.requested_logout_at
+        if self.checkout_review_status == CheckoutReviewStatus.NOT_REQUIRED:
+            return self.logout_at
+        return None
+
+
+class LeaveType(models.TextChoices):
+    ANNUAL = "annual", "Annual Leave"
+    SICK = "sick", "Sick Leave"
+    CASUAL = "casual", "Casual Leave"
+    UNPAID = "unpaid", "Unpaid Leave"
+    OTHER = "other", "Other"
+
+
+class LeaveStatus(models.TextChoices):
+    PENDING = "pending", "Pending"
+    APPROVED = "approved", "Approved"
+    REJECTED = "rejected", "Rejected"
+    CANCELLED = "cancelled", "Cancelled"
+
+
+class LeaveRequest(TimeStamped):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="leave_requests",
+    )
+    start_date = models.DateField(db_index=True)
+    end_date = models.DateField(db_index=True)
+    leave_type = models.CharField(max_length=20, choices=LeaveType.choices)
+    reason = models.TextField()
+    status = models.CharField(
+        max_length=20,
+        choices=LeaveStatus.choices,
+        default=LeaveStatus.PENDING,
+        db_index=True,
+    )
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reviewed_leave_requests",
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    review_note = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-start_date", "-created_at"]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(end_date__gte=models.F("start_date")),
+                name="leave_end_not_before_start",
+            ),
+        ]
+        permissions = [
+            ("review_leave_requests", "Can review employee leave requests"),
+        ]
+
+    @property
+    def day_count(self):
+        return (self.end_date - self.start_date).days + 1
+
+    def __str__(self):
+        return f"{self.user} - {self.start_date} to {self.end_date}"
+
+
+class ImportantNotice(TimeStamped):
+    key = models.SlugField(max_length=100, unique=True)
+    title = models.CharField(max_length=255)
+    body = models.TextField()
+    is_active = models.BooleanField(default=True, db_index=True)
+    requires_acknowledgement = models.BooleanField(default=True)
+    published_at = models.DateTimeField(default=timezone.now, db_index=True)
+    expires_at = models.DateTimeField(null=True, blank=True, db_index=True)
+
+    class Meta:
+        ordering = ["published_at", "pk"]
+
+    def __str__(self):
+        return self.title
+
+
+class UserNoticeAcknowledgement(models.Model):
+    notice = models.ForeignKey(
+        ImportantNotice,
+        on_delete=models.CASCADE,
+        related_name="acknowledgements",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="notice_acknowledgements",
+    )
+    agreed_at = models.DateTimeField(default=timezone.now, db_index=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-agreed_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["notice", "user"],
+                name="one_notice_agreement_per_user",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.user} agreed to {self.notice}"

@@ -83,7 +83,7 @@
         <div class="card-body">
           <div class="text-muted small">Attendance Days</div>
           <div class="fs-4 fw-semibold">{{ summary.attendance_days }}</div>
-          <div class="text-muted small">Manual logout, {{ summary.attendance_required_hm }} minimum</div>
+          <div class="text-muted small">Used login time, {{ summary.attendance_required_hm }} minimum</div>
         </div>
       </div>
     </div>
@@ -182,11 +182,12 @@
 
       <div class="small text-muted mt-3">
         <span class="badge bg-success me-1">&nbsp;</span> Website used time
-        <span class="text-muted ms-3">Auto-timeout idle window ({{ login_chart.auto_logout_idle_hm }}) is not counted.</span>
+        <span class="text-muted ms-3">Missing checkouts count only after manager approval.</span>
       </div>
     </div>
   </div>
 
+  {% if show_detailed_data %}
   <!-- Login table for selected date range -->
   <div class="card shadow-sm border-0 mb-4">
     <div class="card-header bg-white d-flex justify-content-between align-items-center">
@@ -373,6 +374,7 @@
       </table>
     </div>
   </div>
+  {% endif %}
 
 </div>
 

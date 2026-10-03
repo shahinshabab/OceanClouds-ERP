@@ -1,0 +1,47 @@
+{% extends "ui/base.html" %}
+
+{% block title %}Important Notice{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="row justify-content-center">
+    <div class="col-lg-8 col-xl-7">
+      <div class="card border-warning shadow-sm">
+        <div class="card-header d-flex align-items-center gap-3">
+          <span class="rounded-circle bg-warning-subtle text-warning d-inline-flex align-items-center justify-content-center p-3">
+            <i class="bi bi-megaphone-fill fs-4"></i>
+          </span>
+          <div>
+            <div class="text-uppercase text-warning small fw-semibold">Important notice</div>
+            <h2 class="h4 mb-0">{{ notice.title }}</h2>
+          </div>
+        </div>
+        <div class="card-body p-4">
+          <div class="text-muted small mb-3">
+            Published {{ notice.published_at|date:"d M Y, h:i A" }}
+          </div>
+          <div class="fs-6 lh-lg mb-4">{{ notice.body|linebreaks }}</div>
+
+          <div class="alert alert-info d-flex gap-2 align-items-start">
+            <i class="bi bi-info-circle-fill mt-1"></i>
+            <div>
+              Your agreement will be recorded with the date and time. You must agree before continuing to the application.
+            </div>
+          </div>
+
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ next }}">
+            <button type="submit" class="btn btn-primary w-100">
+              <i class="bi bi-check2-circle me-1"></i> I have read and agree
+            </button>
+          </form>
+        </div>
+      </div>
+      <div class="text-center mt-3">
+        <a href="{% url 'ui:logout' %}" class="small text-muted">Logout instead</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

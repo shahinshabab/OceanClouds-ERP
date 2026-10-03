@@ -1,149 +1,397 @@
 {% extends "ui/base.html" %}
-{% load roles_tags %}
 
 {% block title %}My Profile{% endblock %}
 
+{% block extra_css %}
+<style>
+  .profile-shell {
+    max-width: 1120px;
+  }
+
+  .profile-heading {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .profile-eyebrow {
+    margin-bottom: 0.35rem;
+    color: #737373;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .profile-hero {
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 1.25rem;
+    padding: clamp(1.25rem, 3vw, 2rem);
+    color: #fff;
+    background: #050505;
+    border: 1px solid #050505;
+    border-radius: 18px;
+    box-shadow: 0 18px 45px rgba(0, 0, 0, 0.12);
+  }
+
+  .profile-hero::after {
+    content: "";
+    position: absolute;
+    right: -70px;
+    bottom: -110px;
+    width: 240px;
+    height: 240px;
+    border: 1px solid rgba(255, 255, 255, 0.11);
+    border-radius: 50%;
+    box-shadow: 0 0 0 38px rgba(255, 255, 255, 0.025), 0 0 0 76px rgba(255, 255, 255, 0.018);
+    pointer-events: none;
+  }
+
+  .profile-hero-content {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.25rem;
+  }
+
+  .profile-identity {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    min-width: 0;
+  }
+
+  .profile-avatar-large {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 72px;
+    height: 72px;
+    color: #050505;
+    background: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    border-radius: 20px;
+    font-size: 1.55rem;
+    font-weight: 750;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.2);
+  }
+
+  .profile-identity h2 {
+    overflow-wrap: anywhere;
+  }
+
+  .profile-email {
+    color: #bdbdbd;
+    overflow-wrap: anywhere;
+  }
+
+  .profile-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0.65rem;
+    padding: 0.3rem 0.6rem;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.09);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 650;
+  }
+
+  .profile-status::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    background: currentColor;
+    border-radius: 50%;
+  }
+
+  .profile-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.6rem;
+  }
+
+  .profile-actions .btn-light {
+    color: #050505;
+    background: #fff;
+    border-color: #fff;
+  }
+
+  .profile-actions .btn-outline-light {
+    border-color: rgba(255, 255, 255, 0.42);
+  }
+
+  .profile-card-title {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+  }
+
+  .profile-card-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    color: #050505;
+    background: #f5f5f5;
+    border: 1px solid #e5e5e5;
+    border-radius: 10px;
+  }
+
+  .profile-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0;
+    border: 1px solid #e5e5e5;
+    border-radius: 14px;
+    overflow: hidden;
+  }
+
+  .profile-detail-item {
+    min-width: 0;
+    padding: 1rem;
+    background: #fff;
+  }
+
+  .profile-detail-item:nth-child(odd) {
+    border-right: 1px solid #e5e5e5;
+  }
+
+  .profile-detail-item:nth-child(n + 3) {
+    border-top: 1px solid #e5e5e5;
+  }
+
+  .profile-detail-label {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 0.4rem;
+    color: #737373;
+    font-size: 0.74rem;
+    font-weight: 650;
+    text-transform: uppercase;
+    letter-spacing: 0.045em;
+  }
+
+  .profile-detail-value {
+    overflow-wrap: anywhere;
+    color: #171717;
+    font-weight: 650;
+  }
+
+  .profile-meta-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.85rem 0;
+    border-bottom: 1px solid #eeeeee;
+  }
+
+  .profile-meta-row:first-child {
+    padding-top: 0;
+  }
+
+  .profile-meta-row:last-child {
+    padding-bottom: 0;
+    border-bottom: 0;
+  }
+
+  .profile-role-badge {
+    padding: 0.32rem 0.58rem;
+    color: #171717;
+    background: #f5f5f5;
+    border: 1px solid #dedede;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 650;
+  }
+
+  @media (max-width: 767.98px) {
+    .profile-heading,
+    .profile-hero-content {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .profile-actions {
+      width: 100%;
+      justify-content: flex-start;
+    }
+
+    .profile-actions .btn {
+      flex: 1 1 auto;
+    }
+
+    .profile-detail-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .profile-detail-item:nth-child(odd) {
+      border-right: 0;
+    }
+
+    .profile-detail-item:nth-child(n + 2) {
+      border-top: 1px solid #e5e5e5;
+    }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-
-<div class="container py-4">
-  <div class="row justify-content-center">
-    <div class="col-xl-10">
-
-  <div class="card border-0 shadow-sm mb-4">
-    <div class="card-body">
-      <div class="row g-3 align-items-center">
-        <div class="col-md">
-          <div class="d-flex align-items-center gap-3">
-            <div class="rounded-circle bg-dark text-white d-inline-flex align-items-center justify-content-center p-3">
-              <span class="fs-4 fw-semibold">
-                {% if request.user.get_full_name %}
-                  {{ request.user.get_full_name|first|upper }}
-                {% else %}
-                  {{ request.user.username|first|upper }}
-                {% endif %}
-              </span>
-            </div>
-
-            <div>
-              <h1 class="h4 mb-1">
-                {{ request.user.get_full_name|default:request.user.username }}
-              </h1>
-              <div class="text-muted small">
-                {{ request.user.email|default:"No email added" }}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="col-md-auto">
-          <div class="d-flex gap-2">
-            <a href="{% url 'ui:profile_edit' %}" class="btn btn-sm btn-dark">
-              <i class="bi bi-pencil-square me-1"></i>
-              Edit
-            </a>
-
-            <a href="{% url 'ui:profile_password' %}" class="btn btn-sm btn-outline-secondary">
-              <i class="bi bi-key me-1"></i>
-              Change Password
-            </a>
-          </div>
-        </div>
-      </div>
+<div class="container-fluid py-4 profile-shell">
+  <div class="profile-heading">
+    <div>
+      <div class="profile-eyebrow">Account</div>
+      <h1 class="h3 mb-1">Profile overview</h1>
+      <p class="text-muted mb-0">Manage your personal details, access, and account security.</p>
     </div>
+    <a href="{% url 'ui:home' %}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>
+      Back to dashboard
+    </a>
   </div>
 
-  <div class="row g-3">
-
-    <div class="col-lg-8">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="card-header bg-white border-0 pt-3">
-          <h2 class="h5 mb-1">Account Information</h2>
-          <div class="text-muted small">Your personal login and profile details</div>
+  <section class="profile-hero" aria-labelledby="profileName">
+    <div class="profile-hero-content">
+      <div class="profile-identity">
+        <div class="profile-avatar-large" aria-hidden="true">
+          {% if request.user.get_full_name %}
+            {{ request.user.get_full_name|first|upper }}
+          {% else %}
+            {{ request.user.username|first|upper }}
+          {% endif %}
         </div>
-
-        <div class="card-body">
-          <div class="row g-3">
-
-            <div class="col-md-6">
-              <div class="border rounded-3 p-3 h-100">
-                <div class="small text-muted mb-1">Username</div>
-                <div class="fw-semibold">{{ request.user.username }}</div>
-              </div>
-            </div>
-
-            <div class="col-md-6">
-              <div class="border rounded-3 p-3 h-100">
-                <div class="small text-muted mb-1">Email</div>
-                <div class="fw-semibold">{{ request.user.email|default:"—" }}</div>
-              </div>
-            </div>
-
-            <div class="col-md-6">
-              <div class="border rounded-3 p-3 h-100">
-                <div class="small text-muted mb-1">First Name</div>
-                <div class="fw-semibold">{{ request.user.first_name|default:"—" }}</div>
-              </div>
-            </div>
-
-            <div class="col-md-6">
-              <div class="border rounded-3 p-3 h-100">
-                <div class="small text-muted mb-1">Last Name</div>
-                <div class="fw-semibold">{{ request.user.last_name|default:"—" }}</div>
-              </div>
-            </div>
-
-          </div>
+        <div class="min-w-0">
+          <div class="text-white-50 small mb-1">Signed in as @{{ request.user.username }}</div>
+          <h2 class="h3 mb-1" id="profileName">{{ request.user.get_full_name|default:request.user.username }}</h2>
+          <div class="profile-email">{{ request.user.email|default:"No email address added" }}</div>
+          <span class="profile-status">
+            {% if request.user.is_active %}Active account{% else %}Inactive account{% endif %}
+          </span>
         </div>
       </div>
+
+      <div class="profile-actions">
+        <a href="{% url 'ui:profile_edit' %}" class="btn btn-light">
+          <i class="bi bi-pencil-square me-1" aria-hidden="true"></i>
+          Edit profile
+        </a>
+        <a href="{% url 'ui:profile_password' %}" class="btn btn-outline-light">
+          <i class="bi bi-shield-lock me-1" aria-hidden="true"></i>
+          Change password
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <div class="row g-4">
+    <div class="col-lg-8">
+      <section class="card h-100">
+        <div class="card-header bg-white">
+          <div class="profile-card-title">
+            <span class="profile-card-icon"><i class="bi bi-person-vcard" aria-hidden="true"></i></span>
+            <div>
+              <h2 class="h5 mb-1">Personal information</h2>
+              <div class="text-muted small">Your account and contact details</div>
+            </div>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="profile-detail-grid">
+            <div class="profile-detail-item">
+              <div class="profile-detail-label"><i class="bi bi-at" aria-hidden="true"></i> Username</div>
+              <div class="profile-detail-value">{{ request.user.username }}</div>
+            </div>
+            <div class="profile-detail-item">
+              <div class="profile-detail-label"><i class="bi bi-envelope" aria-hidden="true"></i> Email</div>
+              <div class="profile-detail-value">{{ request.user.email|default:"Not provided" }}</div>
+            </div>
+            <div class="profile-detail-item">
+              <div class="profile-detail-label"><i class="bi bi-person" aria-hidden="true"></i> First name</div>
+              <div class="profile-detail-value">{{ request.user.first_name|default:"Not provided" }}</div>
+            </div>
+            <div class="profile-detail-item">
+              <div class="profile-detail-label"><i class="bi bi-person" aria-hidden="true"></i> Last name</div>
+              <div class="profile-detail-value">{{ request.user.last_name|default:"Not provided" }}</div>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
 
     <div class="col-lg-4">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="card-header bg-white border-0 pt-3">
-          <h2 class="h5 mb-1">Access</h2>
-          <div class="text-muted small">Role and account status</div>
+      <section class="card mb-4">
+        <div class="card-header bg-white">
+          <div class="profile-card-title">
+            <span class="profile-card-icon"><i class="bi bi-person-check" aria-hidden="true"></i></span>
+            <div>
+              <h2 class="h5 mb-1">Access</h2>
+              <div class="text-muted small">Role and membership details</div>
+            </div>
+          </div>
         </div>
-
         <div class="card-body">
-
           <div class="mb-3">
-            <div class="small text-muted mb-2">Role / Groups</div>
-
-            {% if request.user.groups.all %}
-              <div class="d-flex flex-wrap gap-2">
-                {% for g in request.user.groups.all %}
-                  <span class="badge text-bg-light border">
-                    {{ g.name }}
-                  </span>
-                {% endfor %}
-              </div>
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
-
-          <div class="border-top pt-3">
-            <div class="small text-muted mb-1">Joined</div>
-            <div class="fw-semibold">
-              {{ request.user.date_joined|date:"d M Y" }}
+            <div class="small text-muted mb-2">Assigned roles</div>
+            <div class="d-flex flex-wrap gap-2">
+              {% for group in request.user.groups.all %}
+                <span class="profile-role-badge">{{ group.name }}</span>
+              {% empty %}
+                {% if request.user.is_superuser %}
+                  <span class="profile-role-badge">Administrator</span>
+                {% else %}
+                  <span class="text-muted small">No role assigned</span>
+                {% endif %}
+              {% endfor %}
             </div>
           </div>
-
-          <div class="border-top pt-3 mt-3">
-            <div class="small text-muted mb-1">Last Login</div>
-            <div class="fw-semibold">
-              {{ request.user.last_login|date:"d M Y, h:i A"|default:"—" }}
-            </div>
+          <div class="profile-meta-row">
+            <span class="text-muted small">Member since</span>
+            <strong class="small">{{ request.user.date_joined|date:"d M Y" }}</strong>
           </div>
-
+          <div class="profile-meta-row">
+            <span class="text-muted small">Account status</span>
+            <strong class="small">{% if request.user.is_active %}Active{% else %}Inactive{% endif %}</strong>
+          </div>
         </div>
-      </div>
-    </div>
+      </section>
 
-  </div>
-
+      <section class="card">
+        <div class="card-header bg-white">
+          <div class="profile-card-title">
+            <span class="profile-card-icon"><i class="bi bi-shield-check" aria-hidden="true"></i></span>
+            <div>
+              <h2 class="h5 mb-1">Security</h2>
+              <div class="text-muted small">Password and login activity</div>
+            </div>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="mb-3">
+            <div class="small text-muted mb-1">Last successful login</div>
+            <div class="fw-semibold">
+              {{ request.user.last_login|date:"d M Y, h:i A"|default:"No previous login recorded" }}
+            </div>
+          </div>
+          <p class="text-muted small">Use a unique password and keep your account credentials private.</p>
+          <a href="{% url 'ui:profile_password' %}" class="btn btn-outline-dark w-100">
+            <i class="bi bi-key me-1" aria-hidden="true"></i>
+            Update password
+          </a>
+        </div>
+      </section>
     </div>
   </div>
 </div>
-
 {% endblock %}

@@ -3,7 +3,7 @@
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.db.models import Q, Sum
+from django.db.models import Q
 from django.urls import reverse
 from django.utils import timezone
 
@@ -275,9 +275,10 @@ class Project(TimeStamped, Owned):
 
     @property
     def total_work_seconds(self):
-        return self.work_sessions.aggregate(
-            total=Sum("work_seconds")
-        )["total"] or 0
+        return sum(
+            max(int(session.live_work_seconds or 0), 0)
+            for session in self.work_sessions.all()
+        )
 
     @property
     def total_work_hours(self):
@@ -476,9 +477,10 @@ class Task(TimeStamped, Owned):
 
     @property
     def total_work_seconds(self):
-        return self.work_sessions.aggregate(
-            total=Sum("work_seconds")
-        )["total"] or 0
+        return sum(
+            max(int(session.live_work_seconds or 0), 0)
+            for session in self.work_sessions.all()
+        )
 
     @property
     def total_work_hours(self):
@@ -648,9 +650,10 @@ class Deliverable(TimeStamped, Owned):
 
     @property
     def total_work_seconds(self):
-        return self.work_sessions.aggregate(
-            total=Sum("work_seconds")
-        )["total"] or 0
+        return sum(
+            max(int(session.live_work_seconds or 0), 0)
+            for session in self.work_sessions.all()
+        )
 
     @property
     def total_work_hours(self):
@@ -812,19 +815,23 @@ class WorkSession(TimeStamped, Owned):
         self.full_clean()
         return super().save(*args, **kwargs)
 
-    def _add_active_duration(self):
+    def _add_active_duration(self, stopped_at=None):
         if self.status == WorkSessionStatus.ACTIVE and self.last_resumed_at:
-            delta = timezone.now() - self.last_resumed_at
+            stopped_at = stopped_at or timezone.now()
+            delta = stopped_at - self.last_resumed_at
             self.work_seconds += max(int(delta.total_seconds()), 0)
 
-    def pause(self):
+    def pause(self, paused_at=None):
         if self.status != WorkSessionStatus.ACTIVE:
             return
 
-        now = timezone.now()
-        self._add_active_duration()
+        paused_at = paused_at or timezone.now()
+        if self.last_resumed_at and paused_at < self.last_resumed_at:
+            paused_at = self.last_resumed_at
+
+        self._add_active_duration(stopped_at=paused_at)
         self.status = WorkSessionStatus.PAUSED
-        self.paused_at = now
+        self.paused_at = paused_at
         self.last_resumed_at = None
         self.save(update_fields=["work_seconds", "status", "paused_at", "last_resumed_at"])
 

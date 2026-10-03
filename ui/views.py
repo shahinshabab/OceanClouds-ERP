@@ -1,4 +1,5 @@
 from django.contrib import messages
+from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -558,6 +559,7 @@ def login_view(request):
 
         if user is not None:
             login(request, user)
+            request.session.set_expiry(settings.LOGIN_SESSION_MAX_SECONDS)
             messages.success(request, "Welcome back!", extra_tags="scope:auth")
             return redirect("ui:home")
 

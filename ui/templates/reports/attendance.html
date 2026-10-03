@@ -1,0 +1,288 @@
+{% extends "ui/base.html" %}
+
+{% block title %}Attendance & Leave{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+  <div class="d-flex justify-content-between align-items-start mb-4">
+    <a href="{% url 'reports:dashboard' %}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left"></i> Back to Reports
+    </a>
+    <div class="text-end">
+      <h2 class="fw-semibold mb-1">Attendance &amp; Leave</h2>
+      <div class="text-muted small">Login sessions, missing checkouts, approvals, and leave requests</div>
+    </div>
+  </div>
+
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  <form method="get" class="card mb-4">
+    <div class="card-body">
+      <div class="row g-2 align-items-end">
+        <div class="col-md-4">
+          <label class="form-label">Employee</label>
+          <select name="user" class="form-select form-select-sm">
+            <option value="">All visible employees</option>
+            {% for person in employees %}
+              <option value="{{ person.id }}" {% if selected_user_id == person.id %}selected{% endif %}>
+                {{ person.get_full_name|default:person.username }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">From</label>
+          <input type="date" name="date_from" value="{{ date_from|date:'Y-m-d' }}" class="form-control form-control-sm">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">To</label>
+          <input type="date" name="date_to" value="{{ date_to|date:'Y-m-d' }}" class="form-control form-control-sm">
+        </div>
+        <div class="col-md-2 d-grid">
+          <button class="btn btn-primary btn-sm" type="submit">Apply filters</button>
+        </div>
+      </div>
+    </div>
+  </form>
+
+  <div class="row g-3 mb-4">
+    <div class="col-sm-6 col-xl-3">
+      <div class="card h-100"><div class="card-body">
+        <div class="text-muted small">Present Days</div>
+        <div class="fs-3 fw-semibold">{{ summary.attendance_days }}</div>
+        <div class="small text-muted">Minimum 8 approved hours</div>
+      </div></div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+      <div class="card h-100"><div class="card-body">
+        <div class="text-muted small">Missing Checkouts</div>
+        <div class="fs-3 fw-semibold text-warning">{{ summary.pending_checkouts }}</div>
+        <div class="small text-muted">Waiting for correction or review</div>
+      </div></div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+      <div class="card h-100"><div class="card-body">
+        <div class="text-muted small">Active Logins</div>
+        <div class="fs-3 fw-semibold text-success">{{ summary.active_sessions }}</div>
+        <div class="small text-muted">Fixed session maximum</div>
+      </div></div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+      <div class="card h-100"><div class="card-body">
+        <div class="text-muted small">Approved Leave Days</div>
+        <div class="fs-3 fw-semibold text-primary">{{ summary.approved_leave_days }}</div>
+        <div class="small text-muted">Within selected dates</div>
+      </div></div>
+    </div>
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <div>
+        <div class="fw-semibold">Attendance Sessions</div>
+        <div class="small text-muted">Expired sessions require the employee's correction before manager approval.</div>
+      </div>
+      <span class="badge text-bg-light">{{ date_from }} – {{ date_to }}</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Employee</th>
+            <th>Login</th>
+            <th>Checkout</th>
+            <th>Duration</th>
+            <th>Session result</th>
+            <th>Attendance review</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for session in session_rows %}
+            <tr>
+              <td>
+                <div class="fw-semibold">{{ session.user.get_full_name|default:session.user.username }}</div>
+                <div class="small text-muted">{{ session.user.username }}</div>
+              </td>
+              <td>{{ session.login_at|date:"d M Y, h:i A" }}</td>
+              <td>
+                {% if session.display_logout_at %}{{ session.display_logout_at|date:"d M Y, h:i A" }}{% else %}<span class="text-success">Active</span>{% endif %}
+              </td>
+              <td>{{ session.display_duration_hm }}</td>
+              <td><span class="badge text-bg-light">{{ session.get_end_reason_display|default:"Active" }}</span></td>
+              <td>
+                {% if session.checkout_review_status == "approved" %}
+                  <span class="badge bg-success-subtle text-success">Approved</span>
+                {% elif session.checkout_review_status == "rejected" %}
+                  <span class="badge bg-danger-subtle text-danger">Rejected</span>
+                  {% if session.review_note %}<div class="small text-danger mt-1">Manager: {{ session.review_note }}</div>{% endif %}
+                  <div class="small text-muted mt-1">Update the correction and submit it again.</div>
+                {% elif session.checkout_review_status == "pending" %}
+                  <span class="badge bg-warning-subtle text-warning">Missing checkout</span>
+                  {% if session.requested_logout_at %}
+                    <div class="small mt-1">Requested: {{ session.requested_logout_at|date:"d M Y, h:i A" }}</div>
+                    {% if session.checkout_request_note %}
+                      <div class="small text-muted mt-1">Reason: {{ session.checkout_request_note }}</div>
+                    {% endif %}
+                  {% else %}
+                    <div class="small text-muted mt-1">Employee correction required</div>
+                  {% endif %}
+                {% else %}
+                  <span class="badge bg-secondary-subtle text-secondary">Not required</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% if session.awaiting_review %}
+              <tr class="table-info">
+                <td colspan="6">
+                  <div class="d-flex align-items-start gap-2">
+                    <i class="bi bi-hourglass-split text-primary"></i>
+                    <div>
+                      <div class="fw-semibold">Correction sent - waiting for manager review</div>
+                      <div class="small text-muted">The request form will return only if the manager rejects this correction.</div>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            {% endif %}
+            {% if session.can_submit_correction %}
+              <tr class="table-warning">
+                <td colspan="6">
+                  <form method="post" class="row g-2 align-items-end">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="submit_checkout">
+                    <input type="hidden" name="session_id" value="{{ session.id }}">
+                    <div class="col-md-3">
+                      <label class="form-label">Actual checkout time</label>
+                      <input type="datetime-local" name="requested_logout_at" class="form-control form-control-sm" required
+                             value="{% if session.requested_logout_at %}{{ session.requested_logout_at|date:'Y-m-d\TH:i' }}{% endif %}">
+                    </div>
+                    <div class="col-md-7">
+                      <label class="form-label">Why was checkout missed?</label>
+                      <input type="text" name="checkout_request_note" class="form-control form-control-sm" maxlength="1000" required value="{{ session.checkout_request_note }}">
+                    </div>
+                    <div class="col-md-2 d-grid">
+                      <button class="btn btn-warning btn-sm" type="submit">Submit correction</button>
+                    </div>
+                  </form>
+                </td>
+              </tr>
+            {% endif %}
+            {% if session.can_review %}
+              <tr class="table-info">
+                <td colspan="6">
+                  <div class="alert alert-light border mb-3">
+                    <div class="fw-semibold mb-1">Employee correction request</div>
+                    <div class="small"><strong>Requested checkout:</strong> {{ session.requested_logout_at|date:"d M Y, h:i A" }}</div>
+                    <div class="small"><strong>Employee reason:</strong> {{ session.checkout_request_note }}</div>
+                  </div>
+                  <form method="post" class="row g-2 align-items-end">
+                    {% csrf_token %}
+                    <input type="hidden" name="session_id" value="{{ session.id }}">
+                    <div class="col-md-8">
+                      <label class="form-label">Manager review note</label>
+                      <input type="text" name="review_note" class="form-control form-control-sm" maxlength="1000" placeholder="Optional for approval; recommended for rejection">
+                    </div>
+                    <div class="col-md-2 d-grid">
+                      <button name="action" value="approve_checkout" class="btn btn-success btn-sm" type="submit">Approve</button>
+                    </div>
+                    <div class="col-md-2 d-grid">
+                      <button name="action" value="reject_checkout" class="btn btn-outline-danger btn-sm" type="submit">Reject</button>
+                    </div>
+                  </form>
+                </td>
+              </tr>
+            {% endif %}
+          {% empty %}
+            <tr><td colspan="6" class="text-center text-muted py-4">No attendance sessions in this date range.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-lg-4">
+      <div class="card h-100">
+        <div class="card-header">
+          <div class="fw-semibold">Request Leave</div>
+          <div class="small text-muted">Submit your own leave request.</div>
+        </div>
+        <div class="card-body">
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="submit_leave">
+            {% for field in leave_form %}
+              <div class="mb-3">
+                <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+              </div>
+            {% endfor %}
+            <button class="btn btn-primary w-100" type="submit">Submit leave request</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-8">
+      <div class="card h-100">
+        <div class="card-header">
+          <div class="fw-semibold">Leave Requests</div>
+          <div class="small text-muted">Requests overlapping the selected date range.</div>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead class="table-light">
+              <tr><th>Employee</th><th>Dates</th><th>Type</th><th>Reason</th><th>Status / Action</th></tr>
+            </thead>
+            <tbody>
+              {% for leave in leave_rows %}
+                <tr>
+                  <td>{{ leave.user.get_full_name|default:leave.user.username }}</td>
+                  <td>{{ leave.start_date }} – {{ leave.end_date }}<div class="small text-muted">{{ leave.day_count }} day{{ leave.day_count|pluralize }}</div></td>
+                  <td>{{ leave.get_leave_type_display }}</td>
+                  <td>{{ leave.reason }}</td>
+                  <td>
+                    {% if leave.status == "approved" %}<span class="badge bg-success-subtle text-success">Approved</span>
+                    {% elif leave.status == "rejected" %}<span class="badge bg-danger-subtle text-danger">Rejected</span>
+                    {% elif leave.status == "cancelled" %}<span class="badge bg-secondary-subtle text-secondary">Cancelled</span>
+                    {% else %}<span class="badge bg-warning-subtle text-warning">Pending</span>{% endif %}
+
+                    {% if leave.can_review %}
+                      <form method="post" class="mt-2">
+                        {% csrf_token %}
+                        <input type="hidden" name="leave_id" value="{{ leave.id }}">
+                        <input type="text" name="review_note" class="form-control form-control-sm mb-2" maxlength="1000" placeholder="Review note">
+                        <div class="d-flex gap-2">
+                          <button name="action" value="approve_leave" class="btn btn-success btn-sm" type="submit">Approve</button>
+                          <button name="action" value="reject_leave" class="btn btn-outline-danger btn-sm" type="submit">Reject</button>
+                        </div>
+                      </form>
+                    {% elif leave.can_cancel %}
+                      <form method="post" class="mt-2">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="cancel_leave">
+                        <input type="hidden" name="leave_id" value="{{ leave.id }}">
+                        <button class="btn btn-outline-secondary btn-sm" type="submit">Cancel request</button>
+                      </form>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="5" class="text-center text-muted py-4">No leave requests in this date range.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

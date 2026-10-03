@@ -1,8 +1,10 @@
 # reports/views.py
 
+from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.db.models import Count, Q, Sum
-from django.http import Http404, HttpResponse
+from django.http import Http404, HttpResponse, HttpResponseForbidden
+from django.shortcuts import get_object_or_404, redirect
 from django.template.loader import render_to_string
 from django.utils import timezone
 from django.views.generic import TemplateView
@@ -12,8 +14,14 @@ from common.mixins import (
     SalesReportAccessMixin,
     ProjectReportAccessMixin,
     EmployeeReportAccessMixin,
+    AttendanceAccessMixin,
 )
-from common.models import UserLoginSession
+from common.models import (
+    CheckoutReviewStatus,
+    LeaveRequest,
+    LeaveStatus,
+    UserLoginSession,
+)
 from common.roles import (
     ROLE_ADMIN,
     ROLE_CRM_MANAGER,
@@ -57,9 +65,11 @@ from .utils import (
     _int,
     _money,
     _selected_user_id,
+    _sum_work_session_seconds,
     _user_display,
     _users_in_role,
 )
+from .forms import CheckoutCorrectionForm, LeaveRequestForm
 
 try:
     from weasyprint import HTML
@@ -152,9 +162,247 @@ class ReportDashboardView(ReportAccessMixin, TemplateView):
             user,
             ROLE_ADMIN,
             ROLE_PROJECT_MANAGER,
-            ROLE_EMPLOYEE,
         )
 
+        context["can_view_attendance"] = user_has_role(
+            user,
+            ROLE_ADMIN,
+            ROLE_PROJECT_MANAGER,
+        )
+
+        return context
+
+
+class AttendanceDashboardView(AttendanceAccessMixin, TemplateView):
+    template_name = "reports/attendance.html"
+
+    def visible_employees(self):
+        return _employee_options_for_user(self.request.user)
+
+    def visible_employee_ids(self):
+        return set(self.visible_employees().values_list("id", flat=True))
+
+    def can_review_user(self, employee_id):
+        return (
+            employee_id != self.request.user.id
+            and employee_id in self.visible_employee_ids()
+            and self.request.user.has_perm("common.review_attendance")
+        )
+
+    def post(self, request, *args, **kwargs):
+        action = request.POST.get("action", "")
+
+        if action == "submit_checkout":
+            login_session = get_object_or_404(
+                UserLoginSession,
+                pk=request.POST.get("session_id"),
+                user=request.user,
+                checkout_review_status__in=[
+                    CheckoutReviewStatus.PENDING,
+                    CheckoutReviewStatus.REJECTED,
+                ],
+            )
+            form = CheckoutCorrectionForm(request.POST, login_session=login_session)
+            if form.is_valid():
+                login_session.requested_logout_at = form.cleaned_data["requested_logout_at"]
+                login_session.checkout_request_note = form.cleaned_data["checkout_request_note"]
+                login_session.reviewed_by = None
+                login_session.reviewed_at = None
+                login_session.review_note = ""
+                login_session.checkout_review_status = CheckoutReviewStatus.PENDING
+                login_session.save(
+                    update_fields=[
+                        "requested_logout_at",
+                        "checkout_request_note",
+                        "reviewed_by",
+                        "reviewed_at",
+                        "review_note",
+                        "checkout_review_status",
+                    ]
+                )
+                messages.success(request, "Missing checkout submitted for approval.")
+            else:
+                messages.error(request, "Please provide a valid checkout time and reason.")
+
+        elif action in ["approve_checkout", "reject_checkout"]:
+            login_session = get_object_or_404(
+                UserLoginSession,
+                pk=request.POST.get("session_id"),
+                checkout_review_status=CheckoutReviewStatus.PENDING,
+                requested_logout_at__isnull=False,
+            )
+            if not self.can_review_user(login_session.user_id):
+                return HttpResponseForbidden("You cannot review this employee's attendance.")
+            review_note = request.POST.get("review_note", "").strip()
+            if action == "reject_checkout" and not review_note:
+                messages.error(request, "A rejection reason is required.")
+                return redirect("reports:attendance")
+            login_session.checkout_review_status = (
+                CheckoutReviewStatus.APPROVED
+                if action == "approve_checkout"
+                else CheckoutReviewStatus.REJECTED
+            )
+            login_session.reviewed_by = request.user
+            login_session.reviewed_at = timezone.now()
+            login_session.review_note = review_note
+            login_session.save(
+                update_fields=[
+                    "checkout_review_status",
+                    "reviewed_by",
+                    "reviewed_at",
+                    "review_note",
+                ]
+            )
+            messages.success(request, "Attendance correction reviewed.")
+
+        elif action == "submit_leave":
+            form = LeaveRequestForm(request.POST)
+            if form.is_valid():
+                leave_request = form.save(commit=False)
+                leave_request.user = request.user
+                leave_request.save()
+                messages.success(request, "Leave request submitted.")
+            else:
+                messages.error(request, "Please correct the leave request details.")
+
+        elif action in ["approve_leave", "reject_leave"]:
+            leave_request = get_object_or_404(
+                LeaveRequest,
+                pk=request.POST.get("leave_id"),
+                status=LeaveStatus.PENDING,
+            )
+            if not (
+                self.can_review_user(leave_request.user_id)
+                and request.user.has_perm("common.review_leave_requests")
+            ):
+                return HttpResponseForbidden("You cannot review this employee's leave.")
+            review_note = request.POST.get("review_note", "").strip()
+            if action == "reject_leave" and not review_note:
+                messages.error(request, "A rejection reason is required.")
+                return redirect("reports:attendance")
+            leave_request.status = (
+                LeaveStatus.APPROVED if action == "approve_leave" else LeaveStatus.REJECTED
+            )
+            leave_request.reviewed_by = request.user
+            leave_request.reviewed_at = timezone.now()
+            leave_request.review_note = review_note
+            leave_request.save(
+                update_fields=["status", "reviewed_by", "reviewed_at", "review_note"]
+            )
+            messages.success(request, "Leave request reviewed.")
+
+        elif action == "cancel_leave":
+            leave_request = get_object_or_404(
+                LeaveRequest,
+                pk=request.POST.get("leave_id"),
+                user=request.user,
+                status=LeaveStatus.PENDING,
+            )
+            leave_request.status = LeaveStatus.CANCELLED
+            leave_request.save(update_fields=["status"])
+            messages.success(request, "Leave request cancelled.")
+
+        return redirect("reports:attendance")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        date_from, date_to = _get_date_range(self.request)
+        employees = self.visible_employees()
+        visible_ids = set(employees.values_list("id", flat=True))
+        selected_id = _selected_user_id(self.request)
+        if selected_id not in visible_ids:
+            selected_id = None
+
+        sessions = UserLoginSession.objects.filter(
+            user_id__in=visible_ids,
+        ).filter(
+            Q(login_at__date__gte=date_from, login_at__date__lte=date_to)
+            | Q(checkout_review_status=CheckoutReviewStatus.PENDING)
+            | Q(logout_at__isnull=True)
+        ).select_related("user", "reviewed_by")
+        leaves = LeaveRequest.objects.filter(
+            user_id__in=visible_ids,
+        ).filter(
+            Q(start_date__lte=date_to, end_date__gte=date_from)
+            | Q(status=LeaveStatus.PENDING)
+        ).select_related("user", "reviewed_by")
+        if selected_id:
+            sessions = sessions.filter(user_id=selected_id)
+            leaves = leaves.filter(user_id=selected_id)
+
+        session_rows = []
+        for session in sessions.order_by("-login_at"):
+            display_end = session.approved_logout_at
+            if session.logout_at is None:
+                display_end = min(timezone.now(), session.expires_at or timezone.now())
+            seconds = max(
+                int((display_end - session.login_at).total_seconds()),
+                0,
+            ) if display_end else 0
+            session.display_logout_at = display_end
+            session.display_duration_hm = _format_seconds_hm(seconds)
+            session.can_submit_correction = (
+                session.user_id == self.request.user.id
+                and (
+                    (
+                        session.checkout_review_status == CheckoutReviewStatus.PENDING
+                        and session.requested_logout_at is None
+                    )
+                    or session.checkout_review_status == CheckoutReviewStatus.REJECTED
+                )
+            )
+            session.awaiting_review = (
+                session.user_id == self.request.user.id
+                and session.checkout_review_status == CheckoutReviewStatus.PENDING
+                and session.requested_logout_at is not None
+            )
+            session.can_review = (
+                self.can_review_user(session.user_id)
+                and session.checkout_review_status == CheckoutReviewStatus.PENDING
+                and session.requested_logout_at is not None
+            )
+            session_rows.append(session)
+
+        leave_rows = list(leaves.order_by("-start_date", "-created_at"))
+        for leave in leave_rows:
+            leave.can_review = (
+                self.can_review_user(leave.user_id)
+                and self.request.user.has_perm("common.review_leave_requests")
+                and leave.status == LeaveStatus.PENDING
+            )
+            leave.can_cancel = (
+                leave.user_id == self.request.user.id
+                and leave.status == LeaveStatus.PENDING
+            )
+
+        summary_user_ids = {selected_id} if selected_id else visible_ids
+        attendance_summary = _build_attendance_summary(
+            UserLoginSession.objects.filter(user_id__in=summary_user_ids),
+            date_from,
+            date_to,
+        )
+        context.update({
+            "date_from": date_from,
+            "date_to": date_to,
+            "employees": employees,
+            "selected_user_id": selected_id,
+            "session_rows": session_rows,
+            "leave_rows": leave_rows,
+            "leave_form": LeaveRequestForm(),
+            "can_review_attendance": self.request.user.has_perm("common.review_attendance"),
+            "summary": {
+                "attendance_days": attendance_summary["attendance_days"],
+                "pending_checkouts": sessions.filter(
+                    checkout_review_status=CheckoutReviewStatus.PENDING,
+                ).count(),
+                "active_sessions": sessions.filter(logout_at__isnull=True).count(),
+                "approved_leave_days": sum(
+                    (min(leave.end_date, date_to) - max(leave.start_date, date_from)).days + 1
+                    for leave in leave_rows
+                    if leave.status == LeaveStatus.APPROVED
+                ),
+            },
+        })
         return context
 
 
@@ -188,6 +436,7 @@ class SalesReportView(SalesReportAccessMixin, ReportPDFMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
+        current_user = self.request.user
         date_from, date_to = _get_date_range(self.request)
         selected_user = self.get_selected_crm_user()
 
@@ -346,6 +595,7 @@ class SalesReportView(SalesReportAccessMixin, ReportPDFMixin, TemplateView):
             "selected_user_name": _user_display(selected_user),
             "crm_managers": _users_in_role(ROLE_CRM_MANAGER),
             "pdf_download_url": self.get_pdf_url(),
+            "show_detailed_data": user_has_role(current_user, ROLE_ADMIN),
 
             "summary": {
                 "inquiry_count": inquiry_count,
@@ -390,11 +640,11 @@ class SalesReportView(SalesReportAccessMixin, ReportPDFMixin, TemplateView):
             "contract_status_counts": contract_status_counts,
             "invoice_status_counts": invoice_status_counts,
 
-            "recent_inquiries": inquiries_in_period.order_by("-created_at")[:10],
-            "recent_leads": leads_in_period.order_by("-created_at")[:10],
-            "recent_deals": deals_in_period.order_by("-created_at")[:10],
-            "recent_invoices": invoices_in_period.order_by("-created_at")[:10],
-            "recent_payments": payments_in_period.order_by("-created_at")[:10],
+            "recent_inquiries": inquiries_in_period.order_by("-created_at")[:10] if user_has_role(current_user, ROLE_ADMIN) else [],
+            "recent_leads": leads_in_period.order_by("-created_at")[:10] if user_has_role(current_user, ROLE_ADMIN) else [],
+            "recent_deals": deals_in_period.order_by("-created_at")[:10] if user_has_role(current_user, ROLE_ADMIN) else [],
+            "recent_invoices": invoices_in_period.order_by("-created_at")[:10] if user_has_role(current_user, ROLE_ADMIN) else [],
+            "recent_payments": payments_in_period.order_by("-created_at")[:10] if user_has_role(current_user, ROLE_ADMIN) else [],
         })
 
         return context
@@ -430,6 +680,7 @@ class ProjectReportView(ProjectReportAccessMixin, ReportPDFMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
+        current_user = self.request.user
         date_from, date_to = _get_date_range(self.request)
         selected_user = self.get_selected_project_manager()
         today = timezone.localdate()
@@ -482,9 +733,7 @@ class ProjectReportView(ProjectReportAccessMixin, ReportPDFMixin, TemplateView):
         deliverables_in_period = _base_date_filter(deliverables, "created_at", date_from, date_to)
         work_sessions_in_period = _base_date_filter(work_sessions, "started_at", date_from, date_to)
 
-        total_work_seconds = _int(
-            work_sessions_in_period.aggregate(total=Sum("work_seconds"))["total"]
-        )
+        total_work_seconds = _sum_work_session_seconds(work_sessions_in_period)
 
         total_work_hours = round(total_work_seconds / 3600, 2)
 
@@ -548,6 +797,7 @@ class ProjectReportView(ProjectReportAccessMixin, ReportPDFMixin, TemplateView):
             "selected_user_name": _user_display(selected_user),
             "project_managers": _users_in_role(ROLE_PROJECT_MANAGER),
             "pdf_download_url": self.get_pdf_url(),
+            "show_detailed_data": user_has_role(current_user, ROLE_ADMIN),
 
             "summary": {
                 "project_count": project_count,
@@ -585,12 +835,12 @@ class ProjectReportView(ProjectReportAccessMixin, ReportPDFMixin, TemplateView):
             "task_department_counts": task_department_counts,
             "deliverable_department_counts": deliverable_department_counts,
 
-            "recent_projects": projects_in_period.order_by("-created_at")[:10],
-            "overdue_projects": overdue_projects.order_by("due_date")[:10],
-            "recent_tasks": tasks_in_period.order_by("-created_at")[:10],
-            "overdue_tasks": overdue_tasks.order_by("due_date")[:10],
-            "recent_deliverables": deliverables_in_period.order_by("-created_at")[:10],
-            "overdue_deliverables": overdue_deliverables.order_by("due_date")[:10],
+            "recent_projects": projects_in_period.order_by("-created_at")[:10] if user_has_role(current_user, ROLE_ADMIN) else [],
+            "overdue_projects": overdue_projects.order_by("due_date")[:10] if user_has_role(current_user, ROLE_ADMIN) else [],
+            "recent_tasks": tasks_in_period.order_by("-created_at")[:10] if user_has_role(current_user, ROLE_ADMIN) else [],
+            "overdue_tasks": overdue_tasks.order_by("due_date")[:10] if user_has_role(current_user, ROLE_ADMIN) else [],
+            "recent_deliverables": deliverables_in_period.order_by("-created_at")[:10] if user_has_role(current_user, ROLE_ADMIN) else [],
+            "overdue_deliverables": overdue_deliverables.order_by("due_date")[:10] if user_has_role(current_user, ROLE_ADMIN) else [],
         })
 
         return context
@@ -696,17 +946,9 @@ class EmployeeWorkReportView(EmployeeReportAccessMixin, ReportPDFMixin, Template
         task_work_sessions = work_sessions_in_period.filter(task__isnull=False)
         deliverable_work_sessions = work_sessions_in_period.filter(deliverable__isnull=False)
 
-        total_work_seconds = _int(
-            work_sessions_in_period.aggregate(total=Sum("work_seconds"))["total"]
-        )
-
-        task_work_seconds = _int(
-            task_work_sessions.aggregate(total=Sum("work_seconds"))["total"]
-        )
-
-        deliverable_work_seconds = _int(
-            deliverable_work_sessions.aggregate(total=Sum("work_seconds"))["total"]
-        )
+        total_work_seconds = _sum_work_session_seconds(work_sessions_in_period)
+        task_work_seconds = _sum_work_session_seconds(task_work_sessions)
+        deliverable_work_seconds = _sum_work_session_seconds(deliverable_work_sessions)
 
         active_sessions = work_sessions.filter(status=WorkSessionStatus.ACTIVE)
         paused_sessions = work_sessions.filter(status=WorkSessionStatus.PAUSED)
@@ -741,23 +983,29 @@ class EmployeeWorkReportView(EmployeeReportAccessMixin, ReportPDFMixin, Template
             count=Count("id")
         ).order_by("status")
 
-        work_by_employee = (
-            work_sessions_in_period
-            .values(
-                "user_id",
-                "user__username",
-                "user__first_name",
-                "user__last_name",
+        work_by_employee_map = {}
+        for session in work_sessions_in_period.select_related("user"):
+            row = work_by_employee_map.setdefault(
+                session.user_id,
+                {
+                    "user_id": session.user_id,
+                    "user__username": session.user.username,
+                    "user__first_name": session.user.first_name,
+                    "user__last_name": session.user.last_name,
+                    "session_count": 0,
+                    "total_seconds": 0,
+                },
             )
-            .annotate(
-                session_count=Count("id"),
-                total_seconds=Sum("work_seconds"),
-            )
-            .order_by("-total_seconds")
-        )
+            row["session_count"] += 1
+            row["total_seconds"] += max(int(session.live_work_seconds or 0), 0)
 
+        work_by_employee = sorted(
+            work_by_employee_map.values(),
+            key=lambda row: row["total_seconds"],
+            reverse=True,
+        )
         for row in work_by_employee:
-            seconds = row["total_seconds"] or 0
+            seconds = row["total_seconds"]
             row["total_hours"] = round(seconds / 3600, 2)
             row["total_hm"] = _format_seconds_hm(seconds)
 
@@ -780,6 +1028,11 @@ class EmployeeWorkReportView(EmployeeReportAccessMixin, ReportPDFMixin, Template
         )
 
         recent_work_sessions = list(work_sessions_in_period.order_by("-started_at")[:20])
+        show_detailed_data = user_has_role(current_user, ROLE_ADMIN)
+        if not show_detailed_data:
+            login_table["rows"] = []
+            recent_work_sessions = []
+            work_by_employee = []
 
         context.update({
             "report_title": "Employee Work Report",
@@ -789,6 +1042,7 @@ class EmployeeWorkReportView(EmployeeReportAccessMixin, ReportPDFMixin, Template
             "selected_user_name": _user_display(selected_user),
             "employees": _employee_options_for_user(current_user),
             "pdf_download_url": self.get_pdf_url(),
+            "show_detailed_data": show_detailed_data,
 
             "login_chart": login_chart,
             "login_table": login_table,

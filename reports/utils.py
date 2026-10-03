@@ -1,6 +1,6 @@
 import json
 from collections import defaultdict
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 from decimal import Decimal
 
 from django.conf import settings
@@ -9,9 +9,9 @@ from django.db.models import Q
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 
-from common.models import UserSessionEndReason
+from common.models import CheckoutReviewStatus, UserSessionEndReason
 from common.roles import ROLE_ADMIN, ROLE_EMPLOYEE, ROLE_PROJECT_MANAGER, user_has_role
-from projects.models import WorkSession
+from projects.models import Deliverable, Task, WorkSession
 
 
 User = get_user_model()
@@ -94,12 +94,20 @@ def _employee_options_for_user(user):
         return _all_employee_users()
 
     if user_has_role(user, ROLE_PROJECT_MANAGER):
-        employee_ids = (
+        work_session_ids = (
             WorkSession.objects
             .filter(project__manager=user)
             .values_list("user_id", flat=True)
-            .distinct()
         )
+        task_employee_ids = Task.objects.filter(
+            project__manager=user,
+            assigned_to__isnull=False,
+        ).values_list("assigned_to_id", flat=True)
+        deliverable_employee_ids = Deliverable.objects.filter(
+            project__manager=user,
+            assigned_to__isnull=False,
+        ).values_list("assigned_to_id", flat=True)
+        employee_ids = set(work_session_ids) | set(task_employee_ids) | set(deliverable_employee_ids)
 
         return (
             User.objects
@@ -216,49 +224,111 @@ def _format_seconds_hm(seconds):
     return f"{hours}h {minutes}m"
 
 
-def _auto_logout_idle_seconds():
-    return int(getattr(settings, "AUTO_LOGOUT_IDLE_SECONDS", 3 * 60 * 60) or 0)
+def _sum_work_session_seconds(work_sessions):
+    """Include stored time and the live portion of active work sessions."""
+    return sum(
+        max(int(session.live_work_seconds or 0), 0)
+        for session in work_sessions
+    )
+
+
+def _legacy_auto_logout_idle_seconds():
+    """Historical three-hour idle window used by pre-upgrade records only."""
+    return int(getattr(settings, "LEGACY_AUTO_LOGOUT_IDLE_SECONDS", 3 * 60 * 60) or 0)
+
+
+def _effective_attendance_logout(session):
+    if session.end_reason in [
+        UserSessionEndReason.SESSION_EXPIRED,
+        UserSessionEndReason.SESSION_REPLACED,
+    ]:
+        if session.checkout_review_status == CheckoutReviewStatus.APPROVED:
+            return session.requested_logout_at
+        return None
+    return session.logout_at
 
 
 def _login_session_seconds(session, local_login, local_logout):
+    effective_logout = _effective_attendance_logout(session)
+    if effective_logout is None:
+        return 0, 0
+    local_logout = timezone.localtime(effective_logout)
     total_seconds = max(int((local_logout - local_login).total_seconds()), 0)
 
     if session.end_reason != UserSessionEndReason.AUTO_TIMEOUT:
         return total_seconds, 0
 
-    idle_seconds = min(total_seconds, _auto_logout_idle_seconds())
+    idle_seconds = min(total_seconds, _legacy_auto_logout_idle_seconds())
     return max(total_seconds - idle_seconds, 0), idle_seconds
 
 
 def _build_attendance_summary(login_sessions_qs, date_from, date_to):
     """
-    Count attendance from completed manual login sessions.
+    Count attendance from completed, user-valid login sessions.
 
-    A user earns attendance for a local login date only when their manually
-    logged-out sessions total at least 8 hours for that date.
+    Manual logout, auto-timeout, and replaced sessions all contain valid used
+    time. The auto-timeout idle window is excluded, and sessions crossing
+    midnight are split across their actual local calendar days.
     """
-    manual_sessions = (
+    completed_sessions = (
         login_sessions_qs
         .filter(
-            login_at__date__gte=date_from,
             login_at__date__lte=date_to,
+            logout_at__date__gte=date_from,
             logout_at__isnull=False,
-            end_reason=UserSessionEndReason.LOGOUT,
+            end_reason__in=[
+                UserSessionEndReason.LOGOUT,
+                UserSessionEndReason.AUTO_TIMEOUT,
+                UserSessionEndReason.SESSION_EXPIRED,
+                UserSessionEndReason.SESSION_REPLACED,
+            ],
         )
         .select_related("user")
         .order_by("login_at")
     )
 
     seconds_by_user_date = defaultdict(int)
+    current_tz = timezone.get_current_timezone()
+    range_start = timezone.make_aware(
+        datetime.combine(date_from, time.min),
+        current_tz,
+    )
+    range_end = timezone.make_aware(
+        datetime.combine(date_to + timedelta(days=1), time.min),
+        current_tz,
+    )
 
-    for session in manual_sessions:
+    for session in completed_sessions:
         local_login = timezone.localtime(session.login_at)
-        local_logout = timezone.localtime(session.logout_at)
-        attendance_key = (session.user_id, local_login.date())
-        seconds_by_user_date[attendance_key] += max(
-            int((local_logout - local_login).total_seconds()),
-            0,
-        )
+        effective_logout = _effective_attendance_logout(session)
+        if effective_logout is None:
+            continue
+        local_logout = timezone.localtime(effective_logout)
+
+        if session.end_reason == UserSessionEndReason.AUTO_TIMEOUT:
+            local_logout = max(
+                local_login,
+                local_logout - timedelta(seconds=_legacy_auto_logout_idle_seconds()),
+            )
+
+        segment_start = max(local_login, range_start)
+        segment_end = min(local_logout, range_end)
+
+        while segment_start < segment_end:
+            next_day = timezone.make_aware(
+                datetime.combine(
+                    segment_start.date() + timedelta(days=1),
+                    time.min,
+                ),
+                current_tz,
+            )
+            day_end = min(segment_end, next_day)
+            attendance_key = (session.user_id, segment_start.date())
+            seconds_by_user_date[attendance_key] += max(
+                int((day_end - segment_start).total_seconds()),
+                0,
+            )
+            segment_start = day_end
 
     attended_days = [
         {
@@ -303,6 +373,8 @@ def _build_login_week_chart(request, login_sessions_qs):
             end_reason__in=[
                 UserSessionEndReason.LOGOUT,
                 UserSessionEndReason.AUTO_TIMEOUT,
+                UserSessionEndReason.SESSION_EXPIRED,
+                UserSessionEndReason.SESSION_REPLACED,
             ],
         )
         .select_related("user")
@@ -323,7 +395,10 @@ def _build_login_week_chart(request, login_sessions_qs):
 
     for session in sessions:
         local_login = timezone.localtime(session.login_at)
-        local_logout = timezone.localtime(session.logout_at)
+        effective_logout = _effective_attendance_logout(session)
+        if effective_logout is None:
+            continue
+        local_logout = timezone.localtime(effective_logout)
 
         session_date = local_login.date()
 
@@ -391,7 +466,7 @@ def _build_login_week_chart(request, login_sessions_qs):
         "grand_total_hm": _format_seconds_hm(
             sum(row["manual_seconds"] + row["auto_seconds"] for row in day_map.values())
         ),
-        "auto_logout_idle_hm": _format_seconds_hm(_auto_logout_idle_seconds()),
+        "legacy_auto_logout_idle_hm": _format_seconds_hm(_legacy_auto_logout_idle_seconds()),
     }
 
 
@@ -440,7 +515,8 @@ def _build_login_month_table(login_sessions_qs, work_sessions_qs, date_from, dat
 
     for login in login_sessions:
         local_login = timezone.localtime(login.login_at)
-        local_logout = timezone.localtime(login.logout_at) if login.logout_at else None
+        effective_logout = _effective_attendance_logout(login)
+        local_logout = timezone.localtime(effective_logout) if effective_logout else None
 
         login_date = local_login.date()
 
@@ -450,8 +526,11 @@ def _build_login_month_table(login_sessions_qs, work_sessions_qs, date_from, dat
                 local_login,
                 local_logout,
             )
-        else:
+        elif login.logout_at is None:
             logged_seconds = max(int((timezone.now() - login.login_at).total_seconds()), 0)
+            idle_seconds = 0
+        else:
+            logged_seconds = 0
             idle_seconds = 0
 
         day_work_seconds = work_seconds_by_date.get(login_date, 0)
@@ -464,6 +543,7 @@ def _build_login_month_table(login_sessions_qs, work_sessions_qs, date_from, dat
             "logout_time": local_logout,
             "logout_type": login.get_end_reason_display() if login.end_reason else "Active",
             "logout_reason": login.end_reason or "active",
+            "checkout_review_status": login.checkout_review_status,
             "logged_seconds": logged_seconds,
             "logged_hours": _format_seconds_to_hours(logged_seconds),
             "logged_hm": _format_seconds_hm(logged_seconds),

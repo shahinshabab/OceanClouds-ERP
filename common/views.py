@@ -1,12 +1,18 @@
+from urllib.parse import urlencode
+
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Q
 from django.http import HttpResponseNotAllowed, JsonResponse
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
+from django.views import View
 from django.views.generic import ListView
 
-from .models import Notification
+from .models import ImportantNotice, Notification, UserNoticeAcknowledgement
+from .signals import get_client_ip
 
 
 class NotificationListView(LoginRequiredMixin, ListView):
@@ -83,3 +89,60 @@ def mark_notification_read(request, pk):
         or reverse("common:notification_list")
     )
     return redirect(next_url)
+
+
+class ImportantNoticeView(LoginRequiredMixin, View):
+    template_name = "common/important_notice.html"
+
+    def pending_notice(self):
+        now = timezone.now()
+        return (
+            ImportantNotice.objects
+            .filter(
+                is_active=True,
+                requires_acknowledgement=True,
+                published_at__lte=now,
+            )
+            .filter(Q(expires_at__isnull=True) | Q(expires_at__gt=now))
+            .exclude(acknowledgements__user=self.request.user)
+            .first()
+        )
+
+    def safe_next_url(self):
+        next_url = self.request.POST.get("next") or self.request.GET.get("next") or ""
+        if url_has_allowed_host_and_scheme(
+            next_url,
+            allowed_hosts={self.request.get_host()},
+            require_https=self.request.is_secure(),
+        ):
+            return next_url
+        return reverse("ui:home")
+
+    def get(self, request):
+        notice = self.pending_notice()
+        if notice is None:
+            return redirect(self.safe_next_url())
+        return render(
+            request,
+            self.template_name,
+            {"notice": notice, "next": self.safe_next_url()},
+        )
+
+    def post(self, request):
+        notice = self.pending_notice()
+        if notice is not None:
+            UserNoticeAcknowledgement.objects.get_or_create(
+                notice=notice,
+                user=request.user,
+                defaults={
+                    "ip_address": get_client_ip(request),
+                    "user_agent": request.META.get("HTTP_USER_AGENT", ""),
+                },
+            )
+
+        if self.pending_notice() is not None:
+            return redirect(
+                f"{reverse('common:important_notice')}?"
+                + urlencode({"next": self.safe_next_url()})
+            )
+        return redirect(self.safe_next_url())

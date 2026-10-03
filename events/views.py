@@ -45,7 +45,7 @@ class EventCommonDeleteMixin(EventManageMixin, DeleteView):
     events/confirm_delete.html
 
     Access:
-    Admin + Project Manager
+    Admin + CRM Manager + Project Manager
     """
 
     template_name = "events/confirm_delete.html"
@@ -87,8 +87,8 @@ class EventCommonDeleteMixin(EventManageMixin, DeleteView):
 
 class EventCalendarView(EventCalendarAccessMixin, TemplateView):
     """
-    Employees can access this page.
-    They only see upcoming events calendar.
+    Everyone can access this page.
+    Non-managers only see the calendar, not event details.
     """
 
     template_name = "events/event_calendar.html"
@@ -299,7 +299,7 @@ class EventListView(EventManageMixin, ListView):
             super()
             .get_queryset()
             .select_related("project", "client", "primary_contact", "venue")
-            .prefetch_related("services", "packages", "vendors", "inventory_items")
+            .prefetch_related("services", "packages", "vendors", "inventory_items", "projects")
         )
 
         q = (self.request.GET.get("q") or "").strip()
@@ -358,6 +358,7 @@ class EventDetailView(EventManageMixin, DetailView):
 
         checklist = self.object.checklist
 
+        context["linked_project"] = self.object.linked_project
         context["checklist"] = checklist
         context["checklist_items"] = (
             checklist.items
@@ -384,9 +385,6 @@ class EventCreateView(EventManageMixin, CreateView):
             if client:
                 initial["client"] = client.pk
                 initial["name"] = f"{client} - Wedding"
-                primary = client.primary_contact
-                if primary:
-                    initial["primary_contact"] = primary.pk
 
         return initial
 
@@ -403,10 +401,10 @@ class EventCreateView(EventManageMixin, CreateView):
 
         messages.success(
             self.request,
-            "Event created successfully. Checklist was generated automatically.",
+            "Event created. Assign vendors and inventory, or create the project, from the event page.",
         )
 
-        return redirect(self.get_success_url())
+        return redirect(self.object.get_absolute_url())
 
 
 class EventUpdateView(EventManageMixin, UpdateView):

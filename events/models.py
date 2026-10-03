@@ -201,6 +201,30 @@ class Event(TimeStamped, Owned):
         return reverse("events:event_detail", args=[self.pk])
 
     @property
+    def contact(self):
+        """
+        Contact person for this event, taken from the client.
+        Falls back to a contact stored on older events.
+        """
+        if self.client_id:
+            contact = self.client.primary_contact or self.client.contacts.first()
+            if contact:
+                return contact
+        return self.primary_contact
+
+    @property
+    def linked_project(self):
+        """
+        Project for this event, whichever side holds the link.
+        """
+        if self.project_id:
+            return self.project
+        projects = list(self.projects.all())
+        if not projects:
+            return None
+        return max(projects, key=lambda project: project.created_at)
+
+    @property
     def checklist(self):
         checklist, created = EventChecklist.objects.get_or_create(
             event=self,
@@ -226,9 +250,9 @@ class Event(TimeStamped, Owned):
     def build_messaging_context(self):
         return {
             "event": self,
-            "project": self.project,
+            "project": self.linked_project,
             "client": self.client,
-            "primary_contact": self.primary_contact,
+            "primary_contact": self.contact,
             "venue": self.venue,
             "services": self.services.all(),
             "packages": self.packages.all(),

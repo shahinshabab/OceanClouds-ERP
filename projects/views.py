@@ -27,6 +27,8 @@ from common.roles import (
     ROLE_PROJECT_MANAGER,
 )
 
+from events.models import Event
+
 from .forms import ProjectForm, TaskForm, DeliverableForm
 from .models import (
     Project,
@@ -273,8 +275,40 @@ class ProjectCreateView(ProjectAdminOnlyMixin, DetailMessageScopeMixin, CreateVi
         kwargs["user"] = self.request.user
         return kwargs
 
+    def get_source_event(self):
+        event_id = self.request.GET.get("event") or ""
+        if not event_id.isdigit():
+            return None
+        return (
+            Event.objects.select_related("client", "contract__deal")
+            .filter(pk=event_id)
+            .first()
+        )
+
+    def get_initial(self):
+        initial = super().get_initial()
+
+        # Event page -> Create Project.
+        event = self.get_source_event()
+        if event:
+            initial["event"] = event.pk
+            initial["name"] = event.name
+            initial["start_date"] = event.date
+            initial["due_date"] = event.date
+            if event.client_id:
+                initial["client"] = event.client_id
+            if event.contract_id and event.contract.deal_id:
+                initial["deal"] = event.contract.deal_id
+
+        return initial
+
     def form_valid(self, form):
         response = super().form_valid(form)
+
+        event = self.object.event
+        if event and not event.project_id:
+            event.project = self.object
+            event.save(update_fields=["project", "updated_at"])
 
         messages.success(
             self.request,

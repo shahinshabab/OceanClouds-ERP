@@ -19,6 +19,7 @@ from .roles import (
     PROJECT_REPORT_ACCESS_ROLES,
     EMPLOYEE_REPORT_ACCESS_ROLES,
     ATTENDANCE_ACCESS_ROLES,
+    can_access_event_calendar,
     user_has_role,
 )
 
@@ -144,6 +145,7 @@ class EventManageMixin(RolesRequiredMixin):
     """
     Event management pages:
     - Admin
+    - CRM Manager
     - Project Manager
     """
     allowed_roles = EVENT_MANAGE_ROLES
@@ -152,11 +154,12 @@ class EventManageMixin(RolesRequiredMixin):
 class EventCalendarAccessMixin(RolesRequiredMixin):
     """
     Event calendar access:
-    - Admin
-    - Project Manager
-    - Employee
+    - Everyone who is signed in
     """
     allowed_roles = EVENT_CALENDAR_ROLES
+
+    def test_func(self):
+        return can_access_event_calendar(self.request.user)
 
 
 class ReportAccessMixin(RolesRequiredMixin):

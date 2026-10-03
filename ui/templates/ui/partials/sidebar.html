@@ -126,6 +126,14 @@
                 <a class="nav-link" href="{% url 'sales:invoice_list' %}">Invoices</a>
             </nav>
 
+            <p class="sidebar-section-title">Events</p>
+            <nav class="nav flex-column mb-3">
+                <a class="nav-link" href="{% url 'events:event_list' %}">Events</a>
+                <a class="nav-link" href="{% url 'events:venue_list' %}">Venues</a>
+                <a class="nav-link" href="{% url 'events:checklist_list' %}">Checklists</a>
+                <a class="nav-link" href="{% url 'events:event_calendar' %}">Event Calendar</a>
+            </nav>
+
             <p class="sidebar-section-title">Communication</p>
             <nav class="nav flex-column mb-3">
                 <a class="nav-link" href="{% url 'messaging:ticket_list' %}">Raise a Ticket</a>

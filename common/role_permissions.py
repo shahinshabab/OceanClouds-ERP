@@ -32,6 +32,7 @@ ROLE_DEFINITIONS = {
         "apps": {
             "common": ["view"],
             "crm": ["add", "change", "delete", "view"],
+            "events": ["add", "change", "delete", "view"],
             "messaging": ["add", "change", "delete", "view"],
             "sales": ["add", "change", "delete", "view"],
             "todos": ["add", "change", "delete", "view"],

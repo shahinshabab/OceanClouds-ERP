@@ -1,5 +1,3 @@
-# events/views.py
-
 from datetime import date, timedelta
 
 from django.contrib import messages
@@ -24,7 +22,6 @@ from .models import (
     EventType,
     EventStatus,
     VenueType,
-    ChecklistCategory,
 )
 
 from .forms import (

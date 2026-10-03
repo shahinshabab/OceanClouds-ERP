@@ -107,7 +107,7 @@ LOCAL_APPS = [
     "sales.apps.SalesConfig",
     "adminpanel",
     "events",
-    "services",
+    "services.apps.ServicesConfig",
     "messaging.apps.MessagingConfig",
     "projects.apps.ProjectsConfig",
     "reports",
@@ -204,6 +204,11 @@ STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "ui" / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
+# Uploaded files live under media/ locally. Individual FileField/ImageField
+# upload_to values create their own subfolders inside this directory.
+MEDIA_ROOT = BASE_DIR / "media"
+MEDIA_URL = "/media/"
+
 # MEDIA: local by default, S3 in production if enabled
 if AWS_S3_ENABLED:
     DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
@@ -218,9 +223,6 @@ if AWS_S3_ENABLED:
     AWS_QUERYSTRING_AUTH = False
 
     MEDIA_URL = f"https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com/"
-else:
-    MEDIA_URL = "media/"
-    MEDIA_ROOT = BASE_DIR / "media"
 
 
 # ------------------------------------------------------------------------------

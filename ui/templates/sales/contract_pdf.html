@@ -1,0 +1,505 @@
+{% load static %}
+{% load proposal_pdf_filters %}
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Payment Plan {{ contract.number }}</title>
+
+  <style>
+    @font-face {
+      font-family: "SF Pro";
+      src: url("{% static 'sales/fonts/SF-Pro-Display-Regular.otf' %}") format("opentype");
+      font-weight: 400;
+      font-style: normal;
+    }
+
+    @font-face {
+      font-family: "SF Pro";
+      src: url("{% static 'sales/fonts/SF-Pro-Display-Medium.otf' %}") format("opentype");
+      font-weight: 500;
+      font-style: normal;
+    }
+
+    @font-face {
+      font-family: "SF Pro";
+      src: url("{% static 'sales/fonts/SF-Pro-Display-Semibold.otf' %}") format("opentype");
+      font-weight: 600;
+      font-style: normal;
+    }
+
+    @font-face {
+      font-family: "SF Pro";
+      src: url("{% static 'sales/fonts/SF-Pro-Display-Bold.otf' %}") format("opentype");
+      font-weight: 700;
+      font-style: normal;
+    }
+
+    @page {
+      size: A4;
+      margin: 0;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: "SF Pro", Arial, sans-serif;
+      color: #111;
+      background: #fff;
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .page {
+      width: 210mm;
+      height: 297mm;
+      position: relative;
+      overflow: hidden;
+      page-break-after: always;
+      background: #fff;
+    }
+
+    .page:last-child {
+      page-break-after: auto;
+    }
+
+    .page-inner {
+      height: 100%;
+      padding: 36mm 25mm 25mm;
+    }
+
+    .center {
+      text-align: center;
+    }
+
+    .title {
+      font-size: 23px;
+      line-height: 1.2;
+      font-weight: 700;
+      text-align: center;
+      text-transform: uppercase;
+      margin: 0 0 35mm;
+      letter-spacing: 0.2px;
+    }
+
+    .payment-box {
+      width: 112mm;
+      margin: 0 auto;
+      font-size: 15px;
+    }
+
+    .payment-row {
+      display: table;
+      width: 100%;
+      margin-bottom: 14px;
+    }
+
+    .payment-row.big-gap {
+      margin-bottom: 26px;
+    }
+
+    .payment-label,
+    .payment-dash,
+    .payment-value {
+      display: table-cell;
+      vertical-align: top;
+    }
+
+    .payment-label {
+      width: 58%;
+      text-align: left;
+      font-weight: 400;
+    }
+
+    .payment-dash {
+      width: 8%;
+      text-align: center;
+      font-weight: 600;
+    }
+
+    .payment-value {
+      width: 34%;
+      text-align: left;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    .payment-row.strong .payment-label,
+    .payment-row.strong .payment-value,
+    .payment-row.strong .payment-dash {
+      font-weight: 700;
+    }
+
+    .payment-note {
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .total-paid {
+      margin-top: 35mm;
+      font-size: 16px;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .bank-title {
+      margin-top: 35mm;
+      font-size: 20px;
+      font-weight: 700;
+      text-align: center;
+      text-transform: uppercase;
+      font-family: Georgia, "Times New Roman", serif;
+    }
+
+    .bank-details {
+      position: absolute;
+      left: 25mm;
+      right: 25mm;
+      bottom: 36mm;
+      font-size: 15px;
+      line-height: 1.7;
+      font-weight: 700;
+    }
+
+    .client-info {
+      position: absolute;
+      left: 25mm;
+      right: 25mm;
+      top: 16mm;
+      font-size: 12px;
+      color: #555;
+    }
+
+    .client-info strong {
+      color: #111;
+      font-weight: 700;
+    }
+
+    /* Page 2 */
+
+    .content-page .page-inner {
+      padding: 55mm 25mm 22mm;
+    }
+
+    .lead-bullet {
+      font-size: 16px;
+      font-weight: 700;
+      line-height: 1.55;
+      margin-bottom: 24mm;
+      padding-left: 16px;
+      position: relative;
+    }
+
+    .lead-bullet::before {
+      content: "•";
+      position: absolute;
+      left: 0;
+      top: 0;
+      font-size: 21px;
+      line-height: 1.1;
+    }
+
+    .deliverable-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      margin-bottom: 15mm;
+    }
+
+    .deliverable-table th,
+    .deliverable-table td {
+      border: 1px solid #bbb;
+      padding: 6px 7px;
+      vertical-align: middle;
+    }
+
+    .deliverable-table th {
+      text-align: center;
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .deliverable-name {
+      width: 31%;
+      text-align: center;
+      font-weight: 500;
+      text-transform: uppercase;
+    }
+
+    .desc-list {
+      margin: 0;
+      padding-left: 16px;
+    }
+
+    .desc-list li {
+      margin-bottom: 3px;
+    }
+
+    .note-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin: 0 0 12mm;
+      padding-left: 16px;
+      position: relative;
+      text-transform: uppercase;
+    }
+
+    .note-title::before {
+      content: "•";
+      position: absolute;
+      left: 0;
+      top: -2px;
+      font-size: 21px;
+    }
+
+    .bullet-list {
+      margin: 0;
+      padding-left: 18px;
+      font-size: 13px;
+      line-height: 1.42;
+    }
+
+    .bullet-list li {
+      margin-bottom: 4px;
+    }
+
+    /* Terms pages */
+
+    .terms-page .page-inner {
+      padding: 24mm 28mm 20mm;
+    }
+
+    .terms-heading {
+      font-size: 17px;
+      font-weight: 700;
+      text-align: center;
+      margin: 0 0 12mm;
+    }
+
+    .terms-list {
+      margin: 0;
+      padding-left: 18px;
+      font-size: 13.4px;
+      line-height: 1.43;
+    }
+
+    .terms-list li {
+      margin-bottom: 5px;
+      padding-left: 4px;
+    }
+
+    .terms-list strong {
+      font-weight: 700;
+    }
+
+    .important-heading {
+      font-size: 16px;
+      font-weight: 700;
+      text-align: center;
+      margin: 13mm 0 9mm;
+    }
+
+    .signature-row {
+      display: table;
+      width: 100%;
+      margin-top: 35mm;
+    }
+
+    .signature-box {
+      display: table-cell;
+      width: 50%;
+      vertical-align: bottom;
+      padding-right: 18mm;
+    }
+
+    .signature-line {
+      border-top: 1px solid #333;
+      padding-top: 7px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .muted {
+      color: #666;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- PAGE 1: PAYMENT DETAILS -->
+  <section class="page">
+    <div class="page-inner">
+
+      <h1 class="title">Payment Details &amp; Terms and Conditions</h1>
+
+      <div class="payment-box">
+
+        <div class="payment-row big-gap">
+          <div class="payment-label">Total package amount</div>
+          <div class="payment-dash">-</div>
+          <div class="payment-value">{{ total_amount|inr }}</div>
+        </div>
+
+        <div class="payment-row strong big-gap">
+          <div class="payment-label">Booking Advance payment</div>
+          <div class="payment-dash">-</div>
+          <div class="payment-value">{{ booking_advance|inr }}</div>
+        </div>
+
+        <div class="payment-row big-gap">
+          <div class="payment-label">Balance payment</div>
+          <div class="payment-dash">-</div>
+          <div class="payment-value">{{ balance_amount|inr }}</div>
+        </div>
+
+        <div class="payment-row strong">
+          <div class="payment-label">
+            On or day after function
+          </div>
+          <div class="payment-dash">-</div>
+          <div class="payment-value">
+            {{ on_event_amount|inr }}
+            <span class="payment-note">({{ event_percent }}% of total amount)</span>
+          </div>
+        </div>
+
+        <div class="payment-row">
+          <div class="payment-label">After delivery of full Digital Outputs</div>
+          <div class="payment-dash">-</div>
+          <div class="payment-value">{{ after_delivery_amount|inr }}</div>
+        </div>
+
+      </div>
+
+      <div class="total-paid">
+        Total amount to be paid &nbsp; - &nbsp; {{ total_amount|inr }}
+      </div>
+
+      <div class="bank-title">Bank Account Details</div>
+
+      <div class="bank-details">
+        Account Number : {{ bank_details.account_number }}<br>
+        Account Holder Name : {{ bank_details.account_holder }}<br>
+        Ifsc Code : {{ bank_details.ifsc_code }}
+      </div>
+
+    </div>
+  </section>
+
+
+  <!-- PAGE 2: DELIVERABLE SPECIFICATIONS -->
+  <section class="page content-page">
+    <div class="page-inner">
+
+      <div class="lead-bullet">
+        Given Below are the specifications of the deliverables that we are commonly
+        providing, these may have changes according to your package.
+      </div>
+
+      <table class="deliverable-table">
+        <thead>
+          <tr>
+            <th>Deliverables</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {% for row in deliverable_rows %}
+            <tr>
+              <td class="deliverable-name">{{ row.name }}</td>
+              <td>
+                <ul class="desc-list">
+                  {% for line in row.description %}
+                    <li>{{ line }}</li>
+                  {% endfor %}
+                </ul>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <div class="note-title">Note For Client:</div>
+
+      <ul class="bullet-list">
+        {% for note in client_notes|slice:":5" %}
+          <li>{{ note }}</li>
+        {% endfor %}
+      </ul>
+
+    </div>
+  </section>
+
+
+  <!-- PAGE 3: MORE NOTES + TERMS START -->
+  <section class="page terms-page">
+    <div class="page-inner">
+
+      <ul class="terms-list">
+        {% for note in client_notes|slice:"5:" %}
+          <li>{{ note }}</li>
+        {% endfor %}
+      </ul>
+
+      <h2 class="terms-heading" style="margin-top: 26mm;">Terms and Conditions</h2>
+
+      <ul class="terms-list">
+        {% for term in terms|slice:":12" %}
+          <li>
+            {% if "10%" in term %}
+              <strong>10%</strong> of the quoted amount should be paid in advance,
+              <strong>80%</strong> on or day after the function, and the balance
+              <strong>10%</strong> upon delivery.
+            {% else %}
+              {{ term }}
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+
+    </div>
+  </section>
+
+
+  <!-- PAGE 4: TERMS CONTINUED -->
+  <section class="page terms-page">
+    <div class="page-inner">
+
+      <ul class="terms-list">
+        {% for term in terms|slice:"12:" %}
+          <li>{{ term }}</li>
+        {% endfor %}
+      </ul>
+
+      <h2 class="important-heading">Important</h2>
+
+      <ul class="terms-list">
+        {% for item in important_terms %}
+          <li>{{ item }}</li>
+        {% endfor %}
+      </ul>
+
+      <div class="signature-row">
+        <div class="signature-box">
+          <div class="signature-line">Client Signature</div>
+        </div>
+
+        <div class="signature-box">
+          <div class="signature-line">OCEANCLOUDS PRODUCTION LLP</div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+</body>
+</html>

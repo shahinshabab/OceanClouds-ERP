@@ -1,39 +1,42 @@
-# sales/views.py
-
 import json
 from datetime import date, timedelta
 from decimal import Decimal
 
+from django.conf import settings
 from django.contrib import messages
-from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Q
-from django.http import HttpResponse, Http404
+from django.http import Http404, HttpResponse
 from django.shortcuts import redirect, get_object_or_404, render
 from django.template.loader import render_to_string
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.utils.safestring import mark_safe
+from django.utils.text import slugify
 from django.views import View
 from django.views.decorators.http import require_POST
 from django.views.generic import (
-    ListView,
-    DetailView,
     CreateView,
+    DeleteView,
+    DetailView,
+    ListView,
     UpdateView,
-    DeleteView
 )
 
 from common.mixins import AdminManagerMixin, SalesReadOnlyAccessMixin
 from crm.models import Client, Contact, Lead
 from messaging.models import EmailTemplate
+from messaging.utils import EmailSendError, send_templated_email
 from services.models import Service, Package
 
 from .forms import (
     DealForm,
     ProposalForm,
-    ProposalItemFormSet,
+    ProposalPlanForm,
+    ProposalEventDayForm,
+    ProposalItemForm,
+    ProposalItemDeliverableForm,
     ContractForm,
     InvoiceForm,
     PaymentForm,
@@ -42,6 +45,7 @@ from .forms import (
 from .models import (
     Deal,
     Proposal,
+    ProposalEventDay,
     Contract,
     Invoice,
     Payment,
@@ -49,40 +53,39 @@ from .models import (
     ProposalStatus,
     ContractStatus,
     InvoiceStatus,
-    PaymentMethod,
-    PaymentType,
 )
+from .utils import (
+    build_common_email_context,
+    check_before_send,
+    copy_lead_data_to_client_if_empty,
+    flash_send_result,
+    get_amount_in_words,
+    get_contract_client,
+    get_contract_pdf_total,
+    get_contract_public_sign_total,
+    get_oceanclouds_bank_details,
+    get_payment_plan_client_notes,
+    get_payment_plan_deliverable_rows,
+    get_payment_plan_important_terms,
+    get_payment_plan_terms,
+    get_pdf_deliverables,
+    get_pdf_event_days,
+    get_proposal_client,
+    get_proposal_terms,
+    get_selected_proposal_plan,
+    lead_status,
+    link_client_and_status_to_lead,
+    percentage_amount,
+    resolve_client_email,
+    resolve_primary_contact,
+    set_lead_status,
+)
+
 try:
     from weasyprint import HTML
 except ImportError:
     HTML = None
 
-
-
-from django.conf import settings
-from messaging.utils import send_templated_email, EmailSendError
-# ============================================================
-# Shared helpers
-# ============================================================
-
-
-def _lead_status(name, fallback):
-    return getattr(Lead, name, fallback)
-
-
-def _set_lead_status(lead, status_attr, fallback):
-    if not lead:
-        return
-    lead.status = _lead_status(status_attr, fallback)
-    lead.save(update_fields=["status", "updated_at"])
-
-
-def _link_client_and_status_to_lead(lead, client, status_attr="STATUS_CONVERTED_TO_CLIENT", fallback="converted_to_client"):
-    if not lead:
-        return
-    lead.client = client
-    lead.status = _lead_status(status_attr, fallback)
-    lead.save(update_fields=["client", "status", "updated_at"])
 
 class OwnerAssignMixin:
     """
@@ -94,113 +97,6 @@ class OwnerAssignMixin:
             form.instance.owner = self.request.user
 
         return super().form_valid(form)
-
-
-def _copy_lead_data_to_client_if_empty(client, lead):
-    """
-    Keeps the client clean, but fills missing basic details from the lead.
-    """
-
-    changed_fields = []
-
-    if lead.name and not client.name:
-        client.name = lead.name
-        changed_fields.append("name")
-
-    if lead.name and not client.display_name:
-        client.display_name = lead.name
-        changed_fields.append("display_name")
-
-    if lead.email and not client.email:
-        client.email = lead.email
-        changed_fields.append("email")
-
-    if lead.phone and not client.phone:
-        client.phone = lead.phone
-        changed_fields.append("phone")
-
-    if lead.wedding_city and not client.city:
-        client.city = lead.wedding_city
-        changed_fields.append("city")
-
-    if lead.wedding_district and not client.district:
-        client.district = lead.wedding_district
-        changed_fields.append("district")
-
-    if lead.wedding_state and not client.state:
-        client.state = lead.wedding_state
-        changed_fields.append("state")
-
-    if lead.wedding_country and not client.country:
-        client.country = lead.wedding_country
-        changed_fields.append("country")
-
-    if changed_fields:
-        changed_fields.append("updated_at")
-        client.save(update_fields=changed_fields)
-
-    return client
-
-
-def _get_or_create_client_from_lead(lead, user):
-    """
-    Your current Deal model requires a client.
-    So when a lead becomes a deal, we create/reuse a client.
-    """
-
-    if lead.client_id:
-        client = lead.client
-        _copy_lead_data_to_client_if_empty(client, lead)
-        return client
-
-    client = None
-
-    if lead.email:
-        client = Client.objects.filter(email__iexact=lead.email).first()
-
-    if client is None and lead.phone:
-        client = Client.objects.filter(phone__iexact=lead.phone).first()
-
-    if client is None:
-        client = Client.objects.create(
-            owner=user,
-            name=lead.name,
-            display_name=lead.name,
-            email=lead.email,
-            phone=lead.phone,
-            city=lead.wedding_city,
-            district=lead.wedding_district,
-            state=lead.wedding_state or "Kerala",
-            country=lead.wedding_country or "India",
-            notes=f"Created from lead #{lead.pk}",
-        )
-    else:
-        _copy_lead_data_to_client_if_empty(client, lead)
-
-    lead.client = client
-    lead.save(update_fields=["client", "updated_at"])
-
-    if lead.email or lead.phone or lead.whatsapp:
-        existing_contact = client.contacts.filter(
-            Q(email__iexact=lead.email) | Q(phone__iexact=lead.phone) | Q(whatsapp__iexact=lead.whatsapp)
-        ).first()
-
-        if not existing_contact:
-            Contact.objects.create(
-                owner=user,
-                client=client,
-                first_name=lead.name or "Primary Contact",
-                email=lead.email,
-                phone=lead.phone,
-                whatsapp=lead.whatsapp,
-                is_primary=not client.contacts.filter(is_primary=True).exists(),
-            )
-
-    return client
-
-
-def _proposal_has_contract(proposal):
-    return proposal.contracts.exists()
 
 
 def _contract_has_invoice(contract):
@@ -219,6 +115,34 @@ def _get_price_maps():
     }
 
     return services_price_map, packages_price_map
+
+
+def _get_proposal_plan(proposal):
+    return proposal.accepted_plan or proposal.get_pricing_plan()
+
+
+def _get_proposal_event_day(proposal):
+    plan = _get_proposal_plan(proposal)
+    if not plan:
+        return None
+    return plan.event_days.order_by("sort_order", "event_date", "id").first()
+
+
+def _iter_proposal_event_days(proposal):
+    plan = _get_proposal_plan(proposal)
+    if not plan:
+        return ProposalEventDay.objects.none()
+
+    return (
+        plan.event_days
+        .prefetch_related(
+            "items",
+            "items__service",
+            "items__package",
+            "items__deliverables",
+        )
+        .all()
+    )
 
 class DetailMessageScopeMixin:
     """
@@ -268,6 +192,37 @@ def _scope_tags(*scopes):
             tags.append(f"scope:{scope}")
 
     return " ".join(tags)
+
+
+def _safe_filename_part(value, fallback):
+    return slugify(str(value or "").strip()) or fallback
+
+
+def _pdf_filename(*parts):
+    safe_parts = [
+        _safe_filename_part(part, "file").upper()
+        for part in parts
+        if str(part or "").strip()
+    ]
+    return f"{'-'.join(safe_parts)}.PDF"
+
+
+def _client_filename_part(obj):
+    deal = getattr(obj, "deal", None)
+    client = getattr(deal, "client", None) if deal else None
+
+    if client:
+        name = (
+            getattr(client, "display_name", None)
+            or getattr(client, "name", None)
+            or str(client)
+        )
+    elif deal:
+        name = getattr(deal, "name", None) or str(deal)
+    else:
+        name = "client"
+
+    return _safe_filename_part(name, "client")
 
 # ============================================================
 # Deals
@@ -334,9 +289,12 @@ class DealDetailView(SalesReadOnlyAccessMixin, DetailMessageScopeMixin, DetailVi
             .select_related("client", "lead", "owner")
             .prefetch_related(
                 "proposals",
-                "proposals__items",
+                "proposals__plans",
+                "proposals__plans__event_days",
+                "proposals__plans__event_days__items",
                 "contracts",
-                "contracts__items",
+                "contracts__event_days",
+                "contracts__event_days__items",
                 "invoices",
                 "invoices__payments",
             )
@@ -393,7 +351,7 @@ class DealCreateView(AdminManagerMixin, OwnerAssignMixin, CreateView):
         if self.object.lead_id:
             lead = self.object.lead
 
-            lead.status = _lead_status("STATUS_CONVERTED_TO_DEAL", "converted_to_deal")
+            lead.status = lead_status("STATUS_CONVERTED_TO_DEAL", "converted_to_deal")
             lead.save(update_fields=["status", "updated_at"])
 
         messages.success(
@@ -515,7 +473,7 @@ class LeadConvertToDealView(AdminManagerMixin, OwnerAssignMixin, CreateView):
 
         response = super().form_valid(form)
 
-        self.lead.status = _lead_status("STATUS_CONVERTED_TO_DEAL", "converted_to_deal")
+        self.lead.status = lead_status("STATUS_CONVERTED_TO_DEAL", "converted_to_deal")
         self.lead.save(update_fields=["status", "updated_at"])
 
         messages.success(
@@ -584,23 +542,115 @@ class ProposalDetailView(SalesReadOnlyAccessMixin, DetailMessageScopeMixin, Deta
             super()
             .get_queryset()
             .select_related("deal", "deal__client", "deal__lead", "owner")
-            .prefetch_related("items", "contracts")
+            .prefetch_related(
+                "plans",
+                "plans__event_days",
+                "plans__event_days__items",
+                "plans__event_days__items__service",
+                "plans__event_days__items__package",
+                "plans__event_days__items__deliverables",
+                "contracts",
+            )
         )
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
+        context["pdf_download_url"] = reverse("sales:proposal_pdf_download", args=[self.object.pk])
         context["has_contract"] = self.object.contracts.exists()
         context["contract"] = self.object.contracts.order_by("-created_at").first()
+        context["pricing_plan"] = _get_proposal_plan(self.object)
+        context["event_days"] = _iter_proposal_event_days(self.object)
 
         return context
 
+
+
+
+
+
+
+
+
+class ProposalPDFDownloadView(AdminManagerMixin, DetailView):
+    model = Proposal
+
+    def get_queryset(self):
+        return (
+            super()
+            .get_queryset()
+            .select_related(
+                "deal",
+                "deal__client",
+                "owner",
+                "accepted_plan",
+            )
+            .prefetch_related(
+                "plans",
+                "plans__event_days",
+                "plans__event_days__items",
+                "plans__event_days__items__service",
+                "plans__event_days__items__package",
+                "plans__event_days__items__deliverables",
+            )
+        )
+
+    def get(self, request, *args, **kwargs):
+        proposal = self.get_object()
+
+        selected_plan = get_selected_proposal_plan(proposal)
+        event_days = get_pdf_event_days(selected_plan)
+        deliverables = get_pdf_deliverables(selected_plan)
+
+        context = {
+            "proposal": proposal,
+            "client": get_proposal_client(proposal),
+            "selected_plan": selected_plan,
+            "event_days": event_days,
+            "deliverables": deliverables,
+            "amount_words": get_amount_in_words(proposal.total),
+            "terms": get_proposal_terms(),
+            "static_base_url": request.build_absolute_uri(settings.STATIC_URL),
+        }
+
+        html_string = render_to_string(
+            "sales/proposal_pdf.html",
+            context,
+            request=request,
+        )
+
+        try:
+            pdf_bytes = HTML(
+                string=html_string,
+                base_url=request.build_absolute_uri("/"),
+            ).write_pdf()
+        except Exception as exc:
+            raise Http404(f"Could not generate proposal PDF: {exc}")
+
+        client_name = _client_filename_part(proposal)
+        version = f"V{proposal.version or 1}"
+        filename = _pdf_filename("PROPOSAL", client_name, version)
+
+        response = HttpResponse(pdf_bytes, content_type="application/pdf")
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
 
 
 class ProposalCreateView(AdminManagerMixin, OwnerAssignMixin, CreateView):
     model = Proposal
     form_class = ProposalForm
     template_name = "sales/proposal_form.html"
+
+    default_plan_initial = {
+        "name": "Standard Plan",
+        "is_primary": True,
+        "sort_order": 0,
+    }
+
+    default_event_initial = {
+        "title": "Wedding Event",
+        "sort_order": 0,
+    }
 
     def get_initial(self):
         initial = super().get_initial()
@@ -623,24 +673,458 @@ class ProposalCreateView(AdminManagerMixin, OwnerAssignMixin, CreateView):
 
         return initial
 
+    def get_proposal_object(self):
+        return getattr(self, "object", None)
+
+    def get_plan(self):
+        proposal = self.get_proposal_object()
+        if not proposal:
+            return None
+
+        return _get_proposal_plan(proposal)
+
+    def get_catalog_choices(self):
+        return get_catalog_choices()
+
+    def get_deliverable_maps(self):
+        services = {}
+        for service in Service.objects.filter(is_active=True).prefetch_related("deliverables"):
+            services[str(service.pk)] = [
+                {
+                    "title": deliverable.title,
+                    "description": deliverable.description,
+                    "quantity": str(deliverable.quantity),
+                    "unit": deliverable.unit,
+                    "sort_order": deliverable.sort_order,
+                    "is_included": True,
+                }
+                for deliverable in service.deliverables.filter(is_active=True)
+            ]
+
+        packages = {}
+        for package in Package.objects.filter(is_active=True).prefetch_related(
+            "deliverables",
+            "items__service__deliverables",
+        ):
+            package_deliverables = list(package.deliverables.filter(is_active=True))
+
+            if package_deliverables:
+                packages[str(package.pk)] = [
+                    {
+                        "title": deliverable.title,
+                        "description": deliverable.description,
+                        "quantity": str(deliverable.quantity),
+                        "unit": deliverable.unit,
+                        "sort_order": deliverable.sort_order,
+                        "is_included": True,
+                    }
+                    for deliverable in package_deliverables
+                ]
+            else:
+                copied = []
+                sort_order = 0
+                for package_item in package.items.select_related("service").prefetch_related("service__deliverables"):
+                    if not package_item.service_id:
+                        continue
+
+                    for deliverable in package_item.service.deliverables.filter(is_active=True):
+                        copied.append(
+                            {
+                                "title": deliverable.title,
+                                "description": deliverable.description,
+                                "quantity": str(deliverable.quantity),
+                                "unit": deliverable.unit,
+                                "sort_order": sort_order,
+                                "is_included": True,
+                            }
+                        )
+                        sort_order += 1
+
+                packages[str(package.pk)] = copied
+
+        return services, packages
+
+    def _post_int(self, key, default=0):
+        try:
+            return int(self.request.POST.get(key, default))
+        except (TypeError, ValueError):
+            return default
+
+    def _get_event_instance(self, plan, prefix):
+        if not plan:
+            return None
+
+        event_id = self.request.POST.get(f"{prefix}-id")
+        if not event_id:
+            return None
+
+        return plan.event_days.filter(pk=event_id).first()
+
+    def _get_item_instance(self, event_day, prefix):
+        if not event_day:
+            return None
+
+        item_id = self.request.POST.get(f"{prefix}-id")
+        if not item_id:
+            return None
+
+        return event_day.items.filter(pk=item_id).first()
+
+    def _get_deliverable_instance(self, item, prefix):
+        if not item:
+            return None
+
+        deliverable_id = self.request.POST.get(f"{prefix}-id")
+        if not deliverable_id:
+            return None
+
+        return item.deliverables.filter(pk=deliverable_id).first()
+
+    def _is_deleted(self, prefix):
+        return self.request.POST.get(f"{prefix}-DELETE") in {"on", "true", "1"}
+
+    def _item_has_data(self, prefix):
+        fields = ["catalog_item", "description", "notes"]
+        return any((self.request.POST.get(f"{prefix}-{field}") or "").strip() for field in fields)
+
+    def _deliverable_has_data(self, prefix):
+        fields = ["title", "description"]
+        return any((self.request.POST.get(f"{prefix}-{field}") or "").strip() for field in fields)
+
+    def build_nested_forms(self, plan=None):
+        catalog_choices = self.get_catalog_choices()
+
+        if self.request.method == "POST":
+            event_entries = []
+            event_total = self._post_int("events-TOTAL_FORMS", 0)
+
+            for event_index in range(event_total):
+                event_prefix = f"event-{event_index}"
+                event_instance = self._get_event_instance(plan, event_prefix)
+                event_form = ProposalEventDayForm(
+                    self.request.POST,
+                    instance=event_instance,
+                    prefix=event_prefix,
+                )
+
+                item_entries = []
+                item_total = self._post_int(f"{event_prefix}-items-TOTAL_FORMS", 0)
+
+                for item_index in range(item_total):
+                    item_prefix = f"{event_prefix}-item-{item_index}"
+                    item_instance = self._get_item_instance(event_instance, item_prefix)
+                    item_form = ProposalItemForm(
+                        self.request.POST,
+                        instance=item_instance,
+                        prefix=item_prefix,
+                        catalog_choices=catalog_choices,
+                    )
+
+                    deliverable_entries = []
+                    deliverable_total = self._post_int(f"{item_prefix}-deliverables-TOTAL_FORMS", 0)
+
+                    for deliverable_index in range(deliverable_total):
+                        deliverable_prefix = f"{item_prefix}-deliverable-{deliverable_index}"
+                        deliverable_instance = self._get_deliverable_instance(
+                            item_instance,
+                            deliverable_prefix,
+                        )
+                        deliverable_form = ProposalItemDeliverableForm(
+                            self.request.POST,
+                            instance=deliverable_instance,
+                            prefix=deliverable_prefix,
+                        )
+                        deliverable_entries.append(
+                            {
+                                "form": deliverable_form,
+                                "prefix": deliverable_prefix,
+                                "instance": deliverable_instance,
+                                "delete": self._is_deleted(deliverable_prefix),
+                                "has_data": self._deliverable_has_data(deliverable_prefix),
+                            }
+                        )
+
+                    item_entries.append(
+                        {
+                            "form": item_form,
+                            "prefix": item_prefix,
+                            "instance": item_instance,
+                            "delete": self._is_deleted(item_prefix),
+                            "has_data": self._item_has_data(item_prefix),
+                            "deliverables": deliverable_entries,
+                        }
+                    )
+
+                event_entries.append(
+                    {
+                        "form": event_form,
+                        "prefix": event_prefix,
+                        "instance": event_instance,
+                        "delete": self._is_deleted(event_prefix),
+                        "items": item_entries,
+                    }
+                )
+
+            return event_entries
+
+        if plan:
+            event_entries = []
+            for event_index, event_day in enumerate(
+                plan.event_days.prefetch_related(
+                    "items",
+                    "items__service",
+                    "items__package",
+                    "items__deliverables",
+                ).all()
+            ):
+                event_prefix = f"event-{event_index}"
+                item_entries = []
+
+                for item_index, item in enumerate(event_day.items.all()):
+                    item_prefix = f"{event_prefix}-item-{item_index}"
+                    deliverable_entries = []
+
+                    for deliverable_index, deliverable in enumerate(item.deliverables.all()):
+                        deliverable_prefix = f"{item_prefix}-deliverable-{deliverable_index}"
+                        deliverable_entries.append(
+                            {
+                                "form": ProposalItemDeliverableForm(
+                                    instance=deliverable,
+                                    prefix=deliverable_prefix,
+                                ),
+                                "prefix": deliverable_prefix,
+                                "instance": deliverable,
+                                "delete": False,
+                                "has_data": True,
+                            }
+                        )
+
+                    if not deliverable_entries:
+                        deliverable_prefix = f"{item_prefix}-deliverable-0"
+                        deliverable_entries.append(
+                            {
+                                "form": ProposalItemDeliverableForm(prefix=deliverable_prefix),
+                                "prefix": deliverable_prefix,
+                                "instance": None,
+                                "delete": False,
+                                "has_data": False,
+                            }
+                        )
+
+                    item_entries.append(
+                        {
+                            "form": ProposalItemForm(
+                                instance=item,
+                                prefix=item_prefix,
+                                catalog_choices=catalog_choices,
+                            ),
+                            "prefix": item_prefix,
+                            "instance": item,
+                            "delete": False,
+                            "has_data": True,
+                            "deliverables": deliverable_entries,
+                        }
+                    )
+
+                if not item_entries:
+                    item_prefix = f"{event_prefix}-item-0"
+                    item_entries.append(
+                        {
+                            "form": ProposalItemForm(
+                                prefix=item_prefix,
+                                catalog_choices=catalog_choices,
+                            ),
+                            "prefix": item_prefix,
+                            "instance": None,
+                            "delete": False,
+                            "has_data": False,
+                            "deliverables": [
+                                {
+                                    "form": ProposalItemDeliverableForm(
+                                        prefix=f"{item_prefix}-deliverable-0"
+                                    ),
+                                    "prefix": f"{item_prefix}-deliverable-0",
+                                    "instance": None,
+                                    "delete": False,
+                                    "has_data": False,
+                                }
+                            ],
+                        }
+                    )
+
+                event_entries.append(
+                    {
+                        "form": ProposalEventDayForm(
+                            instance=event_day,
+                            prefix=event_prefix,
+                        ),
+                        "prefix": event_prefix,
+                        "instance": event_day,
+                        "delete": False,
+                        "items": item_entries,
+                    }
+                )
+
+            if event_entries:
+                return event_entries
+
+        event_prefix = "event-0"
+        item_prefix = f"{event_prefix}-item-0"
+        deliverable_prefix = f"{item_prefix}-deliverable-0"
+        return [
+            {
+                "form": ProposalEventDayForm(
+                    prefix=event_prefix,
+                    initial=self.default_event_initial,
+                ),
+                "prefix": event_prefix,
+                "instance": None,
+                "delete": False,
+                "items": [
+                    {
+                        "form": ProposalItemForm(
+                            prefix=item_prefix,
+                            catalog_choices=catalog_choices,
+                        ),
+                        "prefix": item_prefix,
+                        "instance": None,
+                        "delete": False,
+                        "has_data": False,
+                        "deliverables": [
+                            {
+                                "form": ProposalItemDeliverableForm(prefix=deliverable_prefix),
+                                "prefix": deliverable_prefix,
+                                "instance": None,
+                                "delete": False,
+                                "has_data": False,
+                            }
+                        ],
+                    }
+                ],
+            }
+        ]
+
+    def validate_nested_forms(self, event_entries):
+        is_valid = True
+
+        for event_entry in event_entries:
+            if event_entry["delete"]:
+                continue
+
+            if not event_entry["form"].is_valid():
+                is_valid = False
+
+            for item_entry in event_entry["items"]:
+                if item_entry["delete"]:
+                    continue
+
+                if not item_entry["has_data"] and not item_entry["instance"]:
+                    continue
+
+                if not item_entry["form"].is_valid():
+                    is_valid = False
+
+                for deliverable_entry in item_entry["deliverables"]:
+                    if deliverable_entry["delete"]:
+                        continue
+
+                    if not deliverable_entry["has_data"] and not deliverable_entry["instance"]:
+                        continue
+
+                    if not deliverable_entry["form"].is_valid():
+                        is_valid = False
+
+        return is_valid
+
+    def save_nested_forms(self, plan, event_entries):
+        for event_entry in event_entries:
+            event_instance = event_entry["instance"]
+
+            if event_entry["delete"]:
+                if event_instance:
+                    event_instance.delete()
+                continue
+
+            event_day = event_entry["form"].save(commit=False)
+            event_day.plan = plan
+            event_day.save()
+
+            for item_entry in event_entry["items"]:
+                item_instance = item_entry["instance"]
+
+                if item_entry["delete"]:
+                    if item_instance:
+                        item_instance.delete()
+                    continue
+
+                if not item_entry["has_data"] and not item_instance:
+                    continue
+
+                item = item_entry["form"].save(commit=False)
+                item.event_day = event_day
+                item.save()
+
+                active_deliverable_entries = [
+                    deliverable_entry
+                    for deliverable_entry in item_entry["deliverables"]
+                    if (
+                        not deliverable_entry["delete"]
+                        and (
+                            deliverable_entry["has_data"]
+                            or deliverable_entry["instance"]
+                        )
+                    )
+                ]
+                has_explicit_deliverables = any(
+                    deliverable_entry["has_data"]
+                    or deliverable_entry["instance"]
+                    or deliverable_entry["delete"]
+                    for deliverable_entry in item_entry["deliverables"]
+                )
+
+                if active_deliverable_entries or has_explicit_deliverables:
+                    item.deliverables.all().delete()
+
+                    for deliverable_entry in active_deliverable_entries:
+                        deliverable = deliverable_entry["form"].save(commit=False)
+                        deliverable.proposal_item = item
+                        deliverable.save()
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
         services_price_map, packages_price_map = _get_price_maps()
         context["services_price_map_json"] = mark_safe(json.dumps(services_price_map))
         context["packages_price_map_json"] = mark_safe(json.dumps(packages_price_map))
+        services_deliverable_map, packages_deliverable_map = self.get_deliverable_maps()
+        context["services_deliverable_map_json"] = mark_safe(json.dumps(services_deliverable_map))
+        context["packages_deliverable_map_json"] = mark_safe(json.dumps(packages_deliverable_map))
 
-        catalog_choices = get_catalog_choices()
+        catalog_choices = self.get_catalog_choices()
+        plan = self.get_plan()
 
         if self.request.method == "POST":
-            proposal_instance = getattr(context.get("form"), "instance", None)
-            context["item_formset"] = ProposalItemFormSet(
+            context["plan_form"] = ProposalPlanForm(
                 self.request.POST,
-                instance=proposal_instance,
-                catalog_choices=catalog_choices,
+                instance=plan,
+                prefix="plan",
             )
         else:
-            context["item_formset"] = ProposalItemFormSet(catalog_choices=catalog_choices)
+            context["plan_form"] = ProposalPlanForm(
+                instance=plan,
+                prefix="plan",
+                initial=self.default_plan_initial,
+            )
+
+        context["event_entries"] = self.build_nested_forms(plan=plan)
+        context["empty_event_form"] = ProposalEventDayForm(prefix="event-__event__")
+        context["empty_item_form"] = ProposalItemForm(
+            prefix="event-__event__-item-__item__",
+            catalog_choices=catalog_choices,
+        )
+        context["empty_deliverable_form"] = ProposalItemDeliverableForm(
+            prefix="event-__event__-item-__item__-deliverable-__deliverable__"
+        )
 
         return context
 
@@ -650,15 +1134,21 @@ class ProposalCreateView(AdminManagerMixin, OwnerAssignMixin, CreateView):
             form.instance.owner = self.request.user
 
         context = self.get_context_data(form=form)
-        item_formset = context["item_formset"]
+        plan_form = context["plan_form"]
+        event_entries = context["event_entries"]
 
-        if not item_formset.is_valid():
+        if not (plan_form.is_valid() and self.validate_nested_forms(event_entries)):
             return self.render_to_response(context)
 
         self.object = form.save()
 
-        item_formset.instance = self.object
-        item_formset.save()
+        plan = plan_form.save(commit=False)
+        plan.proposal = self.object
+        if hasattr(plan, "owner") and not plan.owner_id:
+            plan.owner = self.request.user
+        plan.save()
+
+        self.save_nested_forms(plan, event_entries)
 
         self.object.recalculate_totals(save=True)
 
@@ -668,7 +1158,7 @@ class ProposalCreateView(AdminManagerMixin, OwnerAssignMixin, CreateView):
 
         if deal.lead_id:
             lead = deal.lead
-            _set_lead_status(lead, "STATUS_PROPOSAL_SENT", "proposal_sent")
+            set_lead_status(lead, "STATUS_PROPOSAL_SENT", "proposal_sent")
 
         messages.success(
             self.request,
@@ -688,43 +1178,36 @@ class ProposalUpdateView(AdminManagerMixin, OwnerAssignMixin, UpdateView):
     template_name = "sales/proposal_form.html"
 
     def get_queryset(self):
-        return super().get_queryset().select_related("deal", "deal__client", "owner")
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-
-        services_price_map, packages_price_map = _get_price_maps()
-        context["services_price_map_json"] = mark_safe(json.dumps(services_price_map))
-        context["packages_price_map_json"] = mark_safe(json.dumps(packages_price_map))
-
-        catalog_choices = get_catalog_choices()
-
-        if self.request.method == "POST":
-            context["item_formset"] = ProposalItemFormSet(
-                self.request.POST,
-                instance=self.object,
-                catalog_choices=catalog_choices,
+        return (
+            super()
+            .get_queryset()
+            .select_related("deal", "deal__client", "owner")
+            .prefetch_related(
+                "plans",
+                "plans__event_days",
+                "plans__event_days__items",
+                "plans__event_days__items__deliverables",
             )
-        else:
-            context["item_formset"] = ProposalItemFormSet(
-                instance=self.object,
-                catalog_choices=catalog_choices,
-            )
-
-        return context
+        )
 
     @transaction.atomic
     def form_valid(self, form):
         context = self.get_context_data(form=form)
-        item_formset = context["item_formset"]
+        plan_form = context["plan_form"]
+        event_entries = context["event_entries"]
 
-        if not item_formset.is_valid():
+        if not (plan_form.is_valid() and self.validate_nested_forms(event_entries)):
             return self.render_to_response(context)
 
         self.object = form.save()
 
-        item_formset.instance = self.object
-        item_formset.save()
+        plan = plan_form.save(commit=False)
+        plan.proposal = self.object
+        if hasattr(plan, "owner") and not plan.owner_id:
+            plan.owner = self.request.user
+        plan.save()
+
+        self.save_nested_forms(plan, event_entries)
 
         self.object.recalculate_totals(save=True)
 
@@ -774,19 +1257,25 @@ class ProposalAcceptView(AdminManagerMixin, View):
 
         deal = proposal.deal
         lead = deal.lead
+        plan = proposal.get_pricing_plan()
 
-        proposal.status = ProposalStatus.ACCEPTED
-        proposal.save(update_fields=["status", "updated_at"])
+        if plan:
+            proposal.accept_plan(plan)
+        else:
+            proposal.status = ProposalStatus.ACCEPTED
+            proposal.save(update_fields=["status", "updated_at"])
 
         deal.stage = DealStage.WON
+        if plan:
+            deal.amount = plan.total
         deal.closed_on = timezone.localdate()
         deal.is_active = True
-        deal.save(update_fields=["stage", "closed_on", "is_active", "updated_at"])
+        deal.save(update_fields=["stage", "amount", "closed_on", "is_active", "updated_at"])
 
         if lead:
             # Do not assign client here.
             # Client will be created using Create Client button.
-            _set_lead_status(lead, "STATUS_PROPOSAL_ACCEPTED", "proposal_accepted")
+            set_lead_status(lead, "STATUS_PROPOSAL_ACCEPTED", "proposal_accepted")
 
         messages.success(
             request,
@@ -853,11 +1342,13 @@ class ProposalConvertToContractView(AdminManagerMixin, OwnerAssignMixin, CreateV
 
     def get_initial(self):
         initial = super().get_initial()
+        selected_plan = self.proposal.accepted_plan or self.proposal.get_pricing_plan()
 
         initial.update(
             {
                 "deal": self.proposal.deal_id,
                 "proposal": self.proposal.pk,
+                "proposal_plan": selected_plan.pk if selected_plan else None,
                 "status": ContractStatus.DRAFT,
                 "start_date": timezone.localdate(),
                 "terms": self.proposal.notes,
@@ -883,6 +1374,7 @@ class ProposalConvertToContractView(AdminManagerMixin, OwnerAssignMixin, CreateV
 
         self.object.populate_from_proposal(
             self.proposal,
+            plan=self.object.proposal_plan,
             clear_existing=True,
         )
 
@@ -894,7 +1386,7 @@ class ProposalConvertToContractView(AdminManagerMixin, OwnerAssignMixin, CreateV
 
         if deal.lead_id:
             lead = deal.lead
-            _link_client_and_status_to_lead(lead, deal.client)
+            link_client_and_status_to_lead(lead, deal.client)
 
         messages.success(
             self.request,
@@ -957,7 +1449,7 @@ class ProposalCreateClientView(AdminManagerMixin, View):
             deal.save(update_fields=["stage", "closed_on", "updated_at"])
 
             if lead:
-                _link_client_and_status_to_lead(lead, client)
+                link_client_and_status_to_lead(lead, client)
 
             messages.info(
                 request,
@@ -1002,7 +1494,7 @@ class ProposalCreateClientView(AdminManagerMixin, View):
                 )
         else:
             if lead:
-                _copy_lead_data_to_client_if_empty(client, lead)
+                copy_lead_data_to_client_if_empty(client, lead)
 
         # Link client to deal.
         deal.client = client
@@ -1013,7 +1505,7 @@ class ProposalCreateClientView(AdminManagerMixin, View):
 
         # Link client to lead.
         if lead:
-            _link_client_and_status_to_lead(lead, client)
+            link_client_and_status_to_lead(lead, client)
 
             if lead.email or lead.phone or lead.whatsapp:
                 existing_contact = client.contacts.filter(
@@ -1105,16 +1597,102 @@ class ContractDetailView(SalesReadOnlyAccessMixin, DetailMessageScopeMixin, Deta
             super()
             .get_queryset()
             .select_related("deal", "deal__client", "proposal", "owner")
-            .prefetch_related("items", "invoices")
+            .prefetch_related(
+                "event_days",
+                "event_days__items",
+                "event_days__items__service",
+                "event_days__items__package",
+                "event_days__items__deliverables",
+                "invoices",
+            )
         )
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
+        context["pdf_download_url"] = reverse("sales:contract_download", args=[self.object.pk])
         context["has_invoice"] = _contract_has_invoice(self.object)
         context["invoice"] = self.object.invoices.order_by("-issue_date", "-created_at").first()
 
         return context
+
+
+
+
+
+
+class ContractPDFDownloadView(AdminManagerMixin, DetailView):
+    model = Contract
+
+    def get_queryset(self):
+        return (
+            super()
+            .get_queryset()
+            .select_related(
+                "deal",
+                "deal__client",
+                "proposal",
+                "proposal_plan",
+                "owner",
+            )
+            .prefetch_related(
+                "event_days",
+                "event_days__items",
+                "event_days__items__service",
+                "event_days__items__package",
+                "event_days__items__deliverables",
+            )
+        )
+
+    def get(self, request, *args, **kwargs):
+        if HTML is None:
+            raise Http404("PDF generation is not available. Install WeasyPrint.")
+
+        contract = self.get_object()
+
+        total_amount = get_contract_pdf_total(contract)
+
+        booking_advance = percentage_amount(total_amount, Decimal("10"))
+        on_event_amount = percentage_amount(total_amount, Decimal("80"))
+        after_delivery_amount = total_amount - booking_advance - on_event_amount
+        balance_amount = total_amount - booking_advance
+
+        context = {
+            "contract": contract,
+            "client": get_contract_client(contract),
+            "total_amount": total_amount,
+            "booking_advance": booking_advance,
+            "balance_amount": balance_amount,
+            "on_event_amount": on_event_amount,
+            "after_delivery_amount": after_delivery_amount,
+            "advance_percent": 10,
+            "event_percent": 80,
+            "delivery_percent": 10,
+            "bank_details": get_oceanclouds_bank_details(),
+            "deliverable_rows": get_payment_plan_deliverable_rows(),
+            "client_notes": get_payment_plan_client_notes(),
+            "terms": get_payment_plan_terms(),
+            "important_terms": get_payment_plan_important_terms(),
+        }
+
+        html_string = render_to_string(
+            "sales/contract_pdf.html",
+            context,
+            request=request,
+        )
+
+        pdf_file = HTML(
+            string=html_string,
+            base_url=request.build_absolute_uri("/"),
+        ).write_pdf()
+
+        contract_id = _safe_filename_part(contract.number or contract.pk, f"contract-{contract.pk}")
+        client_name = _client_filename_part(contract)
+        filename = _pdf_filename(contract_id, client_name)
+
+        response = HttpResponse(pdf_file, content_type="application/pdf")
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
 
 
 class ContractCreateView(AdminManagerMixin, OwnerAssignMixin, CreateView):
@@ -1135,10 +1713,12 @@ class ContractCreateView(AdminManagerMixin, OwnerAssignMixin, CreateView):
             proposal = Proposal.objects.filter(pk=proposal_id).select_related("deal").first()
 
             if proposal:
+                selected_plan = proposal.accepted_plan or proposal.get_pricing_plan()
                 initial.update(
                     {
                         "deal": proposal.deal_id,
                         "proposal": proposal.pk,
+                        "proposal_plan": selected_plan.pk if selected_plan else None,
                         "terms": proposal.notes,
                     }
                 )
@@ -1151,8 +1731,12 @@ class ContractCreateView(AdminManagerMixin, OwnerAssignMixin, CreateView):
 
         contract = self.object
 
-        if contract.proposal_id and not contract.items.exists():
-            contract.populate_from_proposal(contract.proposal, clear_existing=True)
+        if contract.proposal_id and not contract.event_days.exists():
+            contract.populate_from_proposal(
+                contract.proposal,
+                plan=contract.proposal_plan,
+                clear_existing=True,
+            )
 
         messages.success(
             self.request,
@@ -1180,8 +1764,12 @@ class ContractUpdateView(AdminManagerMixin, OwnerAssignMixin, UpdateView):
 
         contract = self.object
 
-        if contract.proposal_id and not contract.items.exists():
-            contract.populate_from_proposal(contract.proposal, clear_existing=True)
+        if contract.proposal_id and not contract.event_days.exists():
+            contract.populate_from_proposal(
+                contract.proposal,
+                plan=contract.proposal_plan,
+                clear_existing=True,
+            )
 
         messages.success(
             self.request,
@@ -1254,6 +1842,8 @@ class ContractGenerateInvoiceView(AdminManagerMixin, OwnerAssignMixin, CreateVie
                 "issue_date": today,
                 "due_date": today + timedelta(days=7),
                 "status": InvoiceStatus.DRAFT,
+                "discount": self.contract.discount,
+                "tax_rate": self.contract.tax_rate,
                 "notes": f"Invoice generated from contract {self.contract.number}",
             }
         )
@@ -1436,6 +2026,8 @@ class InvoiceCreateView(AdminManagerMixin, OwnerAssignMixin, CreateView):
                         "contract": contract.pk,
                         "issue_date": today,
                         "due_date": today + timedelta(days=7),
+                        "discount": contract.discount,
+                        "tax_rate": contract.tax_rate,
                     }
                 )
         else:
@@ -1483,6 +2075,8 @@ class InvoiceUpdateView(AdminManagerMixin, OwnerAssignMixin, UpdateView):
 
     def form_valid(self, form):
         response = super().form_valid(form)
+
+        self.object.recalculate_totals(save=True)
 
         messages.success(
             self.request,
@@ -1536,7 +2130,9 @@ class InvoicePDFDownloadView(AdminManagerMixin, DetailView):
             base_url=request.build_absolute_uri(),
         ).write_pdf()
 
-        filename = f"invoice_{invoice.number or invoice.pk}.pdf"
+        invoice_id = _safe_filename_part(invoice.number or invoice.pk, f"invoice-{invoice.pk}")
+        client_name = _client_filename_part(invoice)
+        filename = _pdf_filename(invoice_id, client_name)
 
         response = HttpResponse(pdf_file, content_type="application/pdf")
         response["Content-Disposition"] = f'attachment; filename="{filename}"'
@@ -1722,161 +2318,6 @@ class PaymentDeleteView(AdminManagerMixin, DeleteView):
 
 
 
-def _email_enabled():
-    """
-    Global ON/OFF switch.
-    Add EMAIL_SENDING_ENABLED=True/False in settings.py or .env.
-    """
-    return bool(getattr(settings, "EMAIL_SENDING_ENABLED", False))
-
-
-def _get_active_email_template(template_type):
-    """
-    Check active template before trying to send.
-    This gives a clean message instead of a server error.
-    """
-    return (
-        EmailTemplate.objects
-        .filter(type=template_type, is_active=True)
-        .order_by("-is_default_for_type", "name")
-        .first()
-    )
-
-
-def _resolve_client_email(client):
-    """
-    Priority:
-    1. Client.email
-    2. Client primary contact email
-    3. First available contact email
-    """
-    if not client:
-        return ""
-
-    email = (getattr(client, "email", "") or "").strip()
-    if email:
-        return email
-
-    primary = getattr(client, "primary_contact", None)
-    if primary:
-        primary_email = (getattr(primary, "email", "") or "").strip()
-        if primary_email:
-            return primary_email
-
-    contact = client.contacts.exclude(email="").first()
-    if contact:
-        return (contact.email or "").strip()
-
-    return ""
-
-
-def _resolve_primary_contact(client):
-    if not client:
-        return None
-
-    primary = getattr(client, "primary_contact", None)
-    if primary:
-        return primary
-
-    return client.contacts.exclude(email="").first()
-
-
-def _build_common_email_context(*, client=None, contact=None, deal=None):
-    return {
-        "company_name": "Ocean Clouds",
-        "client": client,
-        "contact": contact,
-        "deal": deal,
-        "today": timezone.localdate(),
-        "now": timezone.now(),
-    }
-
-
-def _flash_send_result(request, label, to_email, result, success_tags=""):
-    """
-    Shows success, skipped, or failed message after button click.
-    """
-
-    if getattr(result, "ok", False):
-        messages.success(
-            request,
-            f"{label} email sent successfully to {to_email}.",
-            extra_tags=success_tags,
-        )
-        return
-
-    error_msg = getattr(result, "error", "") or "Email could not be sent."
-
-    if "disabled" in error_msg.lower():
-        messages.warning(
-            request,
-            f"{label} email was not sent because email sending is disabled in settings.",
-            extra_tags=success_tags,
-        )
-    elif "no active template" in error_msg.lower():
-        messages.warning(
-            request,
-            f"No active {label.lower()} email template found. Please create or activate one template first.",
-            extra_tags=success_tags,
-        )
-    else:
-        messages.error(
-            request,
-            f"{label} email failed: {error_msg}",
-            extra_tags=success_tags,
-        )
-
-def _check_before_send(
-    request,
-    *,
-    template_type,
-    label,
-    to_email,
-    redirect_url_name,
-    redirect_pk,
-    object_scope,
-):
-    """
-    Common validation before sending email.
-    Returns redirect response if blocked, otherwise None.
-
-    object_scope examples:
-        "proposal"
-        "contract"
-        "invoice"
-        "payment"
-    """
-
-    message_tags = _scope_tags(object_scope, "email")
-
-    if not _email_enabled():
-        messages.warning(
-            request,
-            f"{label} email was not sent because EMAIL_SENDING_ENABLED is False.",
-            extra_tags=message_tags,
-        )
-        return redirect(redirect_url_name, pk=redirect_pk)
-
-    if not to_email:
-        messages.error(
-            request,
-            "Client email not found. Please add client email or primary contact email.",
-            extra_tags=message_tags,
-        )
-        return redirect(redirect_url_name, pk=redirect_pk)
-
-    template = _get_active_email_template(template_type)
-    if not template:
-        messages.warning(
-            request,
-            f"No active {label.lower()} email template found. Please create one in Messaging > Templates.",
-            extra_tags=message_tags,
-        )
-        return redirect(redirect_url_name, pk=redirect_pk)
-
-    return None
-
-
 @method_decorator(require_POST, name="dispatch")
 class ProposalSendEmailView(AdminManagerMixin, View):
     def post(self, request, pk):
@@ -1887,10 +2328,10 @@ class ProposalSendEmailView(AdminManagerMixin, View):
 
         deal = proposal.deal
         client = deal.client if deal else None
-        contact = _resolve_primary_contact(client)
-        to_email = _resolve_client_email(client)
+        contact = resolve_primary_contact(client)
+        to_email = resolve_client_email(client)
 
-        blocked = _check_before_send(
+        blocked = check_before_send(
             request,
             template_type=EmailTemplate.TemplateType.PROPOSAL,
             label="Proposal",
@@ -1902,7 +2343,7 @@ class ProposalSendEmailView(AdminManagerMixin, View):
         if blocked:
             return blocked
 
-        context = _build_common_email_context(
+        context = build_common_email_context(
             client=client,
             contact=contact,
             deal=deal,
@@ -1929,7 +2370,7 @@ class ProposalSendEmailView(AdminManagerMixin, View):
             proposal.status = ProposalStatus.SENT
             proposal.save(update_fields=["status", "updated_at"])
 
-        _flash_send_result(
+        flash_send_result(
             request,
             label="Proposal",
             to_email=to_email,
@@ -1954,10 +2395,10 @@ class ContractSendEmailView(AdminManagerMixin, View):
 
         deal = contract.deal
         client = deal.client if deal else None
-        contact = _resolve_primary_contact(client)
-        to_email = _resolve_client_email(client)
+        contact = resolve_primary_contact(client)
+        to_email = resolve_client_email(client)
 
-        blocked = _check_before_send(
+        blocked = check_before_send(
             request,
             template_type=EmailTemplate.TemplateType.CONTRACT,
             label="Contract",
@@ -1976,7 +2417,7 @@ class ContractSendEmailView(AdminManagerMixin, View):
             contract.get_public_sign_path()
         )
 
-        context = _build_common_email_context(
+        context = build_common_email_context(
             client=client,
             contact=contact,
             deal=deal,
@@ -2008,7 +2449,7 @@ class ContractSendEmailView(AdminManagerMixin, View):
                 contract.status = ContractStatus.PENDING_SIGNATURE
                 contract.save(update_fields=["status", "updated_at"])
 
-        _flash_send_result(
+        flash_send_result(
             request,
             label="Contract",
             to_email=to_email,
@@ -2029,10 +2470,10 @@ class InvoiceSendEmailView(AdminManagerMixin, View):
 
         deal = invoice.deal
         client = deal.client if deal else None
-        contact = _resolve_primary_contact(client)
-        to_email = _resolve_client_email(client)
+        contact = resolve_primary_contact(client)
+        to_email = resolve_client_email(client)
 
-        blocked = _check_before_send(
+        blocked = check_before_send(
             request,
             template_type=EmailTemplate.TemplateType.INVOICE,
             label="Invoice",
@@ -2044,7 +2485,7 @@ class InvoiceSendEmailView(AdminManagerMixin, View):
         if blocked:
             return blocked
 
-        context = _build_common_email_context(
+        context = build_common_email_context(
             client=client,
             contact=contact,
             deal=deal,
@@ -2073,7 +2514,7 @@ class InvoiceSendEmailView(AdminManagerMixin, View):
                 invoice.status = InvoiceStatus.ISSUED
                 invoice.save(update_fields=["status", "updated_at"])
 
-        _flash_send_result(
+        flash_send_result(
             request,
             label="Invoice",
             to_email=to_email,
@@ -2100,10 +2541,10 @@ class PaymentSendEmailView(AdminManagerMixin, View):
         invoice = payment.invoice
         deal = invoice.deal if invoice else None
         client = deal.client if deal else None
-        contact = _resolve_primary_contact(client)
-        to_email = _resolve_client_email(client)
+        contact = resolve_primary_contact(client)
+        to_email = resolve_client_email(client)
 
-        blocked = _check_before_send(
+        blocked = check_before_send(
             request,
             template_type=EmailTemplate.TemplateType.PAYMENT,
             label="Payment",
@@ -2115,7 +2556,7 @@ class PaymentSendEmailView(AdminManagerMixin, View):
         if blocked:
             return blocked
 
-        context = _build_common_email_context(
+        context = build_common_email_context(
             client=client,
             contact=contact,
             deal=deal,
@@ -2139,7 +2580,7 @@ class PaymentSendEmailView(AdminManagerMixin, View):
             )
             return redirect("sales:payment_detail", pk=payment.pk)
 
-        _flash_send_result(
+        flash_send_result(
             request,
             label="Payment",
             to_email=to_email,
@@ -2158,6 +2599,10 @@ def get_client_ip(request):
     return request.META.get("REMOTE_ADDR")
 
 
+
+
+
+
 class ContractPublicSignView(View):
     template_name = "sales/contract_public_sign.html"
 
@@ -2167,18 +2612,50 @@ class ContractPublicSignView(View):
                 "deal",
                 "deal__client",
                 "proposal",
+                "proposal_plan",
             ).prefetch_related(
-                "items",
-                "items__service",
-                "items__package",
+                "event_days",
+                "event_days__items",
+                "event_days__items__service",
+                "event_days__items__package",
+                "event_days__items__deliverables",
             ),
             signing_token=token,
         )
 
+    def get_context_data(self, contract):
+        client = contract.deal.client if contract.deal and contract.deal.client else None
+
+        total_amount = get_contract_public_sign_total(contract)
+
+        booking_advance = percentage_amount(total_amount, Decimal("10"))
+        on_event_amount = percentage_amount(total_amount, Decimal("80"))
+        after_delivery_amount = total_amount - booking_advance - on_event_amount
+        balance_amount = total_amount - booking_advance
+
+        return {
+            "contract": contract,
+            "client": client,
+            "event_days": contract.event_days.all(),
+            "already_signed": contract.status == ContractStatus.SIGNED,
+
+            "total_amount": total_amount,
+            "booking_advance": booking_advance,
+            "balance_amount": balance_amount,
+            "on_event_amount": on_event_amount,
+            "after_delivery_amount": after_delivery_amount,
+
+            "advance_percent": 10,
+            "event_percent": 80,
+            "delivery_percent": 10,
+
+            "client_notes": get_payment_plan_client_notes(),
+            "terms": get_payment_plan_terms(),
+            "important_terms": get_payment_plan_important_terms(),
+        }
+
     def get(self, request, token):
         contract = self.get_contract(token)
-
-        client = contract.deal.client if contract.deal else None
 
         if contract.status == ContractStatus.CANCELLED:
             return render(
@@ -2192,14 +2669,11 @@ class ContractPublicSignView(View):
                 status=403,
             )
 
-        context = {
-            "contract": contract,
-            "client": client,
-            "items": contract.items.all(),
-            "already_signed": contract.status == ContractStatus.SIGNED,
-        }
-
-        return render(request, self.template_name, context)
+        return render(
+            request,
+            self.template_name,
+            self.get_context_data(contract),
+        )
 
     def post(self, request, token):
         contract = self.get_contract(token)
@@ -2234,7 +2708,7 @@ class ContractPublicSignView(View):
         if not accepted_terms:
             messages.error(
                 request,
-                "Please confirm that you have read and accepted the contract terms.",
+                "Please confirm that you have read and accepted the contract terms and payment conditions.",
                 extra_tags=_scope_tags("contract", "public"),
             )
             return redirect("sales:contract_public_sign", token=token)
@@ -2246,15 +2720,17 @@ class ContractPublicSignView(View):
         contract.signed_ip_address = get_client_ip(request)
         contract.signed_user_agent = request.META.get("HTTP_USER_AGENT", "")[:1000]
 
-        contract.save(update_fields=[
-            "status",
-            "signed_date",
-            "signed_at",
-            "signed_by_name",
-            "signed_ip_address",
-            "signed_user_agent",
-            "updated_at",
-        ])
+        contract.save(
+            update_fields=[
+                "status",
+                "signed_date",
+                "signed_at",
+                "signed_by_name",
+                "signed_ip_address",
+                "signed_user_agent",
+                "updated_at",
+            ]
+        )
 
         messages.success(
             request,

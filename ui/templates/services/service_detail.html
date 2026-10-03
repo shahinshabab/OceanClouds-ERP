@@ -88,6 +88,48 @@
   <!-- Preferred Vendors -->
   <div class="card mb-3">
     <div class="card-header">
+      <span class="fw-semibold small text-uppercase text-muted">Default Deliverables</span>
+    </div>
+
+    <div class="card-body p-0">
+      {% if service.deliverables.all %}
+        <table class="table table-sm mb-0 align-middle">
+          <thead class="table-light">
+          <tr>
+            <th>Title</th>
+            <th>Description</th>
+            <th class="text-end">Qty</th>
+            <th>Unit</th>
+            <th>Status</th>
+          </tr>
+          </thead>
+          <tbody>
+          {% for deliverable in service.deliverables.all %}
+            <tr>
+              <td class="fw-semibold">{{ deliverable.title }}</td>
+              <td>{{ deliverable.description|default:"—" }}</td>
+              <td class="text-end">{{ deliverable.quantity }}</td>
+              <td>{{ deliverable.get_unit_display }}</td>
+              <td>
+                {% if deliverable.is_active %}
+                  <span class="badge bg-success">Active</span>
+                {% else %}
+                  <span class="badge bg-secondary">Inactive</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="text-muted mb-0 p-3">No default deliverables added.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Preferred Vendors -->
+  <div class="card mb-3">
+    <div class="card-header">
       <span class="fw-semibold small text-uppercase text-muted">Preferred Vendors</span>
     </div>
 

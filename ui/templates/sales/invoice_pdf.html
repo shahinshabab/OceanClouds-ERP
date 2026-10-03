@@ -262,7 +262,11 @@
       <td class="totals-value">{{ invoice.subtotal }}</td>
     </tr>
     <tr>
-      <td class="totals-label">Tax</td>
+      <td class="totals-label">Discount</td>
+      <td class="totals-value">{{ invoice.discount }}</td>
+    </tr>
+    <tr>
+      <td class="totals-label">Tax ({{ invoice.tax_rate }}%)</td>
       <td class="totals-value">{{ invoice.tax }}</td>
     </tr>
     <tr>

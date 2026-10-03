@@ -6,8 +6,10 @@ from django.forms import inlineformset_factory
 from .models import (
     Vendor,
     Service,
+    ServiceDeliverable,
     Package,
     PackageItem,
+    PackageDeliverable,
     InventoryItem,
 )
 
@@ -84,6 +86,34 @@ class ServiceForm(BootstrapModelForm):
         }
 
 
+class ServiceDeliverableForm(BootstrapModelForm):
+    class Meta:
+        model = ServiceDeliverable
+        fields = [
+            "title",
+            "description",
+            "quantity",
+            "unit",
+            "sort_order",
+            "is_active",
+        ]
+
+        widgets = {
+            "description": forms.Textarea(attrs={"rows": 2}),
+            "quantity": forms.NumberInput(attrs={"step": "0.01", "min": "0"}),
+            "sort_order": forms.NumberInput(attrs={"min": "0"}),
+        }
+
+
+ServiceDeliverableFormSet = inlineformset_factory(
+    Service,
+    ServiceDeliverable,
+    form=ServiceDeliverableForm,
+    extra=1,
+    can_delete=True,
+)
+
+
 class PackageForm(BootstrapModelForm):
     class Meta:
         model = Package
@@ -109,6 +139,7 @@ class PackageItemForm(BootstrapModelForm):
             "description",
             "quantity",
             "unit_price",
+            "sort_order",
         ]
 
         widgets = {
@@ -117,6 +148,7 @@ class PackageItemForm(BootstrapModelForm):
             ),
             "quantity": forms.NumberInput(attrs={"min": 1}),
             "unit_price": forms.NumberInput(attrs={"step": "0.01", "min": "0"}),
+            "sort_order": forms.NumberInput(attrs={"min": "0"}),
         }
 
 
@@ -124,6 +156,34 @@ PackageItemFormSet = inlineformset_factory(
     Package,
     PackageItem,
     form=PackageItemForm,
+    extra=1,
+    can_delete=True,
+)
+
+
+class PackageDeliverableForm(BootstrapModelForm):
+    class Meta:
+        model = PackageDeliverable
+        fields = [
+            "title",
+            "description",
+            "quantity",
+            "unit",
+            "sort_order",
+            "is_active",
+        ]
+
+        widgets = {
+            "description": forms.Textarea(attrs={"rows": 2}),
+            "quantity": forms.NumberInput(attrs={"step": "0.01", "min": "0"}),
+            "sort_order": forms.NumberInput(attrs={"min": "0"}),
+        }
+
+
+PackageDeliverableFormSet = inlineformset_factory(
+    Package,
+    PackageDeliverable,
+    form=PackageDeliverableForm,
     extra=1,
     can_delete=True,
 )

@@ -27,8 +27,10 @@ from .models import (
 from .forms import (
     VendorForm,
     ServiceForm,
+    ServiceDeliverableFormSet,
     PackageForm,
     PackageItemFormSet,
+    PackageDeliverableFormSet,
     InventoryItemForm,
 )
 
@@ -236,6 +238,9 @@ class ServiceDetailView(AdminOnlyMixin, DetailView):
     template_name = "services/service_detail.html"
     context_object_name = "service"
 
+    def get_queryset(self):
+        return super().get_queryset().prefetch_related("vendors", "deliverables", "inventory_items")
+
 
 class ServiceCreateView(AdminOnlyMixin, CreateView):
     model = Service
@@ -243,10 +248,32 @@ class ServiceCreateView(AdminOnlyMixin, CreateView):
     template_name = "services/service_form.html"
     success_url = reverse_lazy("services:service_list")
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        if self.request.POST:
+            context["deliverables_formset"] = ServiceDeliverableFormSet(
+                self.request.POST,
+                prefix="deliverables",
+            )
+        else:
+            context["deliverables_formset"] = ServiceDeliverableFormSet(prefix="deliverables")
+
+        return context
+
     def form_valid(self, form):
+        context = self.get_context_data(form=form)
+        deliverables_formset = context["deliverables_formset"]
+
+        if not deliverables_formset.is_valid():
+            return self.render_to_response(context)
+
         form.instance.owner = self.request.user
+        self.object = form.save()
+        deliverables_formset.instance = self.object
+        deliverables_formset.save()
         messages.success(self.request, "Service created successfully.")
-        return super().form_valid(form)
+        return redirect(self.get_success_url())
 
 
 class ServiceUpdateView(AdminOnlyMixin, UpdateView):
@@ -255,9 +282,38 @@ class ServiceUpdateView(AdminOnlyMixin, UpdateView):
     template_name = "services/service_form.html"
     success_url = reverse_lazy("services:service_list")
 
+    def get_queryset(self):
+        return super().get_queryset().prefetch_related("deliverables")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        if self.request.POST:
+            context["deliverables_formset"] = ServiceDeliverableFormSet(
+                self.request.POST,
+                instance=self.object,
+                prefix="deliverables",
+            )
+        else:
+            context["deliverables_formset"] = ServiceDeliverableFormSet(
+                instance=self.object,
+                prefix="deliverables",
+            )
+
+        return context
+
     def form_valid(self, form):
+        context = self.get_context_data(form=form)
+        deliverables_formset = context["deliverables_formset"]
+
+        if not deliverables_formset.is_valid():
+            return self.render_to_response(context)
+
+        self.object = form.save()
+        deliverables_formset.instance = self.object
+        deliverables_formset.save()
         messages.success(self.request, "Service updated successfully.")
-        return super().form_valid(form)
+        return redirect(self.get_success_url())
 
 
 class ServiceDeleteView(ServicesCommonDeleteMixin):
@@ -328,6 +384,9 @@ class PackageDetailView(AdminOnlyMixin, DetailView):
     template_name = "services/package_detail.html"
     context_object_name = "package"
 
+    def get_queryset(self):
+        return super().get_queryset().prefetch_related("items", "items__service", "deliverables")
+
 
 class PackageCreateView(AdminOnlyMixin, CreateView):
     model = Package
@@ -343,21 +402,29 @@ class PackageCreateView(AdminOnlyMixin, CreateView):
                 self.request.POST,
                 prefix="items",
             )
+            context["deliverables_formset"] = PackageDeliverableFormSet(
+                self.request.POST,
+                prefix="deliverables",
+            )
         else:
             context["items_formset"] = PackageItemFormSet(prefix="items")
+            context["deliverables_formset"] = PackageDeliverableFormSet(prefix="deliverables")
 
         return context
 
     def form_valid(self, form):
         context = self.get_context_data()
         items_formset = context["items_formset"]
+        deliverables_formset = context["deliverables_formset"]
 
         form.instance.owner = self.request.user
 
-        if items_formset.is_valid():
+        if items_formset.is_valid() and deliverables_formset.is_valid():
             self.object = form.save()
             items_formset.instance = self.object
             items_formset.save()
+            deliverables_formset.instance = self.object
+            deliverables_formset.save()
             self.object.recalculate_total()
 
             messages.success(self.request, "Package created successfully.")
@@ -381,10 +448,19 @@ class PackageUpdateView(AdminOnlyMixin, UpdateView):
                 instance=self.object,
                 prefix="items",
             )
+            context["deliverables_formset"] = PackageDeliverableFormSet(
+                self.request.POST,
+                instance=self.object,
+                prefix="deliverables",
+            )
         else:
             context["items_formset"] = PackageItemFormSet(
                 instance=self.object,
                 prefix="items",
+            )
+            context["deliverables_formset"] = PackageDeliverableFormSet(
+                instance=self.object,
+                prefix="deliverables",
             )
 
         return context
@@ -392,11 +468,14 @@ class PackageUpdateView(AdminOnlyMixin, UpdateView):
     def form_valid(self, form):
         context = self.get_context_data()
         items_formset = context["items_formset"]
+        deliverables_formset = context["deliverables_formset"]
 
-        if items_formset.is_valid():
+        if items_formset.is_valid() and deliverables_formset.is_valid():
             self.object = form.save()
             items_formset.instance = self.object
             items_formset.save()
+            deliverables_formset.instance = self.object
+            deliverables_formset.save()
             self.object.recalculate_total()
 
             messages.success(self.request, "Package updated successfully.")

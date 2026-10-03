@@ -1,48 +1,42 @@
-# messaging/views.py
-
 from django.contrib import messages
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import redirect
 from django.urls import reverse, reverse_lazy
 from django.views.generic import (
-    ListView,
     CreateView,
-    UpdateView,
     DeleteView,
     DetailView,
+    ListView,
+    UpdateView,
 )
 
 from common.mixins import SalesAccessMixin
-
-from .services import sync_campaign_recipients
-from .utils import render_email_from_template
-
-from .forms import EmailTemplateForm, CampaignForm, WhatsAppTemplateForm, TicketForm
-from .models import (
-    EmailTemplate,
-    Campaign,
-    CampaignRecipient,
-    EmailSendLog,
-    WhatsAppTemplate,
-    WhatsAppSendLog,
-    Ticket, 
-    TicketPriority, 
-    TicketStatus
-)
-from .utils import render_template_string
-
-from django.contrib.auth.mixins import LoginRequiredMixin
-
-
 from common.roles import (
     ROLE_ADMIN,
     ROLE_CRM_MANAGER,
-    ROLE_PROJECT_MANAGER,
     ROLE_EMPLOYEE,
     ROLE_MANAGER,
+    ROLE_PROJECT_MANAGER,
     user_has_role,
 )
+
+from .forms import CampaignForm, EmailTemplateForm, TicketForm, WhatsAppTemplateForm
+from .models import (
+    Campaign,
+    CampaignRecipient,
+    EmailSendLog,
+    EmailTemplate,
+    Ticket,
+    TicketPriority,
+    TicketStatus,
+    WhatsAppSendLog,
+    WhatsAppTemplate,
+)
+from .services import sync_campaign_recipients
+from .utils import render_email_from_template, render_template_string
+
 
 class MessagingAccessMixin(SalesAccessMixin):
     """

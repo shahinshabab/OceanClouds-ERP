@@ -1,18 +1,12 @@
-# common/views.py
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Q
-from django.http import JsonResponse, HttpResponseNotAllowed, HttpResponse
-from django.shortcuts import get_object_or_404
-from django.views.generic import ListView
-from django.shortcuts import get_object_or_404, redirect, render
+from django.http import HttpResponseNotAllowed, JsonResponse
+from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
+from django.views.generic import ListView
+
 from .models import Notification
-import re
-from django.db.models import Q
-from django.contrib.auth import get_user_model
-User = get_user_model()
-NUMBER_RE = re.compile(r"(\d+)")
 
 
 class NotificationListView(LoginRequiredMixin, ListView):

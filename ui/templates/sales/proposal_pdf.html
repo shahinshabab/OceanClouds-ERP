@@ -1,0 +1,668 @@
+{% load static %}
+{% load proposal_pdf_filters %}
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{{ proposal.title }}</title>
+
+  <style>
+    @font-face {
+      font-family: "SF Pro";
+      src: url("{% static 'sales/fonts/SF-Pro-Display-Regular.otf' %}") format("opentype");
+      font-weight: 400;
+      font-style: normal;
+    }
+
+    @font-face {
+      font-family: "SF Pro";
+      src: url("{% static 'sales/fonts/SF-Pro-Display-Medium.otf' %}") format("opentype");
+      font-weight: 500;
+      font-style: normal;
+    }
+
+    @font-face {
+      font-family: "SF Pro";
+      src: url("{% static 'sales/fonts/SF-Pro-Display-Semibold.otf' %}") format("opentype");
+      font-weight: 600;
+      font-style: normal;
+    }
+
+    @font-face {
+      font-family: "SF Pro";
+      src: url("{% static 'sales/fonts/SF-Pro-Display-Bold.otf' %}") format("opentype");
+      font-weight: 700;
+      font-style: normal;
+    }
+
+    @page {
+      size: A4;
+      margin: 0;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: "SF Pro", Arial, sans-serif;
+      color: #111;
+      background: #fff;
+    }
+
+    body {
+      font-size: 14px;
+      line-height: 1.48;
+      font-weight: 400;
+    }
+
+    .page {
+      width: 210mm;
+      height: 297mm;
+      position: relative;
+      overflow: hidden;
+      background: #fff;
+      page-break-after: always;
+      font-family: "SF Pro", Arial, sans-serif;
+    }
+
+    .page:last-child {
+      page-break-after: auto;
+    }
+
+    .page-inner {
+      position: relative;
+      z-index: 2;
+      height: 100%;
+      padding: 25mm 24mm;
+    }
+
+    .center {
+      text-align: center;
+    }
+
+    /* PAGE 1 */
+
+    .intro-page .page-inner {
+      padding: 60mm 25mm 20mm;
+    }
+
+    .cloud-top {
+      position: absolute;
+      top: 10mm;
+      left: 0;
+      right: 0;
+      height: 38mm;
+      background-image: url("{% static 'sales/proposal_icons/cloud-top.png' %}");
+      background-repeat: no-repeat;
+      background-position: center top;
+      background-size: 205mm auto;
+      opacity: 0.55;
+      z-index: 1;
+    }
+
+    .ocean-bottom {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 78mm;
+      background-image: url("{% static 'sales/proposal_icons/ocean-bottom.png' %}");
+      background-repeat: no-repeat;
+      background-position: center bottom;
+      background-size: 218mm auto;
+      opacity: 0.55;
+      z-index: 1;
+    }
+
+    .brand-title {
+      font-family: "SF Pro", Arial, sans-serif;
+      font-size: 37px;
+      font-weight: 500;
+      letter-spacing: 14px;
+      margin-bottom: 29px;
+      white-space: nowrap;
+    }
+
+    .intro-text {
+      max-width: 162mm;
+      margin: 0 auto;
+      font-size: 18px;
+      line-height: 1.6;
+      font-weight: 400;
+      text-align: center;
+    }
+
+    .intro-text p {
+      margin: 0 0 23px;
+    }
+
+    .website {
+      margin-top: 25px;
+      font-size: 16.5px;
+      font-weight: 400;
+    }
+
+    /* PAGE 2 */
+
+    .events-page .page-inner {
+      padding: 22mm 22mm 18mm;
+    }
+
+    .page-heading {
+      font-family: "SF Pro", Arial, sans-serif;
+      font-size: 27px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      text-align: center;
+      margin: 0 0 15mm;
+    }
+
+    .section-title {
+      font-size: 18.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin: 0 0 9px;
+    }
+
+    .event-block {
+      margin-bottom: 14px;
+    }
+
+    .event-header {
+      display: table;
+      width: 100%;
+      margin-bottom: 6px;
+    }
+
+    .event-title {
+      display: table-cell;
+      width: 68%;
+      font-size: 15.8px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      vertical-align: middle;
+    }
+
+    .event-date {
+      display: table-cell;
+      width: 32%;
+      text-align: right;
+      font-size: 14.2px;
+      font-weight: 600;
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+
+    .service-list {
+      list-style: none;
+      margin: 0;
+      padding: 0 0 0 9px;
+    }
+
+    .service-list li {
+      font-size: 14.3px;
+      margin-bottom: 4px;
+      position: relative;
+      padding-left: 8px;
+    }
+
+    .service-list li::before {
+      content: "-";
+      position: absolute;
+      left: 0;
+      top: 0;
+    }
+
+    .deliverable-note {
+      font-size: 13.8px;
+      margin: 5px 0 13px;
+      max-width: 150mm;
+    }
+
+    .deliverable-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .deliverable-list li {
+      display: table;
+      width: 100%;
+      font-size: 14.2px;
+      margin-bottom: 7px;
+    }
+
+    .serial {
+      display: table-cell;
+      width: 9mm;
+      font-weight: 700;
+    }
+
+    .deliverable-name {
+      display: table-cell;
+      width: auto;
+    }
+
+    .deliverable-count {
+      display: table-cell;
+      width: 35mm;
+      text-align: right;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .soft-line {
+      position: absolute;
+      left: 24mm;
+      right: 24mm;
+      bottom: 15mm;
+      border-top: 1px solid rgba(0, 0, 0, 0.08);
+    }
+
+    /* PAGE 3 */
+
+    .amount-page .page-inner {
+      padding: 14mm 17mm 16mm;
+    }
+
+    .amount-box {
+      text-align: center;
+      margin-bottom: 10mm;
+    }
+
+    .amount-label {
+      font-size: 27px;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    .amount-value {
+      font-size: 37px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .amount-words {
+      font-size: 15.5px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .conditions-title {
+      font-size: 19px;
+      font-weight: 700;
+      text-transform: uppercase;
+      margin: 0 0 9px;
+    }
+
+    .terms-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .terms-list li {
+      font-size: 13.8px;
+      line-height: 1.45;
+      margin-bottom: 5.8px;
+      padding-left: 12px;
+      position: relative;
+      font-weight: 400;
+    }
+
+    .terms-list li::before {
+      content: "•";
+      position: absolute;
+      left: 0;
+      top: 0;
+      font-weight: 700;
+    }
+
+    .terms-list strong {
+      font-weight: 700;
+    }
+
+    /* PAGE 4 */
+
+    .features-page .page-inner {
+      padding: 46mm 18mm 18mm;
+    }
+
+    .feature-section {
+      margin-bottom: 18mm;
+    }
+
+    .feature-section:last-child {
+      margin-bottom: 0;
+    }
+
+    .feature-title {
+      font-size: 27px;
+      font-weight: 500;
+      line-height: 1.18;
+      margin: 0 0 9mm;
+    }
+
+    .feature-copy {
+      font-size: 16.5px;
+      line-height: 1.45;
+      color: #444;
+      max-width: 165mm;
+      margin-bottom: 10mm;
+      word-spacing: 3px;
+    }
+
+    .logo-row {
+      display: table;
+      width: 150mm;
+      table-layout: fixed;
+    }
+
+    .logo-cell {
+      display: table-cell;
+      width: 25%;
+      vertical-align: middle;
+      text-align: center;
+    }
+
+    .logo-cell img {
+      max-width: 26mm;
+      max-height: 19mm;
+      object-fit: contain;
+    }
+
+    .logo-cell.wide img {
+      max-width: 36mm;
+    }
+
+    .storage-logo-row {
+      width: 158mm;
+      table-layout: fixed;
+    }
+
+    .storage-logo-row .logo-cell {
+      padding-left: 4mm;
+      padding-right: 4mm;
+    }
+
+    .storage-logo-row .logo-cell:first-child {
+      padding-left: 0;
+      padding-right: 8mm;
+    }
+
+    .storage-logo-row .logo-cell:nth-child(2) {
+      padding-left: 8mm;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- PAGE 1 -->
+  <section class="page intro-page center">
+    <div class="cloud-top"></div>
+    <div class="ocean-bottom"></div>
+
+    <div class="page-inner">
+      <div class="brand-title">OCEAN CLOUDS</div>
+
+      <div class="intro-text">
+        <p>
+          At Oceanclouds. We believe that every love story is a masterpiece
+          waiting to be told. Our journey began with a simple vision: to capture love
+          in its purest, most heartfelt form. Inspired by the infinite beauty of the
+          ocean and the fleeting grace of clouds, we named our brand
+          Oceanclouds a reflection of the timeless yet ever changing nature of
+          love.
+        </p>
+
+        <p>
+          We don’t just take pictures or record videos. We become a part of your
+          celebration, capturing candid moments, stolen glances, and heartfelt
+          smiles. From the laughter of your loved ones to the tears of joy in your
+          vows, we are there to preserve every detail, big or small, that makes your
+          day extraordinary.
+        </p>
+
+        <p>
+          As we continue this incredible journey, we are honored to have been part
+          of so many love stories and look forward to crafting yours. Let’s create
+          something magical together moments that feel like dreams and
+          memories you’ll cherish forever.
+        </p>
+      </div>
+
+      <div class="website">www.theoceanclouds.com</div>
+    </div>
+  </section>
+
+
+  <!-- PAGE 2 -->
+  <section class="page events-page">
+    <div class="page-inner">
+      <h1 class="page-heading">Events &amp; Deliverables</h1>
+
+      <div class="section-title">Events</div>
+
+      {% for event_day in event_days %}
+        <div class="event-block">
+          <div class="event-header">
+            <div class="event-title">
+              {{ event_day.title|default:"Wedding Event" }}
+            </div>
+
+            <div class="event-date">
+              {% if event_day.event_date %}
+                {{ event_day.event_date|short_event_date }}
+              {% endif %}
+            </div>
+          </div>
+
+          <ul class="service-list">
+            {% for item in event_day.items.all %}
+              <li>
+                {% if item.quantity and item.quantity != 1 %}
+                  {{ item.quantity|clean_qty }} -
+                {% endif %}
+                {{ item|smart_item_title }}
+              </li>
+            {% empty %}
+              <li>No services added.</li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% empty %}
+        <div class="event-block">
+          <div class="event-header">
+            <div class="event-title">Wedding Event</div>
+            <div class="event-date"></div>
+          </div>
+
+          <ul class="service-list">
+            <li>Wedding Photography</li>
+            <li>Wedding Videography</li>
+          </ul>
+        </div>
+      {% endfor %}
+
+      <br>
+
+      <div class="section-title">Deliverables</div>
+
+      <div class="deliverable-note">
+        Photo gallery is story based unique &amp; stunning collection of digital set of graded photographs.
+      </div>
+
+      <ul class="deliverable-list">
+        {% for deliverable in deliverables %}
+          <li>
+            <span class="serial">{{ forloop.counter }}.</span>
+
+            <span class="deliverable-name">
+              {{ deliverable.title }}
+            </span>
+
+            <span class="deliverable-count">
+              {% if deliverable.quantity %}
+                {{ deliverable.quantity|clean_qty }}
+                {% if deliverable.unit %} {{ deliverable.unit }}{% endif %}
+              {% endif %}
+            </span>
+          </li>
+        {% empty %}
+          <li>
+            <span class="serial">1.</span>
+            <span class="deliverable-name">Photo Gallery Link with AI Face Detection</span>
+            <span class="deliverable-count"></span>
+          </li>
+
+          <li>
+            <span class="serial">2.</span>
+            <span class="deliverable-name">Wedding Film - 4K</span>
+            <span class="deliverable-count">1 Video</span>
+          </li>
+
+          <li>
+            <span class="serial">3.</span>
+            <span class="deliverable-name">Highlight Film - 4K</span>
+            <span class="deliverable-count">1 Video</span>
+          </li>
+
+          <li>
+            <span class="serial">4.</span>
+            <span class="deliverable-name">Insta Film - Reel</span>
+            <span class="deliverable-count">1 Video</span>
+          </li>
+        {% endfor %}
+      </ul>
+
+      <div class="soft-line"></div>
+    </div>
+  </section>
+
+
+  <!-- PAGE 3 -->
+  <section class="page amount-page">
+    <div class="page-inner">
+      <div class="amount-box">
+        <div class="amount-label">Total Service Amount</div>
+        <div class="amount-value">{{ proposal.total|inr }}</div>
+
+        {% if amount_words %}
+          <div class="amount-words">“{{ amount_words }}”</div>
+        {% endif %}
+      </div>
+
+      <div class="conditions-title">Conditions</div>
+
+      <ul class="terms-list">
+        {% for term in terms %}
+          <li>
+            {% if forloop.first %}
+              <strong>30%</strong> booking advance, <strong>60%</strong> on event &amp; <strong>10%</strong> on delivery.
+            {% else %}
+              {{ term }}
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </section>
+
+
+  <!-- PAGE 4 -->
+  <section class="page features-page">
+    <div class="page-inner">
+
+      <div class="feature-section">
+        <div class="feature-title">
+          Unleashing Cinema Line<br>
+          Shooting Standards
+        </div>
+
+        <div class="feature-copy">
+          Experience the finest cinematic treatment for your love story with
+          sony cinema line cameras, capturing emotions in 4k resolution and
+          10-bit color.
+        </div>
+
+        <div class="logo-row">
+          <div class="logo-cell">
+            <img src="{% static 'sales/proposal_icons/icon-10bit.png' %}" alt="">
+          </div>
+
+          <div class="logo-cell">
+            <img src="{% static 'sales/proposal_icons/icon-hires.png' %}" alt="">
+          </div>
+
+          <div class="logo-cell wide">
+            <img src="{% static 'sales/proposal_icons/icon-sony.png' %}" alt="">
+          </div>
+
+          <div class="logo-cell">
+            <img src="{% static 'sales/proposal_icons/icon-4k.png' %}" alt="">
+          </div>
+        </div>
+      </div>
+
+
+      <div class="feature-section">
+        <div class="feature-title">
+          Safeguarding Your<br>
+          Precious Moments
+        </div>
+
+        <div class="feature-copy">
+          We value your memories and ensure their preservation through high
+          data safety standards and reliable storage solutions, ensuring their
+          cherished for generations.
+        </div>
+
+        <div class="logo-row storage-logo-row">
+          <div class="logo-cell wide">
+            <img src="{% static 'sales/proposal_icons/icon-lacie.png' %}" alt="">
+          </div>
+
+          <div class="logo-cell wide">
+            <img src="{% static 'sales/proposal_icons/icon-rescue.png' %}" alt="">
+          </div>
+
+          <div class="logo-cell">
+            <img src="{% static 'sales/proposal_icons/icon-wd.png' %}" alt="">
+          </div>
+
+          <div class="logo-cell wide">
+            <img src="{% static 'sales/proposal_icons/icon-cloud.png' %}" alt="">
+          </div>
+        </div>
+      </div>
+
+
+      <div class="feature-section">
+        <div class="feature-title">
+          The Finest Prints &amp;<br>
+          Handcrafted Albums
+        </div>
+
+        <div class="feature-copy">
+          Crafted albums with premium materials, quality craftsmanship, and a
+          lifetime guarantee ensure timeless elegance and charm, ensuring
+          treasured memories endure the test of time.
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+</body>
+</html>

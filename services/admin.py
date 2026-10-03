@@ -2,21 +2,15 @@
 
 from django.contrib import admin
 
-from .models import Vendor, Service, Package, PackageItem, InventoryItem
-
-
-class PackageItemInline(admin.TabularInline):
-    model = PackageItem
-    extra = 0
-    fields = (
-        "service",
-        "description",
-        "quantity",
-        "unit_price",
-        "line_total",
-    )
-    readonly_fields = ("line_total",)
-    autocomplete_fields = ("service",)
+from .models import (
+    Vendor,
+    Service,
+    ServiceDeliverable,
+    Package,
+    PackageItem,
+    PackageDeliverable,
+    InventoryItem,
+)
 
 
 @admin.register(Vendor)
@@ -35,6 +29,7 @@ class VendorAdmin(admin.ModelAdmin):
         "owner",
         "created_at",
     )
+
     list_filter = (
         "vendor_type",
         "is_preferred",
@@ -43,6 +38,7 @@ class VendorAdmin(admin.ModelAdmin):
         "country",
         "created_at",
     )
+
     search_fields = (
         "name",
         "company_name",
@@ -54,11 +50,16 @@ class VendorAdmin(admin.ModelAdmin):
         "district",
         "notes",
     )
+
     readonly_fields = (
         "created_at",
         "updated_at",
     )
-    autocomplete_fields = ("owner",)
+
+    autocomplete_fields = (
+        "owner",
+    )
+
     fieldsets = (
         ("Vendor Details", {
             "fields": (
@@ -89,7 +90,9 @@ class VendorAdmin(admin.ModelAdmin):
             )
         }),
         ("Notes", {
-            "fields": ("notes",)
+            "fields": (
+                "notes",
+            )
         }),
         ("System Info", {
             "fields": (
@@ -112,11 +115,13 @@ class ServiceAdmin(admin.ModelAdmin):
         "owner",
         "created_at",
     )
+
     list_filter = (
         "category",
         "is_active",
         "created_at",
     )
+
     search_fields = (
         "name",
         "code",
@@ -125,15 +130,20 @@ class ServiceAdmin(admin.ModelAdmin):
         "vendors__name",
         "vendors__company_name",
     )
+
     readonly_fields = (
         "created_at",
         "updated_at",
     )
+
     autocomplete_fields = (
         "owner",
+    )
+
+    filter_horizontal = (
         "vendors",
     )
-    filter_horizontal = ("vendors",)
+
     fieldsets = (
         ("Service Details", {
             "fields": (
@@ -148,7 +158,9 @@ class ServiceAdmin(admin.ModelAdmin):
             )
         }),
         ("Notes", {
-            "fields": ("notes",)
+            "fields": (
+                "notes",
+            )
         }),
         ("System Info", {
             "fields": (
@@ -156,6 +168,49 @@ class ServiceAdmin(admin.ModelAdmin):
                 "updated_at",
             ),
             "classes": ("collapse",),
+        }),
+    )
+
+
+@admin.register(ServiceDeliverable)
+class ServiceDeliverableAdmin(admin.ModelAdmin):
+    list_display = (
+        "service",
+        "title",
+        "quantity",
+        "unit",
+        "sort_order",
+        "is_active",
+    )
+
+    list_filter = (
+        "service",
+        "unit",
+        "is_active",
+    )
+
+    search_fields = (
+        "service__name",
+        "service__code",
+        "title",
+        "description",
+    )
+
+    autocomplete_fields = (
+        "service",
+    )
+
+    fieldsets = (
+        ("Service Deliverable", {
+            "fields": (
+                "service",
+                "title",
+                "description",
+                "quantity",
+                "unit",
+                "sort_order",
+                "is_active",
+            )
         }),
     )
 
@@ -170,23 +225,29 @@ class PackageAdmin(admin.ModelAdmin):
         "owner",
         "created_at",
     )
+
     list_filter = (
         "is_active",
         "created_at",
     )
+
     search_fields = (
         "name",
         "code",
         "description",
         "notes",
     )
+
     readonly_fields = (
         "total_price",
         "created_at",
         "updated_at",
     )
-    autocomplete_fields = ("owner",)
-    inlines = (PackageItemInline,)
+
+    autocomplete_fields = (
+        "owner",
+    )
+
     fieldsets = (
         ("Package Details", {
             "fields": (
@@ -199,7 +260,9 @@ class PackageAdmin(admin.ModelAdmin):
             )
         }),
         ("Notes", {
-            "fields": ("notes",)
+            "fields": (
+                "notes",
+            )
         }),
         ("System Info", {
             "fields": (
@@ -220,11 +283,14 @@ class PackageItemAdmin(admin.ModelAdmin):
         "quantity",
         "unit_price",
         "line_total",
+        "sort_order",
     )
+
     list_filter = (
         "package",
         "service",
     )
+
     search_fields = (
         "package__name",
         "package__code",
@@ -232,10 +298,71 @@ class PackageItemAdmin(admin.ModelAdmin):
         "service__code",
         "description",
     )
-    readonly_fields = ("line_total",)
+
+    readonly_fields = (
+        "line_total",
+    )
+
     autocomplete_fields = (
         "package",
         "service",
+    )
+
+    fieldsets = (
+        ("Package Item", {
+            "fields": (
+                "package",
+                "service",
+                "description",
+                "quantity",
+                "unit_price",
+                "line_total",
+                "sort_order",
+            )
+        }),
+    )
+
+
+@admin.register(PackageDeliverable)
+class PackageDeliverableAdmin(admin.ModelAdmin):
+    list_display = (
+        "package",
+        "title",
+        "quantity",
+        "unit",
+        "sort_order",
+        "is_active",
+    )
+
+    list_filter = (
+        "package",
+        "unit",
+        "is_active",
+    )
+
+    search_fields = (
+        "package__name",
+        "package__code",
+        "title",
+        "description",
+    )
+
+    autocomplete_fields = (
+        "package",
+    )
+
+    fieldsets = (
+        ("Package Deliverable", {
+            "fields": (
+                "package",
+                "title",
+                "description",
+                "quantity",
+                "unit",
+                "sort_order",
+                "is_active",
+            )
+        }),
     )
 
 
@@ -254,12 +381,14 @@ class InventoryItemAdmin(admin.ModelAdmin):
         "owner",
         "created_at",
     )
+
     list_filter = (
         "category",
         "is_active",
         "service",
         "created_at",
     )
+
     search_fields = (
         "name",
         "sku",
@@ -268,11 +397,42 @@ class InventoryItemAdmin(admin.ModelAdmin):
         "service__name",
         "service__code",
     )
+
     readonly_fields = (
         "created_at",
         "updated_at",
     )
+
     autocomplete_fields = (
         "owner",
         "service",
+    )
+
+    fieldsets = (
+        ("Inventory Details", {
+            "fields": (
+                "owner",
+                "name",
+                "sku",
+                "category",
+                "service",
+                "quantity_total",
+                "quantity_available",
+                "unit",
+                "location",
+                "is_active",
+            )
+        }),
+        ("Notes", {
+            "fields": (
+                "notes",
+            )
+        }),
+        ("System Info", {
+            "fields": (
+                "created_at",
+                "updated_at",
+            ),
+            "classes": ("collapse",),
+        }),
     )

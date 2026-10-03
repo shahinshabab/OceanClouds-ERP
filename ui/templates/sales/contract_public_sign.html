@@ -1,158 +1,375 @@
 {% extends "base_public.html" %}
+{% load proposal_pdf_filters %}
 
 {% block title %}Sign Contract{% endblock %}
 
 {% block content %}
-<div class="container py-4 py-lg-5">
-  <div class="row justify-content-center">
-    <div class="col-lg-9 col-xl-8">
 
-      {% if messages %}
-        {% for message in messages %}
-          <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
-            {{ message }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-          </div>
-        {% endfor %}
-      {% endif %}
+<style>
+  .sign-page {
+    background: #f7f7f8;
+    min-height: 100vh;
+  }
 
-      <div class="card shadow-sm border-0 mb-4">
-        <div class="card-body p-4 p-lg-5">
+  .contract-card {
+    border: 0;
+    border-radius: 18px;
+    box-shadow: 0 10px 35px rgba(15, 23, 42, 0.08);
+  }
 
-          <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
-            <div>
-              <h1 class="h3 mb-1">Service Contract Agreement</h1>
-              <div class="text-muted">
-                Contract No: <strong>{{ contract.number }}</strong>
+  .section-heading {
+    font-size: 1.05rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+  }
+
+  .small-label {
+    font-size: 0.78rem;
+    color: #6c757d;
+    margin-bottom: 0.15rem;
+  }
+
+  .value-text {
+    font-weight: 600;
+  }
+
+  .payment-summary-card {
+    background: #fafafa;
+    border: 1px solid #e8e8e8;
+    border-radius: 14px;
+    padding: 1.25rem;
+  }
+
+  .payment-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.55rem 0;
+    border-bottom: 1px dashed #ddd;
+  }
+
+  .payment-row:last-child {
+    border-bottom: 0;
+  }
+
+  .payment-label {
+    color: #333;
+  }
+
+  .payment-value {
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .payment-main {
+    font-size: 1.1rem;
+  }
+
+  .terms-box {
+    max-height: 430px;
+    overflow-y: auto;
+    border: 1px solid #e5e5e5;
+    background: #fff;
+    border-radius: 14px;
+    padding: 1.25rem;
+  }
+
+  .terms-box ul {
+    margin-bottom: 0;
+    padding-left: 1.2rem;
+  }
+
+  .terms-box li {
+    margin-bottom: 0.6rem;
+    line-height: 1.5;
+  }
+
+  .event-title-row {
+    background: #f8f9fa;
+    font-weight: 700;
+  }
+
+  .signature-box {
+    background: #f8f9fa;
+    border: 1px solid #e5e5e5;
+    border-radius: 14px;
+    padding: 1.25rem;
+  }
+
+  .already-signed-box {
+    border: 1px solid #badbcc;
+    background: #f0fff4;
+    border-radius: 14px;
+    padding: 1.25rem;
+  }
+
+  @media (max-width: 576px) {
+    .payment-row {
+      display: block;
+    }
+
+    .payment-value {
+      margin-top: 0.25rem;
+    }
+  }
+</style>
+
+<div class="sign-page">
+  <div class="container py-4 py-lg-5">
+    <div class="row justify-content-center">
+      <div class="col-lg-10 col-xl-9">
+
+        {% if messages %}
+          {% for message in messages %}
+            <div class="alert alert-{{ message.level_tag|default:'info' }} alert-dismissible fade show" role="alert">
+              {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+          {% endfor %}
+        {% endif %}
+
+        <div class="card contract-card mb-4">
+          <div class="card-body p-4 p-lg-5">
+
+            <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
+              <div>
+                <h1 class="h3 mb-1">Service Contract Agreement</h1>
+                <div class="text-muted">
+                  Contract No:
+                  <strong>{{ contract.number|default:contract.pk }}</strong>
+                </div>
+              </div>
+
+              <div>
+                {% if already_signed %}
+                  <span class="badge bg-success fs-6">Signed</span>
+                {% else %}
+                  <span class="badge bg-warning text-dark fs-6">Pending Signature</span>
+                {% endif %}
               </div>
             </div>
 
-            <div>
-              {% if already_signed %}
-                <span class="badge bg-success fs-6">Signed</span>
-              {% else %}
-                <span class="badge bg-warning text-dark fs-6">Pending Signature</span>
-              {% endif %}
-            </div>
-          </div>
+            <hr class="mb-4">
 
-          <hr>
+            <div class="row g-4 mb-4">
+              <div class="col-md-6">
+                <div class="small-label">Client</div>
+                <div class="value-text">
+                  {% if client %}
+                    {{ client.display_name|default:client.name|default:client }}
+                  {% elif contract.deal %}
+                    {{ contract.deal.name }}
+                  {% else %}
+                    -
+                  {% endif %}
+                </div>
 
-          <h2 class="h5 mb-3">Client Details</h2>
+                {% if client.email %}
+                  <div class="text-muted small mt-1">{{ client.email }}</div>
+                {% endif %}
 
-          <div class="row mb-4">
-            <div class="col-md-6">
-              <div class="text-muted small">Client</div>
-              <div class="fw-semibold">
-                {{ client.name|default:client|default:"-" }}
+                {% if client.phone %}
+                  <div class="text-muted small">{{ client.phone }}</div>
+                {% endif %}
+              </div>
+
+              <div class="col-md-6">
+                <div class="small-label">Contract Date</div>
+                <div class="value-text">
+                  {{ contract.created_at|date:"d M Y" }}
+                </div>
+
+                {% if contract.proposal %}
+                  <div class="text-muted small mt-1">
+                    Proposal: {{ contract.proposal.title }}
+                  </div>
+                {% endif %}
               </div>
             </div>
 
-            <div class="col-md-6">
-              <div class="text-muted small">Contract Date</div>
-              <div class="fw-semibold">
-                {{ contract.created_at|date:"d M Y" }}
+            <h2 class="section-heading">Payment Plan</h2>
+
+            <div class="payment-summary-card mb-4">
+              <div class="payment-row payment-main">
+                <div class="payment-label">Total package amount</div>
+                <div class="payment-value">{{ total_amount|inr }}</div>
+              </div>
+
+              <div class="payment-row">
+                <div class="payment-label">
+                  Booking advance payment
+                  <span class="text-muted">({{ advance_percent }}%)</span>
+                </div>
+                <div class="payment-value">{{ booking_advance|inr }}</div>
+              </div>
+
+              <div class="payment-row">
+                <div class="payment-label">Balance payment</div>
+                <div class="payment-value">{{ balance_amount|inr }}</div>
+              </div>
+
+              <div class="payment-row">
+                <div class="payment-label">
+                  On or day after function
+                  <span class="text-muted">({{ event_percent }}%)</span>
+                </div>
+                <div class="payment-value">{{ on_event_amount|inr }}</div>
+              </div>
+
+              <div class="payment-row">
+                <div class="payment-label">
+                  After delivery of full digital outputs
+                  <span class="text-muted">({{ delivery_percent }}%)</span>
+                </div>
+                <div class="payment-value">{{ after_delivery_amount|inr }}</div>
               </div>
             </div>
-          </div>
 
-          <h2 class="h5 mb-3">Service Details</h2>
+            <h2 class="section-heading">Service Details</h2>
 
-          <div class="table-responsive mb-4">
-            <table class="table table-bordered align-middle">
-              <thead class="table-light">
-                <tr>
-                  <th>Service / Package</th>
-                  <th class="text-center">Qty</th>
-                  <th class="text-end">Unit Price</th>
-                  <th class="text-end">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for item in items %}
+            <div class="table-responsive mb-4">
+              <table class="table table-bordered align-middle">
+                <thead class="table-light">
                   <tr>
-                    <td>
-                      <div class="fw-semibold">
-                        {% if item.service %}
-                          {{ item.service }}
-                        {% elif item.package %}
-                          {{ item.package }}
-                        {% else %}
-                          Service
+                    <th>Service / Package</th>
+                    <th class="text-center">Qty</th>
+                    <th class="text-end">Unit Price</th>
+                    <th class="text-end">Total</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {% for event_day in event_days %}
+                    <tr class="event-title-row">
+                      <td colspan="4">
+                        {{ event_day.title|default:"Event" }}
+                        {% if event_day.event_date %}
+                          <span class="text-muted small">
+                            ({{ event_day.event_date|date:"d M Y" }})
+                          </span>
                         {% endif %}
-                      </div>
-                      {% if item.description %}
-                        <div class="text-muted small">{{ item.description }}</div>
-                      {% endif %}
-                    </td>
-                    <td class="text-center">{{ item.quantity }}</td>
-                    <td class="text-end">{{ item.unit_price }}</td>
-                    <td class="text-end">{{ item.line_total }}</td>
-                  </tr>
-                {% empty %}
-                  <tr>
-                    <td colspan="4" class="text-center text-muted">
-                      No contract items found.
-                    </td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
+                      </td>
+                    </tr>
 
-          <h2 class="h5 mb-3">Agreement Terms</h2>
+                    {% for item in event_day.items.all %}
+                      <tr>
+                        <td>
+                          <div class="fw-semibold">
+                            {% if item.service %}
+                              {{ item.service.name|default:item.service }}
+                            {% elif item.package %}
+                              {{ item.package.name|default:item.package }}
+                            {% elif item.description %}
+                              {{ item.description }}
+                            {% else %}
+                              Service
+                            {% endif %}
+                          </div>
 
-          <div class="border rounded p-3 bg-light mb-4">
-            {% if contract.terms %}
-              <div style="white-space: pre-line;">{{ contract.terms }}</div>
-            {% else %}
-              <p>
-                This agreement confirms the services agreed between the client and Ocean Clouds.
-                The client agrees to the service details, pricing, payment terms, delivery schedule,
-                and responsibilities mentioned in this contract and related proposal.
-              </p>
+                          {% if item.description %}
+                            <div class="text-muted small">{{ item.description }}</div>
+                          {% endif %}
+                        </td>
 
-              <p>
-                Any additional service, date change, location change, or special request may require
-                written confirmation and may be subject to additional charges.
-              </p>
+                        <td class="text-center">
+                          {{ item.quantity|clean_qty }}
+                        </td>
 
-              <p>
-                Ocean Clouds will provide the agreed services professionally, based on the confirmed
-                scope of work. The client agrees to provide accurate event/service information and
-                make payments as agreed.
-              </p>
-            {% endif %}
-          </div>
+                        <td class="text-end">
+                          {{ item.unit_price|inr }}
+                        </td>
 
-          {% if already_signed %}
-            <div class="alert alert-success">
-              <h2 class="h6 mb-2">Contract Signed</h2>
-              <p class="mb-1">
-                This contract was signed by
-                <strong>{{ contract.signed_by_name }}</strong>.
-              </p>
-              <p class="mb-0">
-                Signed on:
-                <strong>{{ contract.signed_at|date:"d M Y, h:i A" }}</strong>
-              </p>
+                        <td class="text-end">
+                          {{ item.line_total|inr }}
+                        </td>
+                      </tr>
+                    {% endfor %}
+                  {% empty %}
+                    <tr>
+                      <td colspan="4" class="text-center text-muted">
+                        No contract items found.
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
             </div>
-          {% else %}
-            <div class="card border-primary">
-              <div class="card-body">
+
+            <h2 class="section-heading">Client Notes</h2>
+
+            <div class="terms-box mb-4">
+              <ul>
+                {% for note in client_notes %}
+                  <li>{{ note }}</li>
+                {% endfor %}
+              </ul>
+            </div>
+
+            <h2 class="section-heading">Terms and Conditions</h2>
+
+            <div class="terms-box mb-4">
+              <ul>
+                {% for term in terms %}
+                  <li>
+                    {% if "10%" in term and "80%" in term %}
+                      <strong>10%</strong> of the quoted amount should be paid in advance,
+                      <strong>80%</strong> on or day after the function, and the balance
+                      <strong>10%</strong> upon delivery.
+                    {% else %}
+                      {{ term }}
+                    {% endif %}
+                  </li>
+                {% endfor %}
+              </ul>
+
+              <hr>
+
+              <h3 class="h6 fw-bold mb-3">Important</h3>
+
+              <ul>
+                {% for item in important_terms %}
+                  <li>{{ item }}</li>
+                {% endfor %}
+              </ul>
+            </div>
+
+            {% if contract.terms %}
+              <h2 class="section-heading">Additional Contract Terms</h2>
+
+              <div class="terms-box mb-4">
+                {{ contract.terms|linebreaksbr }}
+              </div>
+            {% endif %}
+
+            {% if already_signed %}
+              <div class="already-signed-box">
+                <h2 class="h5 mb-2">Contract Signed</h2>
+
+                <div>
+                  Signed by:
+                  <strong>{{ contract.signed_by_name|default:"Client" }}</strong>
+                </div>
+
+                {% if contract.signed_at %}
+                  <div class="text-muted small mt-1">
+                    Signed on {{ contract.signed_at|date:"d M Y, h:i A" }}
+                  </div>
+                {% elif contract.signed_date %}
+                  <div class="text-muted small mt-1">
+                    Signed on {{ contract.signed_date|date:"d M Y" }}
+                  </div>
+                {% endif %}
+              </div>
+            {% else %}
+              <div class="signature-box">
                 <h2 class="h5 mb-3">Sign Contract</h2>
 
-                <p class="text-muted">
-                  Please scroll through and review the agreement above. By signing below,
-                  you confirm that you have read and accepted this contract.
-                </p>
-
-                <form method="post">
+                <form method="post" novalidate>
                   {% csrf_token %}
 
                   <div class="mb-3">
                     <label for="signed_by_name" class="form-label">
-                      Full Name <span class="text-danger">*</span>
+                      Full Name
                     </label>
                     <input
                       type="text"
@@ -164,35 +381,37 @@
                     >
                   </div>
 
-                  <div class="form-check mb-3">
+                  <div class="form-check mb-4">
                     <input
-                      class="form-check-input"
                       type="checkbox"
                       name="accepted_terms"
                       id="accepted_terms"
+                      class="form-check-input"
                       required
                     >
-                    <label class="form-check-label" for="accepted_terms">
-                      I have read and accepted the contract terms.
+                    <label for="accepted_terms" class="form-check-label">
+                      I have read and accepted the contract details, payment plan,
+                      client notes, terms and conditions.
                     </label>
                   </div>
 
-                  <button type="submit" class="btn btn-primary">
+                  <button type="submit" class="btn btn-dark px-4">
                     Sign Contract
                   </button>
                 </form>
               </div>
-            </div>
-          {% endif %}
+            {% endif %}
 
+          </div>
         </div>
-      </div>
 
-      <div class="text-center text-muted small">
-        This is a secure contract signing page generated by Ocean Clouds.
-      </div>
+        <div class="text-center text-muted small">
+          Ocean Clouds
+        </div>
 
+      </div>
     </div>
   </div>
 </div>
+
 {% endblock %}

@@ -64,6 +64,10 @@
             Generate Invoice
           </a>
         {% endif %}
+        <a href="{% url 'sales:contract_download' contract.pk %}"
+           class="btn btn-outline-secondary btn-sm">
+          Download PDF
+        </a>
         <a href="{% url 'sales:contract_update' contract.pk %}"
            class="btn btn-primary btn-sm">
           Edit
@@ -232,45 +236,66 @@
     </div>
 
     <div class="card-body p-0">
-      {% if contract.items.all %}
-        <div class="table-responsive">
-          <table class="table table-hover mb-0 align-middle">
-            <thead class="table-light">
-              <tr>
-                <th>Description</th>
-                <th>Type</th>
-                <th class="text-end">Qty</th>
-                <th class="text-end">Unit Price</th>
-                <th class="text-end">Line Total</th>
-              </tr>
-            </thead>
+      {% if contract.event_days.all %}
+        {% for event_day in contract.event_days.all %}
+          <div class="p-3 {% if not forloop.last %}border-bottom{% endif %}">
+            <div class="fw-semibold mb-2">
+              {{ event_day.title }}
+              {% if event_day.event_date %}
+                <span class="text-muted small fw-normal">({{ event_day.event_date }})</span>
+              {% endif %}
+            </div>
 
-            <tbody>
-              {% for item in contract.items.all %}
-                <tr>
-                  <td>{{ item.description }}</td>
+            <div class="table-responsive">
+              <table class="table table-hover mb-0 align-middle">
+                <thead class="table-light">
+                  <tr>
+                    <th>Description</th>
+                    <th>Type</th>
+                    <th>Deliverables</th>
+                    <th class="text-end">Qty</th>
+                    <th class="text-end">Unit Price</th>
+                    <th class="text-end">Line Total</th>
+                  </tr>
+                </thead>
 
-                  <td>
-                    {% if item.package %}
-                      <span class="badge bg-dark">Package</span>
-                      <span class="small text-muted d-block">{{ item.package.name }}</span>
-                    {% elif item.service %}
-                      <span class="badge bg-primary">Service</span>
-                      <span class="small text-muted d-block">{{ item.service.name }}</span>
-                    {% else %}
-                      <span class="text-muted small">Custom line</span>
-                    {% endif %}
-                  </td>
+                <tbody>
+                  {% for item in event_day.items.all %}
+                    <tr>
+                      <td>{{ item.description }}</td>
 
-                  <td class="text-end">{{ item.quantity }}</td>
-                  <td class="text-end">{{ item.unit_price }}</td>
-                  <td class="text-end">{{ item.line_total }}</td>
-                </tr>
-              {% endfor %}
-            </tbody>
+                      <td>
+                        {% if item.package %}
+                          <span class="badge bg-dark">Package</span>
+                          <span class="small text-muted d-block">{{ item.package.name }}</span>
+                        {% elif item.service %}
+                          <span class="badge bg-primary">Service</span>
+                          <span class="small text-muted d-block">{{ item.service.name }}</span>
+                        {% else %}
+                          <span class="text-muted small">Custom line</span>
+                        {% endif %}
+                      </td>
 
-          </table>
-        </div>
+                      <td>
+                        {% for deliverable in item.deliverables.all %}
+                          {% if deliverable.is_included %}
+                            <div class="small">{{ deliverable.title }}</div>
+                          {% endif %}
+                        {% empty %}
+                          <span class="text-muted small">—</span>
+                        {% endfor %}
+                      </td>
+                      <td class="text-end">{{ item.quantity }}</td>
+                      <td class="text-end">{{ item.unit_price }}</td>
+                      <td class="text-end">{{ item.line_total }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+
+              </table>
+            </div>
+          </div>
+        {% endfor %}
       {% else %}
         <div class="p-3 text-muted">
           No items in this contract yet.

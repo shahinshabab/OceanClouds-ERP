@@ -1,5 +1,4 @@
 {% extends "ui/base.html" %}
-{% load static %}
 {% load roles_tags %}
 
 {% block title %}
@@ -9,11 +8,8 @@
 {% block content %}
 {% is_admin request.user as is_admin %}
 {% is_crm_manager request.user as is_crm_manager %}
-{% is_project_manager request.user as is_project_manager %}
-{% is_employee request.user as is_employee %}
 
-<div class="container py-3 max-w-2xl">
-
+<div class="container py-3">
   <h2 class="fw-semibold mb-4">
     {% if form.instance.pk %}Edit Proposal{% else %}New Proposal{% endif %}
   </h2>
@@ -22,269 +18,328 @@
     {% csrf_token %}
 
     {% if form.non_field_errors %}
-      <div class="alert alert-danger">
-        {{ form.non_field_errors }}
-      </div>
+      <div class="alert alert-danger">{{ form.non_field_errors }}</div>
     {% endif %}
 
-    <!-- Header Card -->
     <div class="card shadow-sm mb-3">
       <div class="card-header bg-light">
         <strong>Proposal Information</strong>
       </div>
 
       <div class="card-body">
-
-        <!-- Row 1 -->
         <div class="row">
           <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.deal.label }}{% if form.deal.field.required %} *{% endif %}
-            </label>
+            <label class="form-label">{{ form.deal.label }}</label>
             {{ form.deal }}
-            {% for error in form.deal.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
+            {% for error in form.deal.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
           </div>
 
           <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.title.label }}{% if form.title.field.required %} *{% endif %}
-            </label>
+            <label class="form-label">{{ form.title.label }}</label>
             {{ form.title }}
-            {% for error in form.title.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
+            {% for error in form.title.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
           </div>
 
           <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.status.label }}{% if form.status.field.required %} *{% endif %}
-            </label>
+            <label class="form-label">{{ form.status.label }}</label>
             {{ form.status }}
-            {% for error in form.status.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
+            {% for error in form.status.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
           </div>
         </div>
 
-        <!-- Row 2 -->
         <div class="row">
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.version.label }}
-            </label>
+          <div class="col-md-3 mb-3">
+            <label class="form-label">{{ form.version.label }}</label>
             {{ form.version }}
-            {% for error in form.version.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
+            {% for error in form.version.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
           </div>
 
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.valid_until.label }}
-            </label>
+          <div class="col-md-3 mb-3">
+            <label class="form-label">{{ form.valid_until.label }}</label>
             {{ form.valid_until }}
-            {% for error in form.valid_until.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
+            {% for error in form.valid_until.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
           </div>
 
-          <div class="col-md-4 mb-3">
+          <div class="col-md-3 mb-3">
             <label class="form-label">Subtotal</label>
-            <input type="text"
-                   id="id_subtotal"
-                   class="form-control"
-                   value="{{ form.instance.subtotal|default_if_none:'0.00' }}"
-                   readonly>
-          </div>
-        </div>
-
-        <!-- Row 3 -->
-        <div class="row">
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.discount.label }}
-            </label>
-            {{ form.discount }}
-            {% for error in form.discount.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
+            <input type="text" id="id_subtotal" class="form-control" value="{{ form.instance.subtotal|default_if_none:'0.00' }}" readonly>
           </div>
 
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.tax.label }}
-            </label>
-            {{ form.tax }}
-            {% for error in form.tax.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
+          <div class="col-md-3 mb-3">
             <label class="form-label">Total</label>
-            <input type="text"
-                   id="id_total"
-                   class="form-control"
-                   value="{{ form.instance.total|default_if_none:'0.00' }}"
-                   readonly>
+            <input type="text" id="id_total" class="form-control" value="{{ form.instance.total|default_if_none:'0.00' }}" readonly>
           </div>
         </div>
 
-        <!-- Notes -->
-        <div class="row">
-          <div class="col-12 mb-3">
-            <label class="form-label">
-              {{ form.notes.label }}
-            </label>
-            {{ form.notes }}
-            {% for error in form.notes.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
+        <div class="mb-0">
+          <label class="form-label">{{ form.notes.label }}</label>
+          {{ form.notes }}
+          {% for error in form.notes.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
         </div>
-
       </div>
     </div>
 
-    <!-- Items Card -->
     <div class="card shadow-sm mb-3">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <span class="fw-semibold">Proposal Items</span>
-
-        <button type="button"
-                class="btn btn-sm btn-outline-success"
-                id="add-item-row">
-          + Add Item
-        </button>
+      <div class="card-header bg-light">
+        <strong>Pricing Plan</strong>
       </div>
 
       <div class="card-body">
-        {{ item_formset.management_form }}
+        {% if plan_form.non_field_errors %}
+          <div class="alert alert-danger">{{ plan_form.non_field_errors }}</div>
+        {% endif %}
 
-        <div id="items-wrapper" class="d-grid gap-3">
-          {% for form_item in item_formset %}
-            <div class="item-row border rounded-3 p-3 bg-body">
-              {{ form_item.id }}
+        <div class="row">
+          <div class="col-md-4 mb-3">
+            <label class="form-label">{{ plan_form.name.label }}</label>
+            {{ plan_form.name }}
+            {% for error in plan_form.name.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+          </div>
 
-              {% if form_item.non_field_errors %}
-                <div class="alert alert-danger py-2">
-                  {{ form_item.non_field_errors }}
-                </div>
-              {% endif %}
+          <div class="col-md-4 mb-3">
+            <label class="form-label">{{ plan_form.discount.label }}</label>
+            {{ plan_form.discount }}
+            {% for error in plan_form.discount.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+          </div>
+
+          <div class="col-md-4 mb-3">
+            <label class="form-label">{{ plan_form.tax_rate.label }}</label>
+            {{ plan_form.tax_rate }}
+            {% for error in plan_form.tax_rate.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="col-md-8 mb-3">
+            <label class="form-label">{{ plan_form.description.label }}</label>
+            {{ plan_form.description }}
+            {% for error in plan_form.description.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+          </div>
+
+          <div class="col-md-4 mb-3">
+            <label class="form-label">{{ plan_form.sort_order.label }}</label>
+            {{ plan_form.sort_order }}
+            {% for error in plan_form.sort_order.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+          </div>
+        </div>
+
+        <div class="d-flex flex-wrap gap-4">
+          <div class="form-check">
+            {{ plan_form.is_primary }}
+            <label class="form-check-label">{{ plan_form.is_primary.label }}</label>
+          </div>
+          <div class="form-check">
+            {{ plan_form.is_accepted }}
+            <label class="form-check-label">{{ plan_form.is_accepted.label }}</label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card shadow-sm mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <strong>Events, Services & Deliverables</strong>
+        <button type="button" class="btn btn-sm btn-outline-success" id="add-event">+ Add Event</button>
+      </div>
+
+      <div class="card-body">
+        <input type="hidden" id="id_events-TOTAL_FORMS" name="events-TOTAL_FORMS" value="{{ event_entries|length }}">
+
+        <div id="events-wrapper" class="d-grid gap-3">
+          {% for event_entry in event_entries %}
+            <div class="event-card border rounded p-3" data-event-index="{{ forloop.counter0 }}">
+              <input type="hidden" name="{{ event_entry.prefix }}-id" value="{{ event_entry.instance.pk|default:'' }}">
+              <input type="checkbox" class="delete-flag" name="{{ event_entry.prefix }}-DELETE">
 
               <div class="d-flex justify-content-between align-items-center mb-3">
-                <h6 class="mb-0 fw-semibold">
-                  Item {{ forloop.counter }}
-                </h6>
-
-                {% if form_item.DELETE %}
-                  <div class="d-flex align-items-center gap-2">
-                    {{ form_item.DELETE }}
-                    <button type="button" class="btn btn-sm btn-outline-danger js-delete-row">
-                      Delete
-                    </button>
-                  </div>
-                {% endif %}
+                <h5 class="mb-0 event-title">Event {{ forloop.counter }}</h5>
+                <button type="button" class="btn btn-sm btn-outline-danger js-delete-event">Delete Event</button>
               </div>
 
-              <!-- Line 1: Item selector full width -->
+              {% if event_entry.form.non_field_errors %}
+                <div class="alert alert-danger">{{ event_entry.form.non_field_errors }}</div>
+              {% endif %}
+
               <div class="row">
-                <div class="col-12 mb-3">
-                  <label class="form-label">
-                    {{ form_item.catalog_item.label }}
-                  </label>
-                  {{ form_item.catalog_item }}
-                  {% for error in form_item.catalog_item.errors %}
-                    <div class="text-danger small">{{ error }}</div>
-                  {% endfor %}
+                <div class="col-md-3 mb-3">
+                  <label class="form-label">{{ event_entry.form.event_date.label }}</label>
+                  {{ event_entry.form.event_date }}
+                  {% for error in event_entry.form.event_date.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="col-md-3 mb-3">
+                  <label class="form-label">{{ event_entry.form.title.label }}</label>
+                  {{ event_entry.form.title }}
+                  {% for error in event_entry.form.title.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="col-md-3 mb-3">
+                  <label class="form-label">{{ event_entry.form.venue.label }}</label>
+                  {{ event_entry.form.venue }}
+                  {% for error in event_entry.form.venue.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="col-md-3 mb-3">
+                  <label class="form-label">{{ event_entry.form.sort_order.label }}</label>
+                  {{ event_entry.form.sort_order }}
+                  {% for error in event_entry.form.sort_order.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
                 </div>
               </div>
 
-              <!-- Line 2: Description full width -->
               <div class="row">
-                <div class="col-12 mb-3">
-                  <label class="form-label">
-                    {{ form_item.description.label }}
-                  </label>
-                  {{ form_item.description }}
-                  {% for error in form_item.description.errors %}
-                    <div class="text-danger small">{{ error }}</div>
-                  {% endfor %}
+                <div class="col-md-3 mb-3">
+                  <label class="form-label">{{ event_entry.form.start_time.label }}</label>
+                  {{ event_entry.form.start_time }}
+                </div>
+                <div class="col-md-3 mb-3">
+                  <label class="form-label">{{ event_entry.form.end_time.label }}</label>
+                  {{ event_entry.form.end_time }}
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">{{ event_entry.form.notes.label }}</label>
+                  {{ event_entry.form.notes }}
                 </div>
               </div>
 
-              <!-- Line 3: Quantity, Unit Price, Line Total -->
-              <div class="row align-items-end">
-                <div class="col-md-4 mb-3 mb-md-0">
-                  <label class="form-label">
-                    {{ form_item.quantity.label }}
-                  </label>
-                  {{ form_item.quantity }}
-                  {% for error in form_item.quantity.errors %}
-                    <div class="text-danger small">{{ error }}</div>
-                  {% endfor %}
-                </div>
+              <div class="d-flex justify-content-between align-items-center border-top pt-3 mb-2">
+                <strong class="small text-uppercase text-muted">Services</strong>
+                <button type="button" class="btn btn-sm btn-outline-primary js-add-item">+ Add Service</button>
+              </div>
 
-                <div class="col-md-4 mb-3 mb-md-0">
-                  <label class="form-label">
-                    {{ form_item.unit_price.label }}
-                  </label>
-                  {{ form_item.unit_price }}
-                  {% for error in form_item.unit_price.errors %}
-                    <div class="text-danger small">{{ error }}</div>
-                  {% endfor %}
-                </div>
+              <input type="hidden" name="{{ event_entry.prefix }}-items-TOTAL_FORMS" value="{{ event_entry.items|length }}">
+              <div class="items-wrapper d-grid gap-3">
+                {% for item_entry in event_entry.items %}
+                  <div class="item-card border rounded p-3 bg-light" data-item-index="{{ forloop.counter0 }}">
+                    <input type="hidden" name="{{ item_entry.prefix }}-id" value="{{ item_entry.instance.pk|default:'' }}">
+                    <input type="checkbox" class="delete-flag" name="{{ item_entry.prefix }}-DELETE">
 
-                <div class="col-md-4">
-                  <label class="form-label">Line Total</label>
-                  <div class="form-control bg-light line-total-box">
-                    <span class="line-total">0.00</span>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                      <h6 class="mb-0 item-title">Service {{ forloop.counter }}</h6>
+                      <button type="button" class="btn btn-sm btn-outline-danger js-delete-item">Delete Service</button>
+                    </div>
+
+                    {% if item_entry.form.non_field_errors %}
+                      <div class="alert alert-danger">{{ item_entry.form.non_field_errors }}</div>
+                    {% endif %}
+
+                    {{ item_entry.form.sort_order.as_hidden }}
+
+                    <div class="row">
+                      <div class="col-md-4 mb-3">
+                        <label class="form-label">{{ item_entry.form.catalog_item.label }}</label>
+                        {{ item_entry.form.catalog_item }}
+                        {% for error in item_entry.form.catalog_item.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                      </div>
+                      <div class="col-md-4 mb-3">
+                        <label class="form-label">{{ item_entry.form.description.label }}</label>
+                        {{ item_entry.form.description }}
+                        {% for error in item_entry.form.description.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                      </div>
+                      <div class="col-md-2 mb-3">
+                        <label class="form-label">{{ item_entry.form.quantity.label }}</label>
+                        {{ item_entry.form.quantity }}
+                        {% for error in item_entry.form.quantity.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                      </div>
+                      <div class="col-md-2 mb-3">
+                        <label class="form-label">{{ item_entry.form.unit_price.label }}</label>
+                        {{ item_entry.form.unit_price }}
+                        {% for error in item_entry.form.unit_price.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                      </div>
+                    </div>
+
+                    <div class="row">
+                      <div class="col-md-9 mb-3">
+                        <label class="form-label">{{ item_entry.form.notes.label }}</label>
+                        {{ item_entry.form.notes }}
+                        {% for error in item_entry.form.notes.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                      </div>
+                      <div class="col-md-3 mb-3">
+                        <label class="form-label">Line Total</label>
+                        <div class="form-control bg-body line-total-box">
+                          <span class="line-total">0.00</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center border-top pt-3 mb-2">
+                      <strong class="small text-uppercase text-muted">Deliverables</strong>
+                      <button type="button" class="btn btn-sm btn-outline-secondary js-add-deliverable">+ Add Deliverable</button>
+                    </div>
+
+                    <input type="hidden" name="{{ item_entry.prefix }}-deliverables-TOTAL_FORMS" value="{{ item_entry.deliverables|length }}">
+                    <div class="deliverables-wrapper d-grid gap-2">
+                      {% for deliverable_entry in item_entry.deliverables %}
+                        <div class="deliverable-row border rounded p-2 bg-body" data-deliverable-index="{{ forloop.counter0 }}">
+                          <input type="hidden" name="{{ deliverable_entry.prefix }}-id" value="{{ deliverable_entry.instance.pk|default:'' }}">
+                          <input type="checkbox" class="delete-flag" name="{{ deliverable_entry.prefix }}-DELETE">
+
+                          {% if deliverable_entry.form.non_field_errors %}
+                            <div class="alert alert-danger py-2">{{ deliverable_entry.form.non_field_errors }}</div>
+                          {% endif %}
+
+                          <div class="row align-items-end">
+                            <div class="col-md-3 mb-2">
+                              <label class="form-label">{{ deliverable_entry.form.title.label }}</label>
+                              {{ deliverable_entry.form.title }}
+                              {% for error in deliverable_entry.form.title.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="col-md-3 mb-2">
+                              <label class="form-label">{{ deliverable_entry.form.description.label }}</label>
+                              {{ deliverable_entry.form.description }}
+                              {% for error in deliverable_entry.form.description.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="col-md-2 mb-2">
+                              <label class="form-label">{{ deliverable_entry.form.quantity.label }}</label>
+                              {{ deliverable_entry.form.quantity }}
+                              {% for error in deliverable_entry.form.quantity.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="col-md-2 mb-2">
+                              <label class="form-label">{{ deliverable_entry.form.unit.label }}</label>
+                              {{ deliverable_entry.form.unit }}
+                              {% for error in deliverable_entry.form.unit.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="col-md-1 mb-2">
+                              <label class="form-label">{{ deliverable_entry.form.sort_order.label }}</label>
+                              {{ deliverable_entry.form.sort_order }}
+                            </div>
+                            <div class="col-md-1 mb-2 text-end">
+                              <div class="form-check mb-2">
+                                {{ deliverable_entry.form.is_included }}
+                              </div>
+                              <button type="button" class="btn btn-sm btn-outline-danger js-delete-deliverable">Delete</button>
+                            </div>
+                          </div>
+                        </div>
+                      {% endfor %}
+                    </div>
                   </div>
-                </div>
+                {% endfor %}
               </div>
-
             </div>
           {% endfor %}
         </div>
-
       </div>
     </div>
 
-    <!-- Buttons -->
     <div class="row mt-3">
       <div class="col-12 d-flex justify-content-center flex-wrap gap-2">
-
         {% if is_admin or is_crm_manager %}
-          <button type="submit" class="btn btn-primary px-4">
-            Save
-          </button>
+          <button type="submit" class="btn btn-primary px-4">Save</button>
         {% endif %}
 
         {% if form.instance.pk %}
-          <a href="{% url 'sales:proposal_detail' form.instance.pk %}" class="btn btn-secondary">
-            Cancel
-          </a>
+          <a href="{% url 'sales:proposal_detail' form.instance.pk %}" class="btn btn-secondary">Cancel</a>
         {% else %}
-          <a href="{% url 'sales:proposal_list' %}" class="btn btn-secondary">
-            Cancel
-          </a>
+          <a href="{% url 'sales:proposal_list' %}" class="btn btn-secondary">Cancel</a>
         {% endif %}
-
       </div>
     </div>
-
   </form>
-
 </div>
 
 <style>
-  input[type="checkbox"][name$="-DELETE"] {
+  .delete-flag {
     display: none;
   }
 
-  .item-row.is-deleted {
+  .is-deleted {
     display: none;
   }
 
@@ -300,324 +355,341 @@
 }
 </script>
 
+<script id="deliverable-data" type="application/json">
+{
+  "services": {{ services_deliverable_map_json }},
+  "packages": {{ packages_deliverable_map_json }}
+}
+</script>
+
+<template id="event-template">
+  <div class="event-card border rounded p-3" data-event-index="__event__">
+    <input type="hidden" name="event-__event__-id" value="">
+    <input type="checkbox" class="delete-flag" name="event-__event__-DELETE">
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h5 class="mb-0 event-title">Event</h5>
+      <button type="button" class="btn btn-sm btn-outline-danger js-delete-event">Delete Event</button>
+    </div>
+
+    <div class="row">
+      <div class="col-md-3 mb-3"><label class="form-label">{{ empty_event_form.event_date.label }}</label>{{ empty_event_form.event_date }}</div>
+      <div class="col-md-3 mb-3"><label class="form-label">{{ empty_event_form.title.label }}</label>{{ empty_event_form.title }}</div>
+      <div class="col-md-3 mb-3"><label class="form-label">{{ empty_event_form.venue.label }}</label>{{ empty_event_form.venue }}</div>
+      <div class="col-md-3 mb-3"><label class="form-label">{{ empty_event_form.sort_order.label }}</label>{{ empty_event_form.sort_order }}</div>
+    </div>
+
+    <div class="row">
+      <div class="col-md-3 mb-3"><label class="form-label">{{ empty_event_form.start_time.label }}</label>{{ empty_event_form.start_time }}</div>
+      <div class="col-md-3 mb-3"><label class="form-label">{{ empty_event_form.end_time.label }}</label>{{ empty_event_form.end_time }}</div>
+      <div class="col-md-6 mb-3"><label class="form-label">{{ empty_event_form.notes.label }}</label>{{ empty_event_form.notes }}</div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center border-top pt-3 mb-2">
+      <strong class="small text-uppercase text-muted">Services</strong>
+      <button type="button" class="btn btn-sm btn-outline-primary js-add-item">+ Add Service</button>
+    </div>
+
+    <input type="hidden" name="event-__event__-items-TOTAL_FORMS" value="0">
+    <div class="items-wrapper d-grid gap-3"></div>
+  </div>
+</template>
+
+<template id="item-template">
+  <div class="item-card border rounded p-3 bg-light" data-item-index="__item__">
+    <input type="hidden" name="event-__event__-item-__item__-id" value="">
+    <input type="checkbox" class="delete-flag" name="event-__event__-item-__item__-DELETE">
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h6 class="mb-0 item-title">Service</h6>
+      <button type="button" class="btn btn-sm btn-outline-danger js-delete-item">Delete Service</button>
+    </div>
+
+    {{ empty_item_form.sort_order.as_hidden }}
+
+    <div class="row">
+      <div class="col-md-4 mb-3"><label class="form-label">{{ empty_item_form.catalog_item.label }}</label>{{ empty_item_form.catalog_item }}</div>
+      <div class="col-md-4 mb-3"><label class="form-label">{{ empty_item_form.description.label }}</label>{{ empty_item_form.description }}</div>
+      <div class="col-md-2 mb-3"><label class="form-label">{{ empty_item_form.quantity.label }}</label>{{ empty_item_form.quantity }}</div>
+      <div class="col-md-2 mb-3"><label class="form-label">{{ empty_item_form.unit_price.label }}</label>{{ empty_item_form.unit_price }}</div>
+    </div>
+
+    <div class="row">
+      <div class="col-md-9 mb-3"><label class="form-label">{{ empty_item_form.notes.label }}</label>{{ empty_item_form.notes }}</div>
+      <div class="col-md-3 mb-3">
+        <label class="form-label">Line Total</label>
+        <div class="form-control bg-body line-total-box"><span class="line-total">0.00</span></div>
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center border-top pt-3 mb-2">
+      <strong class="small text-uppercase text-muted">Deliverables</strong>
+      <button type="button" class="btn btn-sm btn-outline-secondary js-add-deliverable">+ Add Deliverable</button>
+    </div>
+
+    <input type="hidden" name="event-__event__-item-__item__-deliverables-TOTAL_FORMS" value="0">
+    <div class="deliverables-wrapper d-grid gap-2"></div>
+  </div>
+</template>
+
+<template id="deliverable-template">
+  <div class="deliverable-row border rounded p-2 bg-body" data-deliverable-index="__deliverable__">
+    <input type="hidden" name="event-__event__-item-__item__-deliverable-__deliverable__-id" value="">
+    <input type="checkbox" class="delete-flag" name="event-__event__-item-__item__-deliverable-__deliverable__-DELETE">
+
+    <div class="row align-items-end">
+      <div class="col-md-3 mb-2"><label class="form-label">{{ empty_deliverable_form.title.label }}</label>{{ empty_deliverable_form.title }}</div>
+      <div class="col-md-3 mb-2"><label class="form-label">{{ empty_deliverable_form.description.label }}</label>{{ empty_deliverable_form.description }}</div>
+      <div class="col-md-2 mb-2"><label class="form-label">{{ empty_deliverable_form.quantity.label }}</label>{{ empty_deliverable_form.quantity }}</div>
+      <div class="col-md-2 mb-2"><label class="form-label">{{ empty_deliverable_form.unit.label }}</label>{{ empty_deliverable_form.unit }}</div>
+      <div class="col-md-1 mb-2"><label class="form-label">{{ empty_deliverable_form.sort_order.label }}</label>{{ empty_deliverable_form.sort_order }}</div>
+      <div class="col-md-1 mb-2 text-end">
+        <div class="form-check mb-2">{{ empty_deliverable_form.is_included }}</div>
+        <button type="button" class="btn btn-sm btn-outline-danger js-delete-deliverable">Delete</button>
+      </div>
+    </div>
+  </div>
+</template>
+
 <script>
 (function () {
-  const addBtn = document.getElementById("add-item-row");
-  const wrapper = document.getElementById("items-wrapper");
-
+  const eventsWrapper = document.getElementById("events-wrapper");
+  const eventsTotal = document.getElementById("id_events-TOTAL_FORMS");
+  const eventTemplate = document.getElementById("event-template");
+  const itemTemplate = document.getElementById("item-template");
+  const deliverableTemplate = document.getElementById("deliverable-template");
+  const priceData = JSON.parse(document.getElementById("price-data").textContent);
+  const deliverableData = JSON.parse(document.getElementById("deliverable-data").textContent);
   const subtotalInput = document.getElementById("id_subtotal");
   const totalInput = document.getElementById("id_total");
-  const discountInput = document.getElementById("id_discount");
-  const taxInput = document.getElementById("id_tax");
+  const discountInput = document.getElementById("id_plan-discount");
+  const taxInput = document.getElementById("id_plan-tax_rate");
 
-  const priceEl = document.getElementById("price-data");
-  const priceData = priceEl ? JSON.parse(priceEl.textContent) : {services: {}, packages: {}};
-
-  function num(v) {
-    const x = parseFloat(v);
-    return isNaN(x) ? 0 : x;
+  function num(value) {
+    const parsed = parseFloat(value);
+    return isNaN(parsed) ? 0 : parsed;
   }
 
-  function money(x) {
-    return (Math.round(x * 100) / 100).toFixed(2);
+  function money(value) {
+    return (Math.round(value * 100) / 100).toFixed(2);
   }
 
-  function getTotalFormsInput() {
-    return document.querySelector('input[name="{{ item_formset.prefix }}-TOTAL_FORMS"]');
+  function eventIndex(eventCard) {
+    return eventCard.dataset.eventIndex;
   }
 
-  function updateItemTitles() {
-    const rows = wrapper.querySelectorAll(".item-row");
-    let visibleIndex = 1;
+  function itemIndex(itemCard) {
+    return itemCard.dataset.itemIndex;
+  }
 
-    rows.forEach(row => {
-      const del = row.querySelector('input[type="checkbox"][name$="-DELETE"]');
-      const title = row.querySelector("h6");
+  function replaceTokens(html, eventIdx, itemIdx, deliverableIdx) {
+    return html
+      .replaceAll("__event__", eventIdx)
+      .replaceAll("__item__", itemIdx)
+      .replaceAll("__deliverable__", deliverableIdx);
+  }
 
-      if (del && del.checked) {
-        return;
-      }
+  function markDeleted(row) {
+    const flag = row.querySelector(":scope > .delete-flag");
+    if (flag) flag.checked = true;
+    row.classList.add("is-deleted");
+    recalcAll();
+    refreshTitles();
+  }
 
-      if (title) {
-        title.textContent = "Item " + visibleIndex;
-      }
+  function nextIndex(totalInput) {
+    const value = parseInt(totalInput.value, 10) || 0;
+    totalInput.value = value + 1;
+    return value;
+  }
 
-      visibleIndex += 1;
+  function addEvent() {
+    const idx = nextIndex(eventsTotal);
+    eventsWrapper.insertAdjacentHTML("beforeend", replaceTokens(eventTemplate.innerHTML, idx, 0, 0));
+    const eventCard = eventsWrapper.querySelector('.event-card[data-event-index="' + idx + '"]');
+    addItem(eventCard);
+    refreshTitles();
+  }
+
+  function addItem(eventCard) {
+    const idx = eventIndex(eventCard);
+    const total = eventCard.querySelector('input[name="event-' + idx + '-items-TOTAL_FORMS"]');
+    const itemIdx = nextIndex(total);
+    const wrapper = eventCard.querySelector(".items-wrapper");
+
+    wrapper.insertAdjacentHTML("beforeend", replaceTokens(itemTemplate.innerHTML, idx, itemIdx, 0));
+    const itemCard = wrapper.querySelector('.item-card[data-item-index="' + itemIdx + '"]');
+    addDeliverable(itemCard);
+    refreshTitles();
+    recalcAll();
+  }
+
+  function addDeliverable(itemCard, values) {
+    const eventCard = itemCard.closest(".event-card");
+    const eIdx = eventIndex(eventCard);
+    const iIdx = itemIndex(itemCard);
+    const total = itemCard.querySelector('input[name="event-' + eIdx + '-item-' + iIdx + '-deliverables-TOTAL_FORMS"]');
+    const dIdx = nextIndex(total);
+    const wrapper = itemCard.querySelector(".deliverables-wrapper");
+
+    wrapper.insertAdjacentHTML("beforeend", replaceTokens(deliverableTemplate.innerHTML, eIdx, iIdx, dIdx));
+    const row = wrapper.querySelector('.deliverable-row[data-deliverable-index="' + dIdx + '"]');
+
+    if (values) {
+      setValue(row, "title", values.title || "");
+      setValue(row, "description", values.description || "");
+      setValue(row, "quantity", values.quantity || "1.00");
+      setValue(row, "unit", values.unit || "item");
+      setValue(row, "sort_order", values.sort_order || dIdx);
+      const included = row.querySelector('input[name$="-is_included"]');
+      if (included) included.checked = values.is_included !== false;
+    }
+
+    return row;
+  }
+
+  function setValue(row, field, value) {
+    const input = row.querySelector('[name$="-' + field + '"]');
+    if (input) input.value = value;
+  }
+
+  function visibleRows(selector, root) {
+    return Array.from((root || document).querySelectorAll(selector)).filter(row => {
+      const flag = row.querySelector(":scope > .delete-flag");
+      return !flag || !flag.checked;
     });
   }
 
-  function getRowValues(row) {
-    const del = row.querySelector('input[type="checkbox"][name$="-DELETE"]');
+  function refreshTitles() {
+    visibleRows(".event-card", eventsWrapper).forEach((eventCard, eventIdx) => {
+      const title = eventCard.querySelector(".event-title");
+      if (title) title.textContent = "Event " + (eventIdx + 1);
 
-    if (del && del.checked) {
-      return {skip: true};
-    }
-
-    const qtyEl = row.querySelector('input[name$="-quantity"]');
-    const unitEl = row.querySelector('input[name$="-unit_price"]');
-
-    return {
-      skip: false,
-      qty: num(qtyEl ? qtyEl.value : 0),
-      unit: num(unitEl ? unitEl.value : 0),
-      qtyEl,
-      unitEl
-    };
-  }
-
-  function recalcRow(row) {
-    const v = getRowValues(row);
-    const out = row.querySelector(".line-total");
-
-    if (!out) {
-      return 0;
-    }
-
-    if (v.skip) {
-      out.textContent = "0.00";
-      return 0;
-    }
-
-    const line = v.qty * v.unit;
-    out.textContent = money(line);
-
-    return line;
+      visibleRows(".item-card", eventCard).forEach((itemCard, itemIdx) => {
+        const itemTitle = itemCard.querySelector(".item-title");
+        if (itemTitle) itemTitle.textContent = "Service " + (itemIdx + 1);
+      });
+    });
   }
 
   function recalcAll() {
     let subtotal = 0;
 
-    wrapper.querySelectorAll(".item-row").forEach(row => {
-      subtotal += recalcRow(row);
+    visibleRows(".item-card", eventsWrapper).forEach(itemCard => {
+      const qty = num((itemCard.querySelector('input[name$="-quantity"]') || {}).value);
+      const unit = num((itemCard.querySelector('input[name$="-unit_price"]') || {}).value);
+      const line = qty * unit;
+      const out = itemCard.querySelector(".line-total");
+      if (out) out.textContent = money(line);
+      subtotal += line;
     });
 
     const discount = discountInput ? num(discountInput.value) : 0;
-    const taxPercentage = taxInput ? num(taxInput.value) : 0;
+    const taxRate = taxInput ? num(taxInput.value) : 0;
+    const taxable = Math.max(subtotal - discount, 0);
+    const total = taxable + (taxable * taxRate / 100);
 
-    let taxableAmount = subtotal - discount;
-
-    if (taxableAmount < 0) {
-      taxableAmount = 0;
-    }
-
-    const taxAmount = taxableAmount * taxPercentage / 100;
-    const total = taxableAmount + taxAmount;
-
-    if (subtotalInput) {
-      subtotalInput.value = money(subtotal);
-    }
-
-    if (totalInput) {
-      totalInput.value = money(total);
-    }
+    if (subtotalInput) subtotalInput.value = money(subtotal);
+    if (totalInput) totalInput.value = money(total);
   }
 
-  function applyPriceFromCatalog(row) {
-    const sel = row.querySelector('select[name$="-catalog_item"]');
-    const unitEl = row.querySelector('input[name$="-unit_price"]');
-
-    if (!sel || !unitEl) {
-      return;
-    }
-
-    const key = sel.value || "";
-
-    if (!key) {
+  function applyCatalog(itemCard, shouldLoadDeliverables) {
+    const select = itemCard.querySelector('select[name$="-catalog_item"]');
+    const unitInput = itemCard.querySelector('input[name$="-unit_price"]');
+    if (!select || !unitInput || !select.value) {
       recalcAll();
       return;
     }
 
-    if (unitEl.dataset.userEdited === "1") {
-      recalcAll();
-      return;
-    }
-
-    const parts = key.split(":");
-
-    if (parts.length !== 2) {
-      return;
-    }
-
+    const parts = select.value.split(":");
     const kind = parts[0];
     const id = parts[1];
 
-    let price = null;
-
-    if (kind === "S") {
-      price = priceData.services?.[id];
+    const price = kind === "S" ? priceData.services[id] : priceData.packages[id];
+    if (price !== undefined && unitInput.dataset.userEdited !== "1") {
+      unitInput.value = money(num(price));
     }
 
-    if (kind === "P") {
-      price = priceData.packages?.[id];
-    }
+    if (shouldLoadDeliverables) {
+      const rows = visibleRows(".deliverable-row", itemCard);
+      const hasTypedDeliverables = rows.some(row => {
+        const title = row.querySelector('input[name$="-title"]');
+        return title && title.value.trim();
+      });
 
-    if (price !== null && price !== undefined) {
-      unitEl.value = money(num(price));
+      if (!hasTypedDeliverables) {
+        rows.forEach(markDeleted);
+        const defaults = kind === "S" ? deliverableData.services[id] : deliverableData.packages[id];
+        if (defaults && defaults.length) {
+          defaults.forEach((values, index) => addDeliverable(itemCard, Object.assign({sort_order: index}, values)));
+        } else {
+          addDeliverable(itemCard);
+        }
+      }
     }
 
     recalcAll();
   }
 
-  function replaceFormIndex(row, newIndex) {
-    row.querySelectorAll("input, select, textarea, label").forEach(function (el) {
-      if (el.name) {
-        el.name = el.name.replace(/-\d+-/, "-" + newIndex + "-");
-      }
+  document.getElementById("add-event").addEventListener("click", addEvent);
 
-      if (el.id) {
-        el.id = el.id.replace(/-\d+-/, "-" + newIndex + "-");
-      }
-
-      if (el.htmlFor) {
-        el.htmlFor = el.htmlFor.replace(/-\d+-/, "-" + newIndex + "-");
-      }
-    });
-  }
-
-  function clearRowValues(row) {
-    const hiddenId = row.querySelector('input[type="hidden"][name$="-id"]');
-    if (hiddenId) {
-      hiddenId.value = "";
-    }
-
-    const del = row.querySelector('input[type="checkbox"][name$="-DELETE"]');
-    if (del) {
-      del.checked = false;
-    }
-
-    row.querySelectorAll(".text-danger, .alert").forEach(el => el.remove());
-
-    row.querySelectorAll("input, select, textarea").forEach(function (el) {
-      if (el.type === "checkbox") {
-        el.checked = false;
-      } else if (el.type !== "hidden") {
-        el.value = "";
-      }
-
-      if (el.name && el.name.endsWith("-unit_price")) {
-        el.dataset.userEdited = "";
-      }
-    });
-
-    const lineTotal = row.querySelector(".line-total");
-    if (lineTotal) {
-      lineTotal.textContent = "0.00";
-    }
-
-    row.classList.remove("is-deleted");
-    row.style.display = "";
-  }
-
-  wrapper.addEventListener("input", function (e) {
-    const el = e.target;
-    if (discountInput) {
-      discountInput.addEventListener("input", recalcAll);
-      discountInput.addEventListener("change", recalcAll);
-    }
-
-    if (taxInput) {
-      taxInput.addEventListener("input", recalcAll);
-      taxInput.addEventListener("change", recalcAll);
-    }
-    if (el && el.name && el.name.endsWith("-unit_price")) {
-      el.dataset.userEdited = "1";
-      recalcAll();
-    }
-
-    if (el && el.name && el.name.endsWith("-quantity")) {
-      recalcAll();
-    }
-
-    if (el && (el.id === "id_discount" || el.id === "id_tax")) {
-      recalcAll();
-    }
-  });
-
-  wrapper.addEventListener("change", function (e) {
-    const el = e.target;
-    const row = el.closest(".item-row");
-
-    if (!row) {
+  eventsWrapper.addEventListener("click", function (event) {
+    const eventButton = event.target.closest(".js-delete-event");
+    if (eventButton) {
+      markDeleted(eventButton.closest(".event-card"));
       return;
     }
 
-    if (el.name && el.name.endsWith("-catalog_item")) {
-      const unitEl = row.querySelector('input[name$="-unit_price"]');
-
-      if (unitEl) {
-        unitEl.dataset.userEdited = "";
-      }
-
-      applyPriceFromCatalog(row);
-    }
-
-    if (el.type === "checkbox" && el.name.endsWith("-DELETE")) {
-      recalcAll();
-      updateItemTitles();
-    }
-  });
-
-  wrapper.addEventListener("click", function (e) {
-    const btn = e.target.closest(".js-delete-row");
-
-    if (!btn) {
+    const itemButton = event.target.closest(".js-add-item");
+    if (itemButton) {
+      addItem(itemButton.closest(".event-card"));
       return;
     }
 
-    const row = btn.closest(".item-row");
-
-    if (!row) {
+    const deleteItemButton = event.target.closest(".js-delete-item");
+    if (deleteItemButton) {
+      markDeleted(deleteItemButton.closest(".item-card"));
       return;
     }
 
-    const del = row.querySelector('input[type="checkbox"][name$="-DELETE"]');
-
-    if (del) {
-      del.checked = true;
+    const deliverableButton = event.target.closest(".js-add-deliverable");
+    if (deliverableButton) {
+      addDeliverable(deliverableButton.closest(".item-card"));
+      return;
     }
 
-    row.classList.add("is-deleted");
-
-    recalcAll();
-    updateItemTitles();
+    const deleteDeliverableButton = event.target.closest(".js-delete-deliverable");
+    if (deleteDeliverableButton) {
+      markDeleted(deleteDeliverableButton.closest(".deliverable-row"));
+    }
   });
 
-  if (addBtn && wrapper) {
-    addBtn.addEventListener("click", function () {
-      const totalFormsInput = getTotalFormsInput();
+  eventsWrapper.addEventListener("change", function (event) {
+    const catalog = event.target.closest('select[name$="-catalog_item"]');
+    if (catalog) {
+      const itemCard = catalog.closest(".item-card");
+      const unitInput = itemCard.querySelector('input[name$="-unit_price"]');
+      if (unitInput) unitInput.dataset.userEdited = "";
+      applyCatalog(itemCard, true);
+    }
+  });
 
-      if (!totalFormsInput) {
-        return;
-      }
-
-      let totalForms = parseInt(totalFormsInput.value, 10);
-
-      const lastRow = wrapper.querySelector(".item-row:last-child");
-
-      if (!lastRow) {
-        return;
-      }
-
-      const newRow = lastRow.cloneNode(true);
-
-      replaceFormIndex(newRow, totalForms);
-      clearRowValues(newRow);
-
-      wrapper.appendChild(newRow);
-      totalFormsInput.value = totalForms + 1;
-
-      updateItemTitles();
+  eventsWrapper.addEventListener("input", function (event) {
+    if (event.target.matches('input[name$="-unit_price"]')) {
+      event.target.dataset.userEdited = "1";
       recalcAll();
-    });
-  }
+    }
 
-  wrapper.querySelectorAll(".item-row").forEach(row => {
-    recalcRow(row);
+    if (event.target.matches('input[name$="-quantity"]')) {
+      recalcAll();
+    }
   });
 
-  updateItemTitles();
+  if (discountInput) discountInput.addEventListener("input", recalcAll);
+  if (taxInput) taxInput.addEventListener("input", recalcAll);
+
+  refreshTitles();
   recalcAll();
 })();
 </script>
-
 {% endblock %}

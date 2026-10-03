@@ -1,14 +1,13 @@
-# sales/signals.py
-
 from django.contrib.auth import get_user_model
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils import timezone
 
 from common.roles import ROLE_ADMIN
-from sales.models import Payment, PaymentType
 from todos.models import TodoPriority
 from todos.services import create_todo_once
+
+from .models import Payment, PaymentType
 
 
 User = get_user_model()
@@ -16,12 +15,10 @@ User = get_user_model()
 
 def get_admin_users():
     return (
-        User.objects
-        .filter(
+        User.objects.filter(
             is_active=True,
             groups__name=ROLE_ADMIN,
-        )
-        .distinct()
+        ).distinct()
     )
 
 

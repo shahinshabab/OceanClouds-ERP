@@ -1,8 +1,6 @@
 # sales/forms.py
 
 from django import forms
-from django.forms import inlineformset_factory
-from django.forms.models import BaseInlineFormSet
 
 from common.forms import BootstrapModelForm
 from services.models import Service, Package
@@ -10,7 +8,10 @@ from services.models import Service, Package
 from .models import (
     Deal,
     Proposal,
+    ProposalPlan,
+    ProposalEventDay,
     ProposalItem,
+    ProposalItemDeliverable,
     Contract,
     Invoice,
     Payment,
@@ -21,18 +22,23 @@ class DateInput(forms.DateInput):
     input_type = "date"
 
 
+class TimeInput(forms.TimeInput):
+    input_type = "time"
+
+
 # ---------------------------------------------------------
 # Catalog choices helper
 # ---------------------------------------------------------
+
 def get_catalog_choices():
     service_choices = [
         (f"S:{service.id}", f"Service — {service.name}")
-        for service in Service.objects.only("id", "name").order_by("name")
+        for service in Service.objects.filter(is_active=True).only("id", "name").order_by("name")
     ]
 
     package_choices = [
         (f"P:{package.id}", f"Package — {package.name}")
-        for package in Package.objects.only("id", "name").order_by("name")
+        for package in Package.objects.filter(is_active=True).only("id", "name").order_by("name")
     ]
 
     return [("", "Select item...")] + service_choices + package_choices
@@ -41,6 +47,7 @@ def get_catalog_choices():
 # ---------------------------------------------------------
 # Deal
 # ---------------------------------------------------------
+
 class DealForm(BootstrapModelForm):
     class Meta:
         model = Deal
@@ -55,16 +62,19 @@ class DealForm(BootstrapModelForm):
             "is_active",
             "closed_on",
         ]
+
         widgets = {
             "expected_close_date": DateInput(),
             "closed_on": DateInput(),
             "description": forms.Textarea(attrs={"rows": 3}),
+            "amount": forms.NumberInput(attrs={"step": "0.01", "min": "0"}),
         }
 
 
 # ---------------------------------------------------------
 # Proposal
 # ---------------------------------------------------------
+
 class ProposalForm(BootstrapModelForm):
     class Meta:
         model = Proposal
@@ -74,32 +84,86 @@ class ProposalForm(BootstrapModelForm):
             "version",
             "status",
             "valid_until",
-            "discount",
-            "tax",
             "notes",
         ]
+
         widgets = {
             "valid_until": DateInput(),
             "notes": forms.Textarea(attrs={"rows": 3}),
         }
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
 
-        self.fields["discount"].label = "Discount Amount"
-        self.fields["discount"].help_text = "Enter fixed discount amount."
+# ---------------------------------------------------------
+# Proposal Plan
+# ---------------------------------------------------------
 
-        self.fields["tax"].label = "Tax %"
-        self.fields["tax"].help_text = "Enter tax percentage, for example 18 for 18%."
+class ProposalPlanForm(BootstrapModelForm):
+    class Meta:
+        model = ProposalPlan
+        fields = [
+            "name",
+            "description",
+            "is_primary",
+            "is_accepted",
+            "discount",
+            "tax_rate",
+            "sort_order",
+        ]
 
-        self.fields["discount"].widget.attrs["step"] = "0.01"
-        self.fields["tax"].widget.attrs["step"] = "0.01"
-        self.fields["tax"].widget.attrs["placeholder"] = "Eg. 18"
+        widgets = {
+            "description": forms.Textarea(attrs={"rows": 2}),
+            "discount": forms.NumberInput(attrs={"step": "0.01", "min": "0"}),
+            "tax_rate": forms.NumberInput(
+                attrs={
+                    "step": "0.01",
+                    "min": "0",
+                    "placeholder": "Eg. 18",
+                }
+            ),
+            "sort_order": forms.NumberInput(attrs={"min": "0"}),
+        }
+
+        labels = {
+            "discount": "Discount Amount",
+            "tax_rate": "Tax %",
+        }
+
+        help_texts = {
+            "discount": "Enter fixed discount amount for this plan.",
+            "tax_rate": "Enter tax percentage, for example 18 for 18%.",
+        }
+
+
+# ---------------------------------------------------------
+# Proposal Event Day
+# ---------------------------------------------------------
+
+class ProposalEventDayForm(BootstrapModelForm):
+    class Meta:
+        model = ProposalEventDay
+        fields = [
+            "event_date",
+            "title",
+            "venue",
+            "start_time",
+            "end_time",
+            "notes",
+            "sort_order",
+        ]
+
+        widgets = {
+            "event_date": DateInput(),
+            "start_time": TimeInput(),
+            "end_time": TimeInput(),
+            "notes": forms.Textarea(attrs={"rows": 2}),
+            "sort_order": forms.NumberInput(attrs={"min": "0"}),
+        }
 
 
 # ---------------------------------------------------------
 # Proposal Item
 # ---------------------------------------------------------
+
 class ProposalItemForm(BootstrapModelForm):
     catalog_item = forms.ChoiceField(
         choices=[],
@@ -115,7 +179,19 @@ class ProposalItemForm(BootstrapModelForm):
             "description",
             "quantity",
             "unit_price",
+            "notes",
+            "sort_order",
         ]
+
+        widgets = {
+            "description": forms.TextInput(
+                attrs={"placeholder": "Example: Wedding Photography"}
+            ),
+            "quantity": forms.NumberInput(attrs={"min": "1"}),
+            "unit_price": forms.NumberInput(attrs={"step": "0.01", "min": "0"}),
+            "notes": forms.Textarea(attrs={"rows": 2}),
+            "sort_order": forms.NumberInput(attrs={"min": "0"}),
+        }
 
     def __init__(self, *args, **kwargs):
         catalog_choices = kwargs.pop("catalog_choices", None)
@@ -146,10 +222,10 @@ class ProposalItemForm(BootstrapModelForm):
         self.instance.package = None
 
         if item_type == "S":
-            service = Service.objects.filter(id=item_id).first()
+            service = Service.objects.filter(id=item_id, is_active=True).first()
 
             if not service:
-                raise forms.ValidationError("Selected service does not exist.")
+                raise forms.ValidationError("Selected service does not exist or is inactive.")
 
             self.instance.service = service
 
@@ -170,10 +246,10 @@ class ProposalItemForm(BootstrapModelForm):
                     )
 
         elif item_type == "P":
-            package = Package.objects.filter(id=item_id).first()
+            package = Package.objects.filter(id=item_id, is_active=True).first()
 
             if not package:
-                raise forms.ValidationError("Selected package does not exist.")
+                raise forms.ValidationError("Selected package does not exist or is inactive.")
 
             self.instance.package = package
 
@@ -203,35 +279,40 @@ class ProposalItemForm(BootstrapModelForm):
         return instance
 
 
-class BaseProposalItemFormSet(BaseInlineFormSet):
-    def __init__(self, *args, **kwargs):
-        self.catalog_choices = kwargs.pop("catalog_choices", get_catalog_choices())
-        super().__init__(*args, **kwargs)
+# ---------------------------------------------------------
+# Proposal Item Deliverable
+# ---------------------------------------------------------
 
-    def _construct_form(self, i, **kwargs):
-        kwargs["catalog_choices"] = self.catalog_choices
-        return super()._construct_form(i, **kwargs)
+class ProposalItemDeliverableForm(BootstrapModelForm):
+    class Meta:
+        model = ProposalItemDeliverable
+        fields = [
+            "title",
+            "description",
+            "quantity",
+            "unit",
+            "sort_order",
+            "is_included",
+        ]
 
-
-ProposalItemFormSet = inlineformset_factory(
-    Proposal,
-    ProposalItem,
-    form=ProposalItemForm,
-    formset=BaseProposalItemFormSet,
-    extra=1,
-    can_delete=True,
-)
+        widgets = {
+            "description": forms.Textarea(attrs={"rows": 2}),
+            "quantity": forms.NumberInput(attrs={"step": "0.01", "min": "0"}),
+            "sort_order": forms.NumberInput(attrs={"min": "0"}),
+        }
 
 
 # ---------------------------------------------------------
 # Contract
 # ---------------------------------------------------------
+
 class ContractForm(BootstrapModelForm):
     class Meta:
         model = Contract
         fields = [
             "deal",
             "proposal",
+            "proposal_plan",
             "status",
             "signed_date",
             "start_date",
@@ -239,6 +320,7 @@ class ContractForm(BootstrapModelForm):
             "terms",
             "file",
         ]
+
         widgets = {
             "signed_date": DateInput(),
             "start_date": DateInput(),
@@ -246,10 +328,31 @@ class ContractForm(BootstrapModelForm):
             "terms": forms.Textarea(attrs={"rows": 4}),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        proposal_id = None
+
+        if self.is_bound:
+            proposal_id = self.data.get(self.add_prefix("proposal"))
+        elif self.instance and self.instance.proposal_id:
+            proposal_id = self.instance.proposal_id
+        elif self.initial.get("proposal"):
+            proposal_id = self.initial.get("proposal")
+
+        if proposal_id:
+            self.fields["proposal_plan"].queryset = ProposalPlan.objects.filter(
+                proposal_id=proposal_id
+            ).order_by("sort_order", "id")
+        else:
+            self.fields["proposal_plan"].queryset = ProposalPlan.objects.none()
+
+
 
 # ---------------------------------------------------------
 # Invoice
 # ---------------------------------------------------------
+
 class InvoiceForm(BootstrapModelForm):
     class Meta:
         model = Invoice
@@ -259,18 +362,28 @@ class InvoiceForm(BootstrapModelForm):
             "issue_date",
             "due_date",
             "status",
+            "discount",
+            "tax_rate",
             "notes",
         ]
+
         widgets = {
             "issue_date": DateInput(),
             "due_date": DateInput(),
+            "discount": forms.NumberInput(attrs={"step": "0.01", "min": "0"}),
+            "tax_rate": forms.NumberInput(attrs={"step": "0.01", "min": "0"}),
             "notes": forms.Textarea(attrs={"rows": 3}),
         }
 
+        labels = {
+            "discount": "Discount Amount",
+            "tax_rate": "Tax %",
+        }
 
 # ---------------------------------------------------------
 # Payment
 # ---------------------------------------------------------
+
 class PaymentForm(BootstrapModelForm):
     class Meta:
         model = Payment
@@ -284,20 +397,21 @@ class PaymentForm(BootstrapModelForm):
             "notes",
             "received_by",
         ]
+
         widgets = {
             "date": DateInput(),
+            "amount": forms.NumberInput(attrs={"step": "0.01", "min": "0"}),
             "notes": forms.Textarea(attrs={"rows": 2}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.fields["amount"].widget.attrs["step"] = "0.01"
-
         invoice_obj = None
 
         initial_invoice_id = self.initial.get("invoice")
-        data_invoice_id = self.data.get("invoice") if self.is_bound else None
+        data_invoice_id = self.data.get(self.add_prefix("invoice")) if self.is_bound else None
+
         invoice_id = data_invoice_id or initial_invoice_id
 
         if invoice_id:

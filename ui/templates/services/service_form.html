@@ -30,7 +30,7 @@
       </div>
     {% endif %}
 
-    <div class="card shadow-sm">
+    <div class="card shadow-sm mb-3">
       <div class="card-body">
 
         <!-- Row 1: Name / Code / Category -->
@@ -140,6 +140,72 @@
       </div>
     </div>
 
+    <div class="card shadow-sm mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span class="fw-semibold small text-uppercase text-muted">Default Deliverables</span>
+
+        {% if can_manage_services %}
+          <button type="button" class="btn btn-sm btn-outline-primary" id="add-deliverable-row">
+            + Add Deliverable
+          </button>
+        {% endif %}
+      </div>
+
+      <div class="card-body p-0">
+        {{ deliverables_formset.management_form }}
+
+        {% if deliverables_formset.non_form_errors %}
+          <div class="alert alert-danger m-3">
+            {{ deliverables_formset.non_form_errors }}
+          </div>
+        {% endif %}
+
+        <div class="table-responsive">
+          <table class="table table-sm mb-0 align-middle">
+            <thead class="table-light">
+            <tr>
+              <th style="width: 28%;">Title</th>
+              <th>Description</th>
+              <th class="text-end" style="width: 10%;">Qty</th>
+              <th style="width: 14%;">Unit</th>
+              <th class="text-end" style="width: 10%;">Order</th>
+              <th class="text-center" style="width: 8%;">Active</th>
+              <th class="text-center" style="width: 8%;">Delete</th>
+            </tr>
+            </thead>
+
+            <tbody id="deliverables-table-body">
+            {% for deliverable_form in deliverables_formset %}
+              <tr class="deliverable-row">
+                {{ deliverable_form.id }}
+                <td>{{ deliverable_form.title }}{% for error in deliverable_form.title.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}</td>
+                <td>{{ deliverable_form.description }}{% for error in deliverable_form.description.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}</td>
+                <td class="text-end">{{ deliverable_form.quantity }}{% for error in deliverable_form.quantity.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}</td>
+                <td>{{ deliverable_form.unit }}{% for error in deliverable_form.unit.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}</td>
+                <td class="text-end">{{ deliverable_form.sort_order }}{% for error in deliverable_form.sort_order.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}</td>
+                <td class="text-center">{{ deliverable_form.is_active }}</td>
+                <td class="text-center">{% if deliverable_form.DELETE %}{{ deliverable_form.DELETE }}{% endif %}</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <script type="text/template" id="empty-deliverable-form-template">
+          <tr class="deliverable-row">
+            {{ deliverables_formset.empty_form.id }}
+            <td>{{ deliverables_formset.empty_form.title }}</td>
+            <td>{{ deliverables_formset.empty_form.description }}</td>
+            <td class="text-end">{{ deliverables_formset.empty_form.quantity }}</td>
+            <td>{{ deliverables_formset.empty_form.unit }}</td>
+            <td class="text-end">{{ deliverables_formset.empty_form.sort_order }}</td>
+            <td class="text-center">{{ deliverables_formset.empty_form.is_active }}</td>
+            <td class="text-center">{% if deliverables_formset.empty_form.DELETE %}{{ deliverables_formset.empty_form.DELETE }}{% endif %}</td>
+          </tr>
+        </script>
+      </div>
+    </div>
+
     <!-- Buttons -->
     <div class="row mt-3">
       <div class="col-12 d-flex justify-content-center gap-2">
@@ -158,4 +224,23 @@
   </form>
 
 </div>
+
+<script>
+  (function () {
+    const addBtn = document.getElementById("add-deliverable-row");
+    const tableBody = document.getElementById("deliverables-table-body");
+    const totalFormsInput = document.getElementById("id_deliverables-TOTAL_FORMS");
+    const templateEl = document.getElementById("empty-deliverable-form-template");
+
+    if (!addBtn || !tableBody || !totalFormsInput || !templateEl) return;
+
+    addBtn.addEventListener("click", function () {
+      const currentCount = parseInt(totalFormsInput.value, 10) || 0;
+      const newRowHtml = templateEl.innerHTML.replace(/__prefix__/g, currentCount);
+
+      tableBody.insertAdjacentHTML("beforeend", newRowHtml);
+      totalFormsInput.value = currentCount + 1;
+    });
+  })();
+</script>
 {% endblock %}

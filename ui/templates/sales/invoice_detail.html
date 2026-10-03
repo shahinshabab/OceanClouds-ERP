@@ -210,7 +210,11 @@
               <td class="text-end">{{ invoice.subtotal }}</td>
             </tr>
             <tr>
-              <td class="text-muted small">Tax</td>
+              <td class="text-muted small">Discount</td>
+              <td class="text-end">{{ invoice.discount }}</td>
+            </tr>
+            <tr>
+              <td class="text-muted small">Tax ({{ invoice.tax_rate }}%)</td>
               <td class="text-end">{{ invoice.tax }}</td>
             </tr>
             <tr>

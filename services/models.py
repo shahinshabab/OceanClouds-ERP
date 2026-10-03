@@ -1,6 +1,8 @@
 # services/models.py
 
-from django.db import models
+from decimal import Decimal
+
+from django.db import models, transaction, IntegrityError
 from django.db.models import Sum
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
@@ -53,22 +55,23 @@ class InventoryCategory(models.TextChoices):
     OTHER = "other", _("Other")
 
 
+class DeliverableUnit(models.TextChoices):
+    ITEM = "item", _("Item")
+    HOUR = "hour", _("Hour")
+    DAY = "day", _("Day")
+    PHOTO = "photo", _("Photo")
+    VIDEO = "video", _("Video")
+    ALBUM = "album", _("Album")
+    PAGE = "page", _("Page")
+    MINUTE = "minute", _("Minute")
+    OTHER = "other", _("Other")
+
+
 # -------------------------------------------------------------------
 # Vendor
 # -------------------------------------------------------------------
 
 class Vendor(TimeStamped, Owned):
-    """
-    External supplier, freelancer, operator, or company resource.
-
-    Examples:
-    - Photographer
-    - Videographer
-    - Drone operator
-    - Album printing vendor
-    - Decor vendor
-    """
-
     name = models.CharField(
         max_length=255,
         help_text=_("Primary contact, person name, or brand name."),
@@ -93,11 +96,7 @@ class Vendor(TimeStamped, Owned):
     state = models.CharField(max_length=128, blank=True, default="Kerala")
     country = models.CharField(max_length=128, blank=True, default="India")
 
-    is_preferred = models.BooleanField(
-        default=False,
-        help_text=_("Mark as preferred / primary vendor."),
-    )
-
+    is_preferred = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     notes = models.TextField(blank=True)
 
@@ -119,13 +118,12 @@ class Vendor(TimeStamped, Owned):
 
 class Service(TimeStamped, Owned):
     """
-    Individual sellable service.
+    Individual reusable sellable service.
 
-    Examples:
+    Example:
     - Wedding Photography
     - Wedding Videography
     - Drone Coverage
-    - Album Designing
     """
 
     CODE_PREFIX = "SER"
@@ -151,7 +149,7 @@ class Service(TimeStamped, Owned):
     base_price = models.DecimalField(
         max_digits=12,
         decimal_places=2,
-        default=0,
+        default=Decimal("0.00"),
         help_text=_("Base selling price."),
     )
 
@@ -176,19 +174,16 @@ class Service(TimeStamped, Owned):
 
     @classmethod
     def _generate_next_code(cls):
-        prefix = cls.CODE_PREFIX
-        pad = cls.CODE_PAD
-
         last = (
             cls.objects
-            .filter(code__startswith=prefix)
+            .filter(code__startswith=cls.CODE_PREFIX)
             .order_by("-code")
             .only("code")
             .first()
         )
 
         if last and last.code:
-            suffix = last.code.replace(prefix, "")
+            suffix = last.code.replace(cls.CODE_PREFIX, "")
             try:
                 number = int(suffix)
             except ValueError:
@@ -196,12 +191,65 @@ class Service(TimeStamped, Owned):
         else:
             number = 0
 
-        return f"{prefix}{number + 1:0{pad}d}"
+        return f"{cls.CODE_PREFIX}{number + 1:0{cls.CODE_PAD}d}"
 
     def save(self, *args, **kwargs):
-        if not self.code:
+        if self.pk:
+            old = type(self).objects.only("code").get(pk=self.pk)
+            if old.code:
+                self.code = old.code
+
+        if self.code:
+            return super().save(*args, **kwargs)
+
+        for _ in range(10):
             self.code = self._generate_next_code()
-        super().save(*args, **kwargs)
+            try:
+                with transaction.atomic():
+                    return super().save(*args, **kwargs)
+            except IntegrityError:
+                self.code = ""
+
+        raise IntegrityError("Could not generate unique service code.")
+
+
+class ServiceDeliverable(models.Model):
+    """
+    Default deliverables for a service.
+
+    These are templates only. When a service is added to a proposal,
+    these deliverables should be copied into ProposalItemDeliverable.
+    """
+
+    service = models.ForeignKey(
+        Service,
+        on_delete=models.CASCADE,
+        related_name="deliverables",
+    )
+
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+
+    quantity = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal("1.00"),
+    )
+
+    unit = models.CharField(
+        max_length=32,
+        choices=DeliverableUnit.choices,
+        default=DeliverableUnit.ITEM,
+    )
+
+    sort_order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ("sort_order", "id")
+
+    def __str__(self):
+        return f"{self.service.name} - {self.title}"
 
 
 # -------------------------------------------------------------------
@@ -210,10 +258,10 @@ class Service(TimeStamped, Owned):
 
 class Package(TimeStamped, Owned):
     """
-    Bundle of services.
+    Reusable bundle of services.
 
-    Examples:
-    - Wedding Base Package
+    Example:
+    - Standard Wedding Package
     - Premium Wedding Package
     - Cinematic Wedding Package
     """
@@ -235,7 +283,7 @@ class Package(TimeStamped, Owned):
     total_price = models.DecimalField(
         max_digits=12,
         decimal_places=2,
-        default=0,
+        default=Decimal("0.00"),
         help_text=_("Auto-calculated from package items."),
     )
 
@@ -252,29 +300,30 @@ class Package(TimeStamped, Owned):
         return reverse("services:package_detail", args=[self.pk])
 
     def recalculate_total(self, save=True):
-        total = self.items.aggregate(total=Sum("line_total"))["total"] or 0
+        total = (
+            self.items.aggregate(total=Sum("line_total"))["total"]
+            or Decimal("0.00")
+        )
+
         self.total_price = total
 
         if save:
-            self.save(update_fields=["total_price"])
+            self.save(update_fields=["total_price", "updated_at"])
 
         return total
 
     @classmethod
     def _generate_next_code(cls):
-        prefix = cls.CODE_PREFIX
-        pad = cls.CODE_PAD
-
         last = (
             cls.objects
-            .filter(code__startswith=prefix)
+            .filter(code__startswith=cls.CODE_PREFIX)
             .order_by("-code")
             .only("code")
             .first()
         )
 
         if last and last.code:
-            suffix = last.code.replace(prefix, "")
+            suffix = last.code.replace(cls.CODE_PREFIX, "")
             try:
                 number = int(suffix)
             except ValueError:
@@ -282,19 +331,29 @@ class Package(TimeStamped, Owned):
         else:
             number = 0
 
-        return f"{prefix}{number + 1:0{pad}d}"
+        return f"{cls.CODE_PREFIX}{number + 1:0{cls.CODE_PAD}d}"
 
     def save(self, *args, **kwargs):
-        if not self.code:
+        if self.pk:
+            old = type(self).objects.only("code").get(pk=self.pk)
+            if old.code:
+                self.code = old.code
+
+        if self.code:
+            return super().save(*args, **kwargs)
+
+        for _ in range(10):
             self.code = self._generate_next_code()
-        super().save(*args, **kwargs)
+            try:
+                with transaction.atomic():
+                    return super().save(*args, **kwargs)
+            except IntegrityError:
+                self.code = ""
+
+        raise IntegrityError("Could not generate unique package code.")
 
 
 class PackageItem(models.Model):
-    """
-    Service item inside a package.
-    """
-
     package = models.ForeignKey(
         Package,
         on_delete=models.CASCADE,
@@ -311,6 +370,7 @@ class PackageItem(models.Model):
 
     description = models.CharField(
         max_length=255,
+        blank=True,
         help_text=_("Visible line description. Example: Wedding Photography - Full Day"),
     )
 
@@ -319,31 +379,83 @@ class PackageItem(models.Model):
     unit_price = models.DecimalField(
         max_digits=12,
         decimal_places=2,
-        default=0,
+        default=Decimal("0.00"),
     )
 
     line_total = models.DecimalField(
         max_digits=12,
         decimal_places=2,
-        default=0,
+        default=Decimal("0.00"),
     )
 
+    sort_order = models.PositiveIntegerField(default=0)
+
     class Meta:
-        ordering = ("id",)
+        ordering = ("sort_order", "id")
 
     def __str__(self):
         return f"{self.description} x {self.quantity}"
 
     def save(self, *args, **kwargs):
-        if (self.unit_price is None or self.unit_price == 0) and self.service:
-            self.unit_price = self.service.base_price or 0
-
-        self.line_total = (self.unit_price or 0) * (self.quantity or 0)
-
         if not self.description and self.service:
             self.description = self.service.name
 
+        if (self.unit_price is None or self.unit_price == 0) and self.service:
+            self.unit_price = self.service.base_price or Decimal("0.00")
+
+        self.line_total = (
+            (self.unit_price or Decimal("0.00"))
+            * Decimal(self.quantity or 0)
+        )
+
         super().save(*args, **kwargs)
+        self.package.recalculate_total(save=True)
+
+    def delete(self, *args, **kwargs):
+        package = self.package
+        super().delete(*args, **kwargs)
+        package.recalculate_total(save=True)
+
+
+class PackageDeliverable(models.Model):
+    """
+    Default deliverables for a package.
+
+    Use this for package-level promises like:
+    - Complete wedding coverage
+    - Online gallery
+    - Final edited delivery
+    """
+
+    package = models.ForeignKey(
+        Package,
+        on_delete=models.CASCADE,
+        related_name="deliverables",
+    )
+
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+
+    quantity = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal("1.00"),
+    )
+
+    unit = models.CharField(
+        max_length=32,
+        choices=DeliverableUnit.choices,
+        default=DeliverableUnit.ITEM,
+    )
+
+    sort_order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ("sort_order", "id")
+
+    def __str__(self):
+        return f"{self.package.name} - {self.title}"
 
 
 # -------------------------------------------------------------------
@@ -351,17 +463,6 @@ class PackageItem(models.Model):
 # -------------------------------------------------------------------
 
 class InventoryItem(TimeStamped, Owned):
-    """
-    Company physical assets.
-
-    Examples:
-    - Camera
-    - Lens
-    - Light
-    - Drone
-    - Tripod
-    """
-
     name = models.CharField(max_length=255)
 
     sku = models.CharField(

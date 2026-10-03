@@ -83,6 +83,10 @@
             Convert to Contract
           </a>
         {% endif %}
+        <a href="{% url 'sales:proposal_pdf_download' proposal.pk %}"
+          class="btn btn-outline-dark">
+          Download Proposal PDF
+        </a>
         <a href="{% url 'sales:proposal_update' proposal.pk %}"
            class="btn btn-primary btn-sm">
           Edit
@@ -191,7 +195,7 @@
 
         <div class="col-md-3 mb-3 mb-md-0">
           <div class="text-muted small text-uppercase">Tax %</div>
-          <div class="fw-semibold mt-1">{{ proposal.tax }}</div>
+          <div class="fw-semibold mt-1">{{ proposal.tax_rate }}</div>
         </div>
 
         <div class="col-md-3">
@@ -216,54 +220,90 @@
     </div>
   </div>
 
-  <!-- Items -->
+  <!-- Pricing Plan & Items -->
   <div class="card mb-4 shadow-sm">
     <div class="card-header bg-success text-white">
-      Items
+      Pricing Plan & Items
     </div>
 
     <div class="card-body p-0">
-      {% if proposal.items.all %}
-        <div class="table-responsive">
-          <table class="table table-hover mb-0 align-middle">
-            <thead class="table-light">
-              <tr>
-                <th>Description</th>
-                <th>Service / Package</th>
-                <th class="text-end">Qty</th>
-                <th class="text-end">Unit Price</th>
-                <th class="text-end">Line Total</th>
-              </tr>
-            </thead>
+      {% if event_days %}
+        {% if pricing_plan %}
+          <div class="p-3 border-bottom bg-light">
+            <div class="fw-semibold">{{ pricing_plan.name }}</div>
+            {% if pricing_plan.description %}
+              <div class="small text-muted">{{ pricing_plan.description|linebreaksbr }}</div>
+            {% endif %}
+          </div>
+        {% endif %}
 
-            <tbody>
-              {% for item in proposal.items.all %}
-                <tr>
-                  <td>{{ item.description }}</td>
+        {% for event_day in event_days %}
+          <div class="p-3 {% if not forloop.last %}border-bottom{% endif %}">
+            <div class="d-flex justify-content-between flex-wrap gap-2 mb-2">
+              <div>
+                <div class="fw-semibold">{{ event_day.title }}</div>
+                <div class="small text-muted">
+                  {% if event_day.event_date %}{{ event_day.event_date }}{% endif %}
+                  {% if event_day.venue %}{% if event_day.event_date %} · {% endif %}{{ event_day.venue }}{% endif %}
+                </div>
+              </div>
+            </div>
 
-                  <td>
-                    {% if item.service %}
-                      <a href="{% url 'services:service_detail' item.service.pk %}">
-                        {{ item.service.name }}
-                      </a>
-                    {% elif item.package %}
-                      <a href="{% url 'services:package_detail' item.package.pk %}">
-                        {{ item.package.name }}
-                      </a>
-                    {% else %}
-                      <span class="text-muted">—</span>
-                    {% endif %}
-                  </td>
+            {% if event_day.items.all %}
+              <div class="table-responsive">
+                <table class="table table-hover mb-0 align-middle">
+                  <thead class="table-light">
+                    <tr>
+                      <th>Description</th>
+                      <th>Service / Package</th>
+                      <th>Deliverables</th>
+                      <th class="text-end">Qty</th>
+                      <th class="text-end">Unit Price</th>
+                      <th class="text-end">Line Total</th>
+                    </tr>
+                  </thead>
 
-                  <td class="text-end">{{ item.quantity }}</td>
-                  <td class="text-end">{{ item.unit_price }}</td>
-                  <td class="text-end">{{ item.line_total }}</td>
-                </tr>
-              {% endfor %}
-            </tbody>
+                  <tbody>
+                    {% for item in event_day.items.all %}
+                      <tr>
+                        <td>{{ item.description }}</td>
 
-          </table>
-        </div>
+                        <td>
+                          {% if item.service %}
+                            <a href="{% url 'services:service_detail' item.service.pk %}">
+                              {{ item.service.name }}
+                            </a>
+                          {% elif item.package %}
+                            <a href="{% url 'services:package_detail' item.package.pk %}">
+                              {{ item.package.name }}
+                            </a>
+                          {% else %}
+                            <span class="text-muted">—</span>
+                          {% endif %}
+                        </td>
+
+                        <td>
+                          {% for deliverable in item.deliverables.all %}
+                            {% if deliverable.is_included %}
+                              <div class="small">{{ deliverable.title }}</div>
+                            {% endif %}
+                          {% empty %}
+                            <span class="text-muted small">—</span>
+                          {% endfor %}
+                        </td>
+                        <td class="text-end">{{ item.quantity }}</td>
+                        <td class="text-end">{{ item.unit_price }}</td>
+                        <td class="text-end">{{ item.line_total }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            {% else %}
+              <div class="text-muted small">No items added for this event day.</div>
+            {% endif %}
+          </div>
+        {% endfor %}
       {% else %}
         <div class="p-3 text-muted">
           No items added.

@@ -1,15 +1,11 @@
-# ui/views.py
-
-from django.shortcuts import render, redirect
-from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
+from django.contrib.auth import authenticate, get_user_model, login, logout
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.views import PasswordChangeView
+from django.shortcuts import redirect, render
 from django.urls import reverse_lazy
 from django.views.generic import TemplateView, UpdateView
-from django.utils import timezone
 
 from common.roles import (
     ROLE_ADMIN,
@@ -19,96 +15,21 @@ from common.roles import (
     ROLE_MANAGER,
     user_has_role,
 )
-
 from crm.models import Client, Lead, Inquiry
-from sales.models import Deal
 from projects.models import (
-    Project,
-    Task,
     Deliverable,
-    ProjectStatus,
-    TaskStatus,
     DeliverableStatus,
+    Project,
+    ProjectStatus,
+    Task,
+    TaskStatus,
 )
+from sales.models import Deal
 
 from .forms import ProfileUpdateForm
+from .utils import _get_month_info, _monthly_card, _simple_card
 
 User = get_user_model()
-
-
-def _get_month_info():
-    today = timezone.now().date()
-    this_year = today.year
-    this_month = today.month
-
-    if this_month == 1:
-        prev_year = this_year - 1
-        prev_month = 12
-    else:
-        prev_year = this_year
-        prev_month = this_month - 1
-
-    return this_year, this_month, prev_year, prev_month
-
-
-def _pct_change(current: int, previous: int) -> int:
-    if previous == 0:
-        return 100 if current > 0 else 0
-
-    return round((current - previous) * 100 / previous)
-
-
-def _trend_data(current: int, previous: int):
-    pct = _pct_change(current, previous)
-
-    if pct > 0:
-        return {
-            "pct": pct,
-            "abs_pct": abs(pct),
-            "class": "text-success",
-            "icon": "bi-arrow-up-right",
-            "label": "Higher than last month",
-        }
-
-    if pct < 0:
-        return {
-            "pct": pct,
-            "abs_pct": abs(pct),
-            "class": "text-danger",
-            "icon": "bi-arrow-down-right",
-            "label": "Lower than last month",
-        }
-
-    return {
-        "pct": pct,
-        "abs_pct": 0,
-        "class": "text-muted",
-        "icon": "bi-dash-lg",
-        "label": "Same as last month",
-    }
-
-
-def _monthly_card(title, current, previous, icon, bg_class="bg-light"):
-    trend = _trend_data(current, previous)
-
-    return {
-        "title": title,
-        "value": current,
-        "previous": previous,
-        "icon": icon,
-        "bg_class": bg_class,
-        "trend": trend,
-    }
-
-
-def _simple_card(title, value, subtitle, icon, bg_class="bg-light"):
-    return {
-        "title": title,
-        "value": value,
-        "subtitle": subtitle,
-        "icon": icon,
-        "bg_class": bg_class,
-    }
 
 
 @login_required

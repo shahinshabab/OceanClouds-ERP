@@ -121,6 +121,29 @@
           </div>
         </div>
 
+        <!-- Pricing -->
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label class="form-label">
+              {{ form.discount.label }}
+            </label>
+            {{ form.discount }}
+            {% for error in form.discount.errors %}
+              <div class="text-danger small">{{ error }}</div>
+            {% endfor %}
+          </div>
+
+          <div class="col-md-6 mb-3">
+            <label class="form-label">
+              {{ form.tax_rate.label }}
+            </label>
+            {{ form.tax_rate }}
+            {% for error in form.tax_rate.errors %}
+              <div class="text-danger small">{{ error }}</div>
+            {% endfor %}
+          </div>
+        </div>
+
         <!-- Notes -->
         <div class="row">
           <div class="col-12 mb-3">

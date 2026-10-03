@@ -35,6 +35,14 @@
           Edit Task
         </a>
       {% endif %}
+      {% if is_admin or is_project_manager %}
+        {% if task.assigned_to_id != request.user.id %}
+          <form method="post" action="{% url 'projects:task_self_assign' task.pk %}" class="d-inline">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-primary btn-sm">Assign to me</button>
+          </form>
+        {% endif %}
+      {% endif %}
       {% if request.GET.next %}
         <a href="{{ request.GET.next }}" class="btn btn-outline-secondary btn-sm">
           Back

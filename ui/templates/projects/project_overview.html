@@ -36,7 +36,7 @@
         Operational View
       </a>
 
-      {% if is_admin %}
+      {% if is_admin or is_project_manager %}
         <a href="{% url 'projects:project_update' project.pk %}"
            class="btn btn-primary btn-sm">
           Edit Project

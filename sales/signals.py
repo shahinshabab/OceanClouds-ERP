@@ -23,11 +23,13 @@ def get_admin_users():
 
 
 @receiver(post_save, sender=Payment)
-def create_project_todo_when_advance_payment_received(sender, instance, created, **kwargs):
+def create_contract_todo_when_advance_payment_received(sender, instance, created, **kwargs):
     """
     Advance payment received:
-    - No notification needed.
-    - Create admin todo to create project.
+    - The sales owner sends the contract, then creates the client and event
+      once it is signed.
+    - Projects are no longer requested here: Project Managers get their
+      "create project" to-do when the event is created.
     """
 
     if kwargs.get("raw") or not created:
@@ -41,15 +43,18 @@ def create_project_todo_when_advance_payment_received(sender, instance, created,
     contract = invoice.contract if invoice else None
     today = timezone.localdate()
 
-    for admin in get_admin_users():
+    recipients = [deal.owner] if deal and deal.owner_id else list(get_admin_users())
+
+    for recipient in recipients:
         create_todo_once(
-            title=f"Create project for advance payment: {deal or invoice}",
+            title=f"Send contract and create event: {deal or invoice}",
             description=(
                 "Advance payment has been received. "
-                "Please create a project and assign the project manager."
+                "Send the contract for signing. Once it is signed and invoiced, "
+                "use Create Client & Event so the Project Managers can plan the project."
             ),
-            owner=admin,
-            assigned_to=admin,
+            owner=recipient,
+            assigned_to=recipient,
             priority=TodoPriority.HIGH,
             due_date=today,
             deal=deal,

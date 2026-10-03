@@ -283,6 +283,7 @@ class Notification(models.Model):
 
         # Future
         EVENT_REMINDER = "event_reminder", "Event reminder"
+        EVENT_NEEDS_PROJECT = "event_needs_project", "Event needs a project"
 
     recipient = models.ForeignKey(
         settings.AUTH_USER_MODEL,

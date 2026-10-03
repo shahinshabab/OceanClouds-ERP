@@ -24,7 +24,8 @@ from django.views.generic import (
     UpdateView,
 )
 
-from common.mixins import SalesAccessMixin, SalesReadOnlyAccessMixin
+from common.mixins import ContractViewAccessMixin, SalesAccessMixin, SalesReadOnlyAccessMixin
+from common.roles import can_access_sales
 from crm.models import Lead
 from messaging.models import EmailTemplate
 from messaging.utils import EmailSendError, send_templated_email
@@ -1573,7 +1574,17 @@ class ContractCreateClientEventView(SalesAccessMixin, View):
 # Contracts
 # ============================================================
 
-class ContractListView(SalesAccessMixin, ListView):
+def _visible_contracts(qs, user):
+    """
+    Sales sees every contract. The rest of the company sees the digital
+    copy of signed contracts only.
+    """
+    if can_access_sales(user):
+        return qs
+    return qs.filter(status=ContractStatus.SIGNED)
+
+
+class ContractListView(ContractViewAccessMixin, ListView):
     model = Contract
     template_name = "sales/contract_list.html"
     context_object_name = "contracts"
@@ -1586,6 +1597,7 @@ class ContractListView(SalesAccessMixin, ListView):
             .select_related("deal", "proposal", "deal__client", "owner")
             .prefetch_related("invoices")
         )
+        qs = _visible_contracts(qs, self.request.user)
 
         q = (self.request.GET.get("q") or "").strip()
         status = (self.request.GET.get("status") or "").strip()
@@ -1619,14 +1631,14 @@ class ContractListView(SalesAccessMixin, ListView):
         return context
 
 
-class ContractDetailView(SalesReadOnlyAccessMixin, DetailMessageScopeMixin, DetailView):
+class ContractDetailView(ContractViewAccessMixin, DetailMessageScopeMixin, DetailView):
     model = Contract
     template_name = "sales/contract_detail.html"
     context_object_name = "contract"
     detail_message_scope = "scope:contract"
 
     def get_queryset(self):
-        return (
+        return _visible_contracts(
             super()
             .get_queryset()
             .select_related("deal", "deal__client", "proposal", "owner")
@@ -1637,7 +1649,8 @@ class ContractDetailView(SalesReadOnlyAccessMixin, DetailMessageScopeMixin, Deta
                 "event_days__items__package",
                 "event_days__items__deliverables",
                 "invoices",
-            )
+            ),
+            self.request.user,
         )
 
     def get_context_data(self, **kwargs):
@@ -1654,11 +1667,11 @@ class ContractDetailView(SalesReadOnlyAccessMixin, DetailMessageScopeMixin, Deta
 
 
 
-class ContractPDFDownloadView(SalesAccessMixin, DetailView):
+class ContractPDFDownloadView(ContractViewAccessMixin, DetailView):
     model = Contract
 
     def get_queryset(self):
-        return (
+        return _visible_contracts(
             super()
             .get_queryset()
             .select_related(
@@ -1674,7 +1687,8 @@ class ContractPDFDownloadView(SalesAccessMixin, DetailView):
                 "event_days__items__service",
                 "event_days__items__package",
                 "event_days__items__deliverables",
-            )
+            ),
+            self.request.user,
         )
 
     def get(self, request, *args, **kwargs):

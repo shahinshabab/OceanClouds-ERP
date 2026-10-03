@@ -23,7 +23,7 @@
         Kanban View
       </a>
 
-      {% if is_admin %}
+      {% if is_admin or is_project_manager %}
         <a href="{% url 'projects:project_create' %}" class="btn btn-success btn-sm">
           + New Project
         </a>
@@ -231,7 +231,7 @@
                       Overview
                     </a>
 
-                    {% if is_admin %}
+                    {% if is_admin or is_project_manager %}
                       <a href="{% url 'projects:project_update' project.pk %}"
                          class="btn btn-outline-primary">
                         Edit

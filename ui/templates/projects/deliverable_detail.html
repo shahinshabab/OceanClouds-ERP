@@ -45,6 +45,14 @@
           Edit Deliverable
         </a>
       {% endif %}
+      {% if is_admin or is_project_manager %}
+        {% if deliverable.assigned_to_id != request.user.id %}
+          <form method="post" action="{% url 'projects:deliverable_self_assign' deliverable.pk %}" class="d-inline">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-primary btn-sm">Assign to me</button>
+          </form>
+        {% endif %}
+      {% endif %}
 
       {% if request.GET.next %}
         <a href="{{ request.GET.next }}" class="btn btn-outline-secondary btn-sm">

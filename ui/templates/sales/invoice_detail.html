@@ -9,7 +9,7 @@
 {% is_project_manager request.user as is_project_manager %}
 {% is_employee request.user as is_employee %}
 
-{% with client=invoice.deal.client %}
+{% with client=invoice.deal.customer %}
 
 <div class="container py-3">
 
@@ -218,6 +218,12 @@
               <td class="text-muted small">Tax ({{ invoice.tax_rate }}%)</td>
               <td class="text-end">{{ invoice.tax }}</td>
             </tr>
+            {% if invoice.advance_adjustment %}
+            <tr>
+              <td class="text-muted small">Less: Advance Received</td>
+              <td class="text-end">-{{ invoice.advance_adjustment }}</td>
+            </tr>
+            {% endif %}
             <tr>
               <td class="text-muted small">Total</td>
               <td class="text-end fw-semibold">{{ invoice.total }}</td>

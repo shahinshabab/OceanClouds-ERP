@@ -98,6 +98,8 @@
                     <a href="{% url 'crm:client_detail' client.pk %}" class="text-decoration-none">
                       {{ client.display_name|default:client.name }}
                     </a>
+                  {% elif invoice.deal.lead %}
+                    {{ invoice.deal.lead.name }} <span class="badge bg-light text-muted border">Lead</span>
                   {% else %}
                     <span class="text-muted">—</span>
                   {% endif %}

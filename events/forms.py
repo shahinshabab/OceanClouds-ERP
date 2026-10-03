@@ -118,6 +118,8 @@ class EventForm(BootstrapModelForm):
             client_id = self.data.get("client")
         elif self.instance and self.instance.client_id:
             client_id = self.instance.client_id
+        elif self.initial.get("client"):
+            client_id = self.initial.get("client")
 
         if client_id:
             self.fields["primary_contact"].queryset = Contact.objects.filter(

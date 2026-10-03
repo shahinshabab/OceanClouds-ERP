@@ -15,6 +15,7 @@ from .models import (
     Contract,
     Invoice,
     Payment,
+    PaymentMethod,
 )
 
 
@@ -359,6 +360,7 @@ class InvoiceForm(BootstrapModelForm):
         fields = [
             "deal",
             "contract",
+            "is_advance",
             "issue_date",
             "due_date",
             "status",
@@ -379,6 +381,34 @@ class InvoiceForm(BootstrapModelForm):
             "discount": "Discount Amount",
             "tax_rate": "Tax %",
         }
+
+# ---------------------------------------------------------
+# Advance payment (before contract)
+# ---------------------------------------------------------
+
+class AdvancePaymentForm(forms.Form):
+    amount = forms.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        min_value=0.01,
+        widget=forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": "0"}),
+    )
+    date = forms.DateField(widget=DateInput(attrs={"class": "form-control"}))
+    method = forms.ChoiceField(
+        choices=PaymentMethod.choices,
+        initial=PaymentMethod.UPI,
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    reference = forms.CharField(
+        max_length=128,
+        required=False,
+        widget=forms.TextInput(attrs={"class": "form-control"}),
+    )
+    notes = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={"class": "form-control", "rows": 2}),
+    )
+
 
 # ---------------------------------------------------------
 # Payment

@@ -30,6 +30,10 @@
           + New Deal
         </a>
 
+        <a href="{% url 'events:event_create' %}?client={{ client.pk }}" class="btn btn-outline-success btn-sm">
+          + New Event
+        </a>
+
         <a href="{% url 'crm:review_create' %}?client={{ client.pk }}" class="btn btn-outline-success btn-sm">
           + Add Review
         </a>

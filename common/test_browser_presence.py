@@ -85,7 +85,8 @@ class BrowserHeartbeatTests(TestCase):
 
         self.login.refresh_from_db()
         self.assertEqual(self.login.last_activity_at, original)
-        self.assertIsNone(self.login.logout_at)
+        self.assertEqual(self.login.end_reason, "session_expired")
+        self.assertEqual(self.login.logout_at, self.login.expires_at)
 
     def test_closed_row_is_not_reopened(self):
         self.login.close()

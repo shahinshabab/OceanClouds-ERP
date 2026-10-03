@@ -231,13 +231,21 @@ def push_todo_deleted(sender, instance, **kwargs):
 # ----------------------------------------------------------------------
 
 
+def end_session_sockets(user_id, session_key, reason):
+    """Close one browser session's sockets after a cleanup ends its login."""
+    push(
+        _user_groups(user_id),
+        {"kind": "session_ended", "session": session_tag(session_key), "reason": reason},
+    )
+
+
 @receiver(user_logged_out, dispatch_uid="live_logout")
 def close_socket_on_logout(sender, request, user, **kwargs):
     session_key = getattr(getattr(request, "session", None), "session_key", None)
     if user and session_key:
         _send_now(
             [user_group(user.pk)],
-            {"kind": "session_ended", "session": session_tag(session_key)},
+            {"kind": "session_ended", "session": session_tag(session_key), "reason": "logout"},
         )
 
 

@@ -13,10 +13,24 @@ from common.models import ImportantNotice, UserLoginSession
 from common.session_management import close_expired_login_sessions
 
 
+def is_user_activity(request):
+    """
+    Only requests a person made count as activity: clicking a link, submitting
+    a form, typing a URL. Automatic page reloads and background fetches (live
+    updates, the notification bell) do not, so an unattended tab goes idle.
+    Browsers without Fetch Metadata headers count every request, as before.
+    """
+    mode = request.headers.get("Sec-Fetch-Mode")
+    if mode is None:
+        return True
+    return mode == "navigate" and request.headers.get("Sec-Fetch-User") == "?1"
+
+
 class CloseExpiredLoginSessionsMiddleware:
     """
-    Enforces the fixed login deadline without treating page inactivity as work
-    inactivity. A scheduled command performs the same cleanup between requests.
+    Signs out logins that went idle or reached their fixed deadline, and
+    records user activity. A scheduled command performs the same cleanup
+    between requests.
     """
 
     def __init__(self, get_response):
@@ -54,11 +68,12 @@ class CloseExpiredLoginSessionsMiddleware:
                     logout_at__isnull=True,
                 ).update(session_key=request.session.session_key)
 
-            UserLoginSession.objects.filter(
-                user_id=request.user.pk,
-                session_key=request.session.session_key,
-                logout_at__isnull=True,
-            ).update(last_activity_at=timezone.now())
+            if is_user_activity(request):
+                UserLoginSession.objects.filter(
+                    user_id=request.user.pk,
+                    session_key=request.session.session_key,
+                    logout_at__isnull=True,
+                ).update(last_activity_at=timezone.now())
 
         return response
 

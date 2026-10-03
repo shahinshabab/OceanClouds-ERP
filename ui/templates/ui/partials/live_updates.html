@@ -13,6 +13,7 @@
 
 <script src="{% static 'ui/live_updates.js' %}" defer
         data-socket-path="/ws/live/"
+        data-login-url="{% url 'ui:login' %}"
         data-panel-url="{% url 'common:notification_panel' %}"
         data-notifications-url="{% url 'common:notification_list' %}"
         data-inquiry-url-template="{% url 'crm:inquiry_detail' 0 %}"></script>

@@ -21,6 +21,7 @@
     let reloadTimer = null;
     let lastInteraction = 0;
     let formEdited = false;
+    let endedReason = "";
 
     // ------------------------------------------------------------------
     // Page refresh without losing someone's work
@@ -140,6 +141,11 @@
     function handle(payload) {
         const kind = payload.kind;
 
+        if (kind === "session_ended") {
+            endedReason = payload.reason || "";
+            return;
+        }
+
         if (kind === "notification") {
             refreshBell();
             if (payload.action === "created") toast(payload.message, config.notificationsUrl);
@@ -161,6 +167,28 @@
             const verb = payload.action === "created" ? "added" : payload.action;
             requestReload(`A ${noun} was ${verb}.`);
         }
+    }
+
+    // ------------------------------------------------------------------
+    // Signed out (idle, logout in another tab, newer login): go to sign-in
+    // ------------------------------------------------------------------
+
+    function sessionEnded() {
+        if (!config.loginUrl) return;
+        const here = window.location.pathname + window.location.search;
+        const url = `${config.loginUrl}?${new URLSearchParams({next: here, ended: endedReason})}`;
+        if (isBusy()) {
+            // Keep unsaved typing on screen; the button goes to sign-in.
+            showBanner("You have been signed out.");
+            const button = document.querySelector("#liveUpdateBanner .js-live-refresh");
+            if (button) {
+                button.textContent = "Sign in";
+                button.classList.remove("js-live-refresh");
+                button.addEventListener("click", () => window.location.assign(url));
+            }
+            return;
+        }
+        window.location.assign(url);
     }
 
     // ------------------------------------------------------------------
@@ -190,6 +218,7 @@
         socket.addEventListener("close", (e) => {
             if (e.code === CLOSE_SESSION_ENDED) {
                 stopped = true;
+                sessionEnded();
                 return;
             }
             const wait = retryMs + Math.random() * 1000;

@@ -358,6 +358,7 @@ class Notification(models.Model):
 class UserSessionEndReason(models.TextChoices):
     LOGOUT = "logout", "Manual Logout"
     AUTO_TIMEOUT = "auto_timeout", "Auto Timeout"
+    IDLE_TIMEOUT = "idle_timeout", "Idle Logout (Last Activity)"
     SESSION_EXPIRED = "session_expired", "Fixed Session Expired"
     SESSION_REPLACED = "session_replaced", "Replaced by New Login"
     SYSTEM = "system", "System"

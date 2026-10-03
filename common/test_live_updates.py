@@ -11,6 +11,7 @@ from django.utils import timezone
 
 from common.models import Notification, UserLoginSession
 from common.notifications import notify_user
+from common.session_management import close_expired_login_sessions
 from common.roles import ROLE_ADMIN, ROLE_EMPLOYEE, ROLE_PROJECT_MANAGER
 from common.test_helpers import make_user
 from core.asgi import application
@@ -184,6 +185,7 @@ class LiveUpdatesTests(TransactionTestCase):
 
         await sync_to_async(client.post)(reverse("ui:logout"))
 
+        self.assertEqual(await socket.receive(), {"kind": "session_ended", "reason": "logout"})
         output = await socket.output()
         self.assertEqual(output["type"], "websocket.close")
         self.assertEqual(output["code"], 4401)
@@ -193,8 +195,34 @@ class LiveUpdatesTests(TransactionTestCase):
 
         await sync_to_async(logged_in_client)(self.employee)
 
+        self.assertEqual(
+            await old_socket.receive(),
+            {"kind": "session_ended", "reason": "session_replaced"},
+        )
         output = await old_socket.output()
         self.assertEqual(output["type"], "websocket.close")
+
+    async def test_idle_login_is_rejected(self):
+        client = await sync_to_async(logged_in_client)(self.employee)
+        await UserLoginSession.objects.filter(user=self.employee).aupdate(
+            last_activity_at=timezone.now() - timedelta(hours=1)
+        )
+        connected, code = await LiveSocket(client).connect()
+        self.assertFalse(connected)
+        self.assertEqual(code, 4401)
+
+    async def test_idle_cleanup_tells_the_page_and_closes_its_socket(self):
+        _, socket = await self.open_socket(self.employee)
+        await UserLoginSession.objects.filter(user=self.employee).aupdate(
+            last_activity_at=timezone.now() - timedelta(hours=1)
+        )
+
+        await sync_to_async(close_expired_login_sessions)()
+
+        self.assertEqual(await socket.receive(), {"kind": "session_ended", "reason": "idle_timeout"})
+        output = await socket.output()
+        self.assertEqual(output["type"], "websocket.close")
+        self.assertEqual(output["code"], 4401)
 
 
 class NotificationPanelTests(TransactionTestCase):

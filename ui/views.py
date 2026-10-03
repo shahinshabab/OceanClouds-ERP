@@ -8,6 +8,7 @@ from django.shortcuts import redirect, render
 from django.urls import reverse_lazy
 from django.views.generic import TemplateView, UpdateView
 
+from common.models import UserSessionEndReason
 from common.roles import (
     ROLE_ADMIN,
     ROLE_CRM_MANAGER,
@@ -550,7 +551,27 @@ def home(request):
     return render(request, "ui/home.html", context)
 
 
+def _session_ended_message(reason):
+    """Why an open page was sent back to sign-in (reason from the browser)."""
+    if reason == UserSessionEndReason.IDLE_TIMEOUT:
+        minutes = settings.LOGIN_IDLE_TIMEOUT_SECONDS // 60
+        return f"You were signed out after {minutes} minutes of inactivity."
+    if reason == UserSessionEndReason.SESSION_EXPIRED:
+        hours = settings.LOGIN_SESSION_MAX_SECONDS // 3600
+        return f"Your session reached its {hours}-hour limit. Please sign in again."
+    if reason == UserSessionEndReason.SESSION_REPLACED:
+        return "You signed in on another device or browser, so this session was closed."
+    if reason == UserSessionEndReason.LOGOUT:
+        return "You have been logged out."
+    return ""
+
+
 def login_view(request):
+    if request.method == "GET":
+        ended_message = _session_ended_message(request.GET.get("ended", ""))
+        if ended_message:
+            messages.info(request, ended_message, extra_tags="scope:auth")
+
     if request.method == "POST":
         username = request.POST.get("username")
         password = request.POST.get("password")

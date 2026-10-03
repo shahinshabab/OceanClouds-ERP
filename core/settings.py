@@ -162,7 +162,9 @@ if REDIS_URL:
         "default": {
             "BACKEND": "channels_redis.core.RedisChannelLayer",
             "CONFIG": {
-                "hosts": [REDIS_URL],
+                # redis-py 8 defaults to a 5 s socket timeout, the same as
+                # channels_redis' 5 s blocking pop, which kills idle sockets.
+                "hosts": [{"address": REDIS_URL, "socket_timeout": 15}],
                 "capacity": 200,
                 "expiry": 30,
             },

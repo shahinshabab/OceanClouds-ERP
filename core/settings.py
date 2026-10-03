@@ -38,6 +38,7 @@ env = environ.Env(
     DB_CONN_MAX_AGE=(int, 60),
     APP_VERSION=(str, "dev"),
     REDIS_URL=(str, ""),
+    LOGIN_IDLE_TIMEOUT_MINUTES=(int, 30),
     AWS_REGION=(str, ""),
     AWS_SES_SENDER=(str, ""),
     AWS_ACCESS_KEY_ID=(str, ""),
@@ -308,6 +309,11 @@ SESSION_COOKIE_AGE = LOGIN_SESSION_MAX_SECONDS
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 SESSION_SAVE_EVERY_REQUEST = False
 
-# Presence estimates never change the fixed authentication/attendance deadline.
+# A login with no user activity (clicks, typing, scrolling, page navigation)
+# for this long is signed out, and its logout time is the last activity time.
+# 0 turns idle logout off; the fixed deadline above always applies.
+LOGIN_IDLE_TIMEOUT_SECONDS = env.int("LOGIN_IDLE_TIMEOUT_MINUTES") * 60
+
+# Heartbeats are sent only while someone interacts with an open page.
 BROWSER_HEARTBEAT_INTERVAL_SECONDS = 60
 BROWSER_OFFLINE_THRESHOLD_SECONDS = 180

@@ -86,10 +86,36 @@ same `location /ws/` block into the `listen 443` server as well, then
 Redis is capped at 64 MB with no persistence (`compose.yaml`); restarting it
 only drops in-flight pushes, and browsers reconnect on their own.
 
+## Login, logout and idle sign-out
+
+Every login and logout is a `UserLoginSession` row. A login ends one of four ways:
+
+| End reason | When | Logout time recorded | Attendance |
+| --- | --- | --- | --- |
+| Manual Logout | the user clicks Logout | the click | counted |
+| Idle Logout (Last Activity) | no activity for `LOGIN_IDLE_TIMEOUT_MINUTES` (default 30) | the last activity | counted |
+| Fixed Session Expired | active right up to the 16-hour limit | the 16-hour limit | needs an approved checkout |
+| Replaced by New Login | the user signs in elsewhere | the new login | needs an approved checkout |
+
+Activity means someone using the app: clicking a link, submitting a form,
+typing a URL, or clicking, typing, scrolling or moving the mouse on an open
+page (sent as a heartbeat, below). An open tab nobody touches, automatic page
+reloads from live updates, background fetches and the websocket itself are not
+activity. So a forgotten logout, a closed browser, or a sleeping computer all
+end as an idle logout whose time is the last real activity.
+
+The `session-cleanup` service runs `close_expired_login_sessions` every minute;
+requests and heartbeats also close an ended login straight away. Closing a login
+deletes its Django session, pauses active work at the logout time, and tells
+open tabs over the websocket, which then go to the sign-in page with the reason.
+Set `LOGIN_IDLE_TIMEOUT_MINUTES` in `.env` to change the limit, or `0` to turn
+idle sign-out off.
+
 ## Browser presence
 
 Authenticated application and Django admin pages send a CSRF-protected POST to
-`/common/session/heartbeat/` about once per minute. Tabs share a timestamp in
+`/common/session/heartbeat/` about once per minute while someone is using them,
+and nothing while they sit unattended. Tabs share a timestamp in
 local storage and use Web Locks where available to avoid duplicate requests.
 If storage is unavailable, each tab may send its own heartbeat, but the endpoint
 still limits timestamp updates to once per minute for the current login.
@@ -103,8 +129,8 @@ It is an estimate: browser suspension, computer sleep, or network loss can also
 stop heartbeats. It is not an exact browser-close or attendance checkout time.
 
 Heartbeats never extend the fixed 16-hour authentication deadline, acknowledge
-notices, mark checkout, or pause active work. The existing scheduled session
-cleanup and missed-checkout correction workflow continue to apply. Heartbeat
+notices, or mark checkout. A heartbeat for a login that is idle or past its
+deadline ends that login and returns 401 with the end reason. Heartbeat
 requests skip the per-request global expiry scan and notice query, while still
 checking authentication, CSRF, the current login key, and its expiry deadline.
 Standard server access logs may include these requests; existing Docker log

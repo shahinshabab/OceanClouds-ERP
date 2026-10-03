@@ -174,7 +174,7 @@ class CommonModelTests(AuthenticatedViewTestMixin):
             user=user,
             session_key="recent-session-key",
             login_at=now - timedelta(hours=8),
-            last_activity_at=now - timedelta(hours=4),
+            last_activity_at=now - timedelta(minutes=10),
             expires_at=expires_at,
         )
         request = RequestFactory().get("/")

@@ -9,6 +9,7 @@ from django.utils import timezone
 
 from common.live import GROUP_ADMINS, GROUP_INQUIRIES, session_tag, user_group
 from common.models import UserLoginSession
+from common.session_management import idle_cutoff
 from common.roles import ROLE_ADMIN, can_access_inquiry, user_has_role
 
 # Close codes the browser script treats as "do not reconnect".
@@ -17,8 +18,9 @@ CLOSE_SESSION_ENDED = 4401
 
 class LiveUpdatesConsumer(AsyncJsonWebsocketConsumer):
     """
-    One socket per open tab. It only receives pushes; it never counts as
-    activity, so it does not affect presence, attendance, or session deadlines.
+    One socket per open tab. It only receives pushes; an open socket never
+    counts as activity, so an unattended tab still reaches idle logout. When
+    a login ends, the tab is told why before the socket closes.
     """
 
     async def connect(self):
@@ -63,10 +65,12 @@ class LiveUpdatesConsumer(AsyncJsonWebsocketConsumer):
         kind = payload.get("kind")
         if kind == "session_ended":
             if payload.get("session") == self.session_tag:
+                await self.send_json({"kind": "session_ended", "reason": payload.get("reason")})
                 await self.close(code=CLOSE_SESSION_ENDED)
             return
         if kind == "session_replaced":
             if payload.get("keep") != self.session_tag:
+                await self.send_json({"kind": "session_ended", "reason": "session_replaced"})
                 await self.close(code=CLOSE_SESSION_ENDED)
             return
         await self.send_json(payload)
@@ -79,19 +83,21 @@ class LiveUpdatesConsumer(AsyncJsonWebsocketConsumer):
     def _load_access(self, user, session_key):
         """
         Returns (expires_at, groups), or (False, []) when this browser's login
-        is closed or past its fixed deadline.
+        is closed, idle, or past its fixed deadline.
         """
         now = timezone.now()
-        login = (
+        logins = (
             UserLoginSession.objects.filter(
                 user_id=user.pk,
                 session_key=session_key,
                 logout_at__isnull=True,
             )
             .filter(Q(expires_at__gt=now) | Q(expires_at__isnull=True))
-            .only("expires_at")
-            .first()
         )
+        cutoff = idle_cutoff(now)
+        if cutoff is not None:
+            logins = logins.filter(last_activity_at__gt=cutoff)
+        login = logins.only("expires_at").first()
         if login is None:
             return False, []
 

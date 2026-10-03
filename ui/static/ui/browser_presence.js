@@ -5,7 +5,18 @@
     const interval = Number(config.intervalMs) || 60000;
     const storageKey = config.storageKey;
     let localLastSent = 0;
+    let lastInteraction = 0;
     let stopped = false;
+
+    // Only a person using the page counts as activity. An open, unattended
+    // tab sends nothing, so the server can sign it out as idle and record the
+    // last real activity as the logout time.
+    function interacted() {
+        lastInteraction = Date.now();
+    }
+    ["pointerdown", "pointermove", "keydown", "wheel", "scroll", "touchstart"].forEach(name => {
+        window.addEventListener(name, interacted, {passive: true, capture: true});
+    });
 
     function lastSent() {
         try {
@@ -38,6 +49,8 @@
         // Ignore future stamps if the device clock changed. No client timestamp
         // is trusted by the server; these stamps only coordinate local tabs.
         if (previous <= now && now - previous < interval) return;
+        // Nothing done here since the last heartbeat from any tab.
+        if (!lastInteraction || (previous <= now && lastInteraction <= previous)) return;
 
         rememberSent(now);
         const body = new FormData();
@@ -64,6 +77,13 @@
             if (response.status === 401 || response.status === 403) {
                 stopped = true;
                 window.clearInterval(timer);
+            }
+            if (response.status === 401 && config.loginUrl) {
+                let reason = "";
+                try { reason = (await response.json()).reason || ""; } catch (_) { /* no body */ }
+                const here = window.location.pathname + window.location.search;
+                const query = new URLSearchParams({next: here, ended: reason});
+                window.location.assign(`${config.loginUrl}?${query}`);
             }
         } catch (_) {
             // Offline/closing tabs are expected. Retry on the next minute.
@@ -94,6 +114,8 @@
     window.addEventListener("online", () => heartbeat());
     window.addEventListener("pagehide", () => heartbeat(true));
     document.addEventListener("visibilitychange", () => {
+        // Coming back to a tab is activity; leaving it sends any pending beat.
+        if (document.visibilityState === "visible") interacted();
         heartbeat(document.visibilityState === "hidden");
     });
     heartbeat();

@@ -222,6 +222,15 @@ class Proposal(TimeStamped, Owned):
 
     valid_until = models.DateField(null=True, blank=True)
 
+    intro = models.TextField(
+        blank=True,
+        help_text=_("Personal note to the couple, printed on the cover letter page."),
+    )
+    terms = models.TextField(
+        blank=True,
+        help_text=_("One condition per line. Leave blank to use the standard Ocean Clouds terms."),
+    )
+
     accepted_plan = models.ForeignKey(
         "ProposalPlan",
         on_delete=models.SET_NULL,
@@ -514,7 +523,7 @@ class ProposalItem(models.Model):
         if self.service:
             return self.service.base_price or Decimal("0.00")
         if self.package:
-            return self.package.total_price or Decimal("0.00")
+            return self.package.selling_price
         return Decimal("0.00")
 
     def copy_default_deliverables(self):
@@ -820,12 +829,15 @@ class Contract(TimeStamped, Owned):
         self.proposal_plan = selected_plan
         self.discount = selected_plan.discount
         self.tax_rate = selected_plan.tax_rate
+        if not self.terms and proposal.terms:
+            self.terms = proposal.terms
         self.save(
             update_fields=[
                 "proposal",
                 "proposal_plan",
                 "discount",
                 "tax_rate",
+                "terms",
                 "updated_at",
             ]
         )

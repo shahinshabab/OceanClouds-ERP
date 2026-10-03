@@ -72,8 +72,11 @@ class ServiceForm(BootstrapModelForm):
             "name",
             "code",
             "category",
+            "summary",
             "description",
             "base_price",
+            "price_unit",
+            "sort_order",
             "vendors",
             "is_active",
             "notes",
@@ -120,7 +123,10 @@ class PackageForm(BootstrapModelForm):
         fields = [
             "name",
             "code",
+            "tagline",
             "description",
+            "price",
+            "sort_order",
             "is_active",
             "notes",
         ]
@@ -128,6 +134,7 @@ class PackageForm(BootstrapModelForm):
         widgets = {
             "description": forms.Textarea(attrs={"rows": 3}),
             "notes": forms.Textarea(attrs={"rows": 3}),
+            "price": forms.NumberInput(attrs={"step": "0.01", "min": "0", "placeholder": "Sum of services"}),
         }
 
 

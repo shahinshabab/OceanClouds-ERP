@@ -84,6 +84,20 @@
           </div>
         </div>
 
+        <div class="mb-3">
+          <label class="form-label">{{ form.intro.label }}</label>
+          {{ form.intro }}
+          <div class="form-text">Printed on the welcome page of the proposal PDF.</div>
+          {% for error in form.intro.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">{{ form.terms.label }}</label>
+          {{ form.terms }}
+          <div class="form-text">{{ form.terms.help_text }}</div>
+          {% for error in form.terms.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+        </div>
+
         <div class="mb-0">
           <label class="form-label">{{ form.notes.label }}</label>
           {{ form.notes }}

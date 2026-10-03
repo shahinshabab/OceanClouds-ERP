@@ -61,6 +61,8 @@ from .models import (
 )
 from .utils import (
     build_common_email_context,
+    build_contract_document_context,
+    build_proposal_document_context,
     check_before_send,
     create_client_and_events_from_contract,
     flash_send_result,
@@ -85,10 +87,7 @@ from .utils import (
     set_lead_status,
 )
 
-try:
-    from weasyprint import HTML
-except ImportError:
-    HTML = None
+from common.pdf import HTML, render_pdf
 
 
 class OwnerAssignMixin:
@@ -125,8 +124,8 @@ def _get_price_maps():
     }
 
     packages_price_map = {
-        str(p.id): str(p.total_price or Decimal("0.00"))
-        for p in Package.objects.all().only("id", "total_price").order_by("id")
+        str(p.id): str(p.selling_price)
+        for p in Package.objects.all().only("id", "total_price", "price").order_by("id")
     }
 
     return services_price_map, packages_price_map
@@ -614,32 +613,12 @@ class ProposalPDFDownloadView(SalesAccessMixin, DetailView):
     def get(self, request, *args, **kwargs):
         proposal = self.get_object()
 
-        selected_plan = get_selected_proposal_plan(proposal)
-        event_days = get_pdf_event_days(selected_plan)
-        deliverables = get_pdf_deliverables(selected_plan)
-
-        context = {
-            "proposal": proposal,
-            "client": get_proposal_client(proposal),
-            "selected_plan": selected_plan,
-            "event_days": event_days,
-            "deliverables": deliverables,
-            "amount_words": get_amount_in_words(proposal.total),
-            "terms": get_proposal_terms(),
-            "static_base_url": request.build_absolute_uri(settings.STATIC_URL),
-        }
-
-        html_string = render_to_string(
-            "sales/proposal_pdf.html",
-            context,
-            request=request,
-        )
-
         try:
-            pdf_bytes = HTML(
-                string=html_string,
-                base_url=request.build_absolute_uri("/"),
-            ).write_pdf()
+            pdf_bytes = render_pdf(
+                "sales/proposal_pdf.html",
+                build_proposal_document_context(proposal),
+                request=request,
+            )
         except Exception as exc:
             raise Http404(f"Could not generate proposal PDF: {exc}")
 
@@ -650,6 +629,20 @@ class ProposalPDFDownloadView(SalesAccessMixin, DetailView):
         response = HttpResponse(pdf_bytes, content_type="application/pdf")
         response["Content-Disposition"] = f'attachment; filename="{filename}"'
         return response
+
+
+class ProposalDocumentView(SalesReadOnlyAccessMixin, DetailView):
+    """
+    The proposal in the browser: the same document as the PDF.
+    """
+
+    model = Proposal
+
+    def get(self, request, *args, **kwargs):
+        proposal = self.get_object()
+        context = build_proposal_document_context(proposal)
+        context["screen"] = True
+        return render(request, "sales/proposal_pdf.html", context)
 
 
 class ProposalCreateView(SalesAccessMixin, OwnerAssignMixin, CreateView):
@@ -1357,7 +1350,7 @@ class ProposalConvertToContractView(SalesAccessMixin, OwnerAssignMixin, CreateVi
                 "proposal_plan": selected_plan.pk if selected_plan else None,
                 "status": ContractStatus.DRAFT,
                 "start_date": timezone.localdate(),
-                "terms": self.proposal.notes,
+                "terms": self.proposal.terms,
             }
         )
 
@@ -1697,41 +1690,11 @@ class ContractPDFDownloadView(ContractViewAccessMixin, DetailView):
 
         contract = self.get_object()
 
-        total_amount = get_contract_pdf_total(contract)
-
-        booking_advance = percentage_amount(total_amount, Decimal("10"))
-        on_event_amount = percentage_amount(total_amount, Decimal("80"))
-        after_delivery_amount = total_amount - booking_advance - on_event_amount
-        balance_amount = total_amount - booking_advance
-
-        context = {
-            "contract": contract,
-            "client": get_contract_client(contract),
-            "total_amount": total_amount,
-            "booking_advance": booking_advance,
-            "balance_amount": balance_amount,
-            "on_event_amount": on_event_amount,
-            "after_delivery_amount": after_delivery_amount,
-            "advance_percent": 10,
-            "event_percent": 80,
-            "delivery_percent": 10,
-            "bank_details": get_oceanclouds_bank_details(),
-            "deliverable_rows": get_payment_plan_deliverable_rows(),
-            "client_notes": get_payment_plan_client_notes(),
-            "terms": get_payment_plan_terms(),
-            "important_terms": get_payment_plan_important_terms(),
-        }
-
-        html_string = render_to_string(
+        pdf_file = render_pdf(
             "sales/contract_pdf.html",
-            context,
+            build_contract_document_context(contract),
             request=request,
         )
-
-        pdf_file = HTML(
-            string=html_string,
-            base_url=request.build_absolute_uri("/"),
-        ).write_pdf()
 
         contract_id = _safe_filename_part(contract.number or contract.pk, f"contract-{contract.pk}")
         client_name = _client_filename_part(contract)
@@ -1740,6 +1703,18 @@ class ContractPDFDownloadView(ContractViewAccessMixin, DetailView):
         response = HttpResponse(pdf_file, content_type="application/pdf")
         response["Content-Disposition"] = f'attachment; filename="{filename}"'
         return response
+
+
+class ContractDocumentView(ContractPDFDownloadView):
+    """
+    The digital contract in the browser: the same document as the PDF.
+    """
+
+    def get(self, request, *args, **kwargs):
+        contract = self.get_object()
+        context = build_contract_document_context(contract)
+        context["screen"] = True
+        return render(request, "sales/contract_pdf.html", context)
 
 
 class ContractCreateView(SalesAccessMixin, OwnerAssignMixin, CreateView):
@@ -1766,7 +1741,7 @@ class ContractCreateView(SalesAccessMixin, OwnerAssignMixin, CreateView):
                         "deal": proposal.deal_id,
                         "proposal": proposal.pk,
                         "proposal_plan": selected_plan.pk if selected_plan else None,
-                        "terms": proposal.notes,
+                        "terms": proposal.terms,
                     }
                 )
 
@@ -2183,16 +2158,7 @@ class InvoicePDFDownloadView(SalesAccessMixin, DetailView):
 
         invoice = self.get_object()
 
-        html_string = render_to_string(
-            "sales/invoice_pdf.html",
-            {"invoice": invoice},
-            request=request,
-        )
-
-        pdf_file = HTML(
-            string=html_string,
-            base_url=request.build_absolute_uri(),
-        ).write_pdf()
+        pdf_file = render_pdf("sales/invoice_pdf.html", {"invoice": invoice}, request=request)
 
         invoice_id = _safe_filename_part(invoice.number or invoice.pk, f"invoice-{invoice.pk}")
         client_name = _client_filename_part(invoice)

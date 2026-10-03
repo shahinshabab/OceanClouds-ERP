@@ -85,7 +85,7 @@
           <div class="text-uppercase text-muted small">Contract</div>
           <div class="fw-semibold">
             {% if event.contract %}
-              <a href="{% url 'sales:contract_detail' event.contract.pk %}">
+              <a href="{% url 'sales:contract_document' event.contract.pk %}">
                 {{ event.contract.number|default:"View contract" }}
               </a>
               <div class="small text-muted fw-normal">{{ event.contract.get_status_display }}</div>

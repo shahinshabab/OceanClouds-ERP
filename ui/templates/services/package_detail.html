@@ -42,11 +42,21 @@
       <div class="row gy-3">
 
         <div class="col-md-4">
-          <div class="text-uppercase text-muted small">Total Price</div>
+          <div class="text-uppercase text-muted small">Selling Price</div>
           <div class="fw-semibold">
-            {{ package.total_price }}
+            {{ package.selling_price }}
+            {% if package.price is not None %}
+              <div class="small text-muted fw-normal">Bundle price · services add up to {{ package.total_price }}{% if package.savings %} (saves {{ package.savings }}){% endif %}</div>
+            {% endif %}
           </div>
         </div>
+
+        {% if package.tagline %}
+        <div class="col-md-8">
+          <div class="text-uppercase text-muted small">Tagline</div>
+          <div>{{ package.tagline }}</div>
+        </div>
+        {% endif %}
 
         <div class="col-12">
           <div class="text-uppercase text-muted small">Description</div>
@@ -115,7 +125,7 @@
 
           <tfoot>
           <tr>
-            <th colspan="3" class="text-end">Total</th>
+            <th colspan="3" class="text-end">Services total</th>
             <th class="text-end fw-semibold">
               {{ package.total_price }}
             </th>

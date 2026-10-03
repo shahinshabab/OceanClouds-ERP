@@ -100,11 +100,13 @@
               </td>
 
               <td>
-                {% if event.project %}
-                  {{ event.project.name }}
+                {% with project=event.linked_project %}
+                {% if project %}
+                  {{ project.name }}
                 {% else %}
                   —
                 {% endif %}
+                {% endwith %}
               </td>
 
               <td>{{ event.date }}</td>

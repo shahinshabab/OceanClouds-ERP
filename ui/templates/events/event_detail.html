@@ -5,6 +5,7 @@
 
 {% block content %}
 {% has_event_manage_access request.user as can_manage_events %}
+{% is_admin request.user as can_create_project %}
 
 <div class="container py-3 max-w-2xl">
 
@@ -50,12 +51,16 @@
         <div class="col-md-4">
           <div class="text-uppercase text-muted small">Project</div>
           <div class="fw-semibold">
-            {% if event.project %}
-              <a href="{% url 'projects:project_detail' event.project.pk %}">
-                {{ event.project.name }}
+            {% if linked_project %}
+              <a href="{% url 'projects:project_detail' linked_project.pk %}">
+                {{ linked_project.name }}
+              </a>
+            {% elif can_create_project %}
+              <a href="{% url 'projects:project_create' %}?event={{ event.pk }}" class="btn btn-outline-primary btn-sm">
+                Create Project
               </a>
             {% else %}
-              —
+              <span class="text-muted">Not created yet</span>
             {% endif %}
           </div>
         </div>
@@ -74,7 +79,14 @@
         <div class="col-md-4">
           <div class="text-uppercase text-muted small">Primary Contact</div>
           <div class="fw-semibold">
-            {{ event.primary_contact|default:"—" }}
+            {% with contact=event.contact %}
+              {% if contact %}
+                {{ contact }}
+                {% if contact.phone %}<div class="small text-muted fw-normal">{{ contact.phone }}</div>{% endif %}
+              {% else %}
+                —
+              {% endif %}
+            {% endwith %}
           </div>
         </div>
 
@@ -202,7 +214,7 @@
           {% endfor %}
         </ul>
       {% else %}
-        <p class="text-muted mb-0">No vendors linked.</p>
+        <p class="text-muted mb-0">No vendors assigned yet.</p>
       {% endif %}
     </div>
   </div>
@@ -227,7 +239,7 @@
           {% endfor %}
         </ul>
       {% else %}
-        <p class="text-muted mb-0">No inventory linked.</p>
+        <p class="text-muted mb-0">No inventory assigned yet.</p>
       {% endif %}
     </div>
   </div>

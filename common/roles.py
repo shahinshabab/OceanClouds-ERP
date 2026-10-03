@@ -56,14 +56,11 @@ ROLE_ALL = [
 
 EVENT_MANAGE_ROLES = [
     ROLE_ADMIN,
+    ROLE_CRM_MANAGER,
     ROLE_PROJECT_MANAGER,
 ]
 
-EVENT_CALENDAR_ROLES = [
-    ROLE_ADMIN,
-    ROLE_PROJECT_MANAGER,
-    ROLE_EMPLOYEE,
-]
+EVENT_CALENDAR_ROLES = ROLE_ALL
 
 # Reports access
 
@@ -145,7 +142,7 @@ def can_manage_services(user):
 def can_manage_events(user):
     """
     Event management:
-    Admin + Project Manager.
+    Admin + CRM Manager + Project Manager.
     """
     return user_has_role(user, *EVENT_MANAGE_ROLES)
 
@@ -153,9 +150,9 @@ def can_manage_events(user):
 def can_access_event_calendar(user):
     """
     Event calendar:
-    Admin + Project Manager + Employee.
+    Everyone who is signed in.
     """
-    return user_has_role(user, *EVENT_CALENDAR_ROLES)
+    return user.is_authenticated
 
 
 def can_access_reports(user):

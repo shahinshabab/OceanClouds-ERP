@@ -16,6 +16,9 @@ class BootstrapModelForm(forms.ModelForm):
 
             if isinstance(widget, forms.CheckboxInput):
                 css_class = "form-check-input"
+            elif isinstance(widget, forms.CheckboxSelectMultiple):
+                # A group of checkboxes styles its own inputs.
+                css_class = ""
             elif isinstance(widget, (forms.Select, forms.SelectMultiple)):
                 css_class = "form-select"
             else:

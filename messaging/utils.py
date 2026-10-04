@@ -12,7 +12,6 @@ import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 
 from django.conf import settings
-from django.core.files.base import ContentFile
 from django.template import Context, Template
 from django.utils import timezone
 

@@ -53,7 +53,6 @@ from .utils import (
     _scope_tags,
     _validation_error_message,
     close_active_work_for_target,
-    is_admin,
     is_admin_or_project_manager,
     is_employee,
     is_project_manager,

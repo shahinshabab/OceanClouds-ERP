@@ -2,13 +2,11 @@ import json
 from datetime import date, timedelta
 from decimal import Decimal
 
-from django.conf import settings
 from django.contrib import messages
 from django.db import transaction
 from django.db.models import Q
 from django.http import Http404, HttpResponse
 from django.shortcuts import redirect, get_object_or_404, render
-from django.template.loader import render_to_string
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.utils.decorators import method_decorator
@@ -72,20 +70,10 @@ from .utils import (
     check_before_send,
     create_client_and_events_from_contract,
     flash_send_result,
-    get_amount_in_words,
-    get_contract_client,
-    get_contract_pdf_total,
     get_contract_public_sign_total,
-    get_oceanclouds_bank_details,
     get_payment_plan_client_notes,
-    get_payment_plan_deliverable_rows,
     get_payment_plan_important_terms,
     get_payment_plan_terms,
-    get_pdf_deliverables,
-    get_pdf_event_days,
-    get_proposal_client,
-    get_proposal_terms,
-    get_selected_proposal_plan,
     lead_status,
     percentage_amount,
     resolve_client_email,
@@ -149,13 +137,6 @@ def _get_price_maps():
 
 def _get_proposal_plan(proposal):
     return proposal.accepted_plan or proposal.get_pricing_plan()
-
-
-def _get_proposal_event_day(proposal):
-    plan = _get_proposal_plan(proposal)
-    if not plan:
-        return None
-    return plan.event_days.order_by("sort_order", "event_date", "id").first()
 
 
 def _iter_proposal_event_days(proposal):
@@ -417,7 +398,7 @@ class DealUpdateView(SalesAccessMixin, OwnerAssignMixin, UpdateView):
 
     def get_success_url(self):
         return reverse_lazy("sales:deal_detail", kwargs={"pk": self.object.pk})
-    
+
 class DealDeleteView(SalesAccessMixin, KeepPaymentsOnDeleteMixin, DeleteView):
     model = Deal
     template_name = "common/confirm_delete.html"
@@ -533,7 +514,7 @@ class ProposalListView(SalesAccessMixin, ListView):
     paginate_by = 20
 
     def get_queryset(self):
-        qs = super().get_queryset().select_related("deal", "deal__client", "owner")
+        qs = super().get_queryset().select_related("deal", "deal__client", "deal__lead", "owner").prefetch_related("contracts")
 
         q = (self.request.GET.get("q") or "").strip()
         status = (self.request.GET.get("status") or "").strip()
@@ -599,13 +580,6 @@ class ProposalDetailView(SalesReadOnlyAccessMixin, DetailMessageScopeMixin, Deta
         context["event_days"] = _iter_proposal_event_days(self.object)
 
         return context
-
-
-
-
-
-
-
 
 
 class ProposalPDFDownloadView(SalesAccessMixin, DetailView):
@@ -1337,8 +1311,6 @@ class ProposalConvertToContractView(SalesAccessMixin, OwnerAssignMixin, CreateVi
             pk=self.kwargs["pk"],
         )
 
-        deal = self.proposal.deal
-
         # 1. Proposal must be accepted first
         if self.proposal.status != ProposalStatus.ACCEPTED:
             messages.error(
@@ -1418,7 +1390,7 @@ class ProposalConvertToContractView(SalesAccessMixin, OwnerAssignMixin, CreateVi
             "sales:contract_detail",
             kwargs={"pk": self.object.pk},
         )
-    
+
 class DealRecordAdvanceView(SalesAccessMixin, View):
     """
     Deal / accepted proposal -> Record Advance.
@@ -1608,7 +1580,7 @@ class ContractListView(ContractViewAccessMixin, ListView):
         qs = (
             super()
             .get_queryset()
-            .select_related("deal", "proposal", "deal__client", "owner")
+            .select_related("deal", "proposal", "deal__client", "deal__lead", "owner")
             .prefetch_related("invoices")
         )
         qs = _visible_contracts(qs, self.request.user)
@@ -1675,10 +1647,6 @@ class ContractDetailView(ContractViewAccessMixin, DetailMessageScopeMixin, Detai
         context["invoice"] = self.object.invoices.order_by("-issue_date", "-created_at").first()
 
         return context
-
-
-
-
 
 
 class ContractPDFDownloadView(ContractViewAccessMixin, DetailView):
@@ -1852,7 +1820,7 @@ class ContractDeleteView(SalesAccessMixin, DeleteView):
             extra_tags=_scope_tags("contract"),
         )
         return super().form_valid(form)
-    
+
 
 class ContractGenerateInvoiceView(SalesAccessMixin, OwnerAssignMixin, CreateView):
     """
@@ -1984,7 +1952,7 @@ class InvoiceListView(SalesAccessMixin, ListView):
         qs = (
             super()
             .get_queryset()
-            .select_related("deal", "deal__client", "contract", "owner")
+            .select_related("deal", "deal__client", "deal__lead", "contract", "owner")
             .prefetch_related("payments")
         )
 
@@ -2169,7 +2137,7 @@ class InvoiceDeleteView(SalesAccessMixin, KeepPaymentsOnDeleteMixin, DeleteView)
                 extra_tags=_scope_tags("invoice"),
             )
         return response
-    
+
 class InvoicePDFDownloadView(SalesAccessMixin, DetailView):
     model = Invoice
 
@@ -2209,6 +2177,7 @@ class PaymentListView(SalesAccessMixin, ListView):
                 "invoice",
                 "invoice__deal",
                 "invoice__deal__client",
+                "invoice__deal__lead",
                 "received_by",
                 "owner",
             )
@@ -2362,12 +2331,10 @@ class PaymentDeleteView(SalesAccessMixin, DeleteView):
             )
 
         return reverse_lazy("sales:payment_list")
-    
+
 # ============================================================
 # Send Email Actions
 # ============================================================
-
-
 
 
 @method_decorator(require_POST, name="dispatch")
@@ -2653,7 +2620,7 @@ class PaymentSendEmailView(SalesAccessMixin, View):
         )
 
         return redirect("sales:payment_detail", pk=payment.pk)
-    
+
 class ContractPublicSignView(View):
     template_name = "sales/contract_public_sign.html"
 

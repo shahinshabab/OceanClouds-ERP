@@ -2,6 +2,7 @@
 
 from django import forms
 
+from common.forms import BootstrapModelForm
 from services.models import Service, Package, Vendor, InventoryItem
 
 from .models import (
@@ -10,27 +11,6 @@ from .models import (
     EventChecklist,
     ChecklistItem,
 )
-
-
-class BootstrapModelForm(forms.ModelForm):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        for name, field in self.fields.items():
-            widget = field.widget
-            existing_classes = widget.attrs.get("class", "")
-
-            if isinstance(widget, forms.CheckboxInput):
-                widget.attrs["class"] = (existing_classes + " form-check-input").strip()
-
-            elif isinstance(widget, forms.CheckboxSelectMultiple):
-                widget.attrs["class"] = existing_classes.strip()
-
-            elif isinstance(widget, (forms.Select, forms.SelectMultiple)):
-                widget.attrs["class"] = (existing_classes + " form-select").strip()
-
-            else:
-                widget.attrs["class"] = (existing_classes + " form-control").strip()
 
 
 class DateInput(forms.DateInput):

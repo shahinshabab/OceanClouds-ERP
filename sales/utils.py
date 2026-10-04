@@ -27,20 +27,6 @@ def set_lead_status(lead, status_attr, fallback):
     lead.save(update_fields=["status", "updated_at"])
 
 
-def link_client_and_status_to_lead(
-    lead,
-    client,
-    status_attr="STATUS_CONVERTED_TO_CLIENT",
-    fallback="converted_to_client",
-):
-    if not lead:
-        return
-
-    lead.client = client
-    lead.status = lead_status(status_attr, fallback)
-    lead.save(update_fields=["client", "status", "updated_at"])
-
-
 def copy_lead_data_to_client_if_empty(client, lead):
     changed_fields = []
 
@@ -152,73 +138,6 @@ def get_pdf_event_days(plan):
             "items__deliverables",
         ).all()
     )
-
-
-def get_item_name(item):
-    if getattr(item, "service", None):
-        return item.service.name
-
-    if getattr(item, "package", None):
-        return item.package.name
-
-    if getattr(item, "description", None):
-        return item.description
-
-    return "Service Item"
-
-
-def get_pdf_deliverables(plan):
-    if not plan:
-        return []
-
-    grouped = {}
-
-    for event_day in get_pdf_event_days(plan):
-        for item in event_day.items.all():
-            item_deliverables = list(item.deliverables.all())
-
-            if item_deliverables:
-                for deliverable in item_deliverables:
-                    if not getattr(deliverable, "is_included", True):
-                        continue
-
-                    title = (deliverable.title or "").strip()
-                    if not title:
-                        continue
-
-                    unit = (
-                        deliverable.get_unit_display()
-                        if hasattr(deliverable, "get_unit_display")
-                        else getattr(deliverable, "unit", "") or ""
-                    )
-                    key = (title.lower(), unit.lower())
-                    quantity = Decimal(deliverable.quantity or 0)
-
-                    grouped.setdefault(
-                        key,
-                        {
-                            "title": title,
-                            "quantity": Decimal("0.00"),
-                            "unit": unit,
-                        },
-                    )
-                    grouped[key]["quantity"] += quantity
-            else:
-                title = get_item_name(item)
-                key = (title.lower(), "")
-                quantity = Decimal(getattr(item, "quantity", 1) or 1)
-
-                grouped.setdefault(
-                    key,
-                    {
-                        "title": title,
-                        "quantity": Decimal("0.00"),
-                        "unit": "",
-                    },
-                )
-                grouped[key]["quantity"] += quantity
-
-    return list(grouped.values())
 
 
 def get_proposal_client(proposal):

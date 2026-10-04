@@ -15,7 +15,7 @@ from projects.models import Deliverable, Task, WorkSession
 
 
 User = get_user_model()
-ATTENDANCE_REQUIRED_SECONDS = 8 * 60 * 60
+ATTENDANCE_REQUIRED_SECONDS = getattr(settings, "ATTENDANCE_REQUIRED_SECONDS", 7 * 60 * 60)
 
 
 def _money(value):

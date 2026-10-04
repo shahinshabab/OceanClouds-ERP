@@ -282,6 +282,9 @@ class Notification(models.Model):
         DELIVERABLE_ASSIGNED = "deliverable_assigned", "Deliverable assigned"
         DELIVERABLE_DUE = "deliverable_due", "Deliverable due"
 
+        # Attendance
+        ATTENDANCE_CHECKOUT = "attendance_checkout", "Missing logout"
+
         # Future
         EVENT_REMINDER = "event_reminder", "Event reminder"
         EVENT_NEEDS_PROJECT = "event_needs_project", "Event needs a project"
@@ -445,6 +448,11 @@ class UserLoginSession(models.Model):
 
     def __str__(self):
         return f"{self.user} login {self.login_at} - {self.logout_at or 'ACTIVE'}"
+
+    def get_absolute_url(self):
+        from django.urls import reverse
+
+        return reverse("reports:attendance")
 
     @property
     def is_active(self):

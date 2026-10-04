@@ -15,7 +15,7 @@ from projects.utils import pause_active_work_sessions_for_user
 
 
 def session_lifetime():
-    seconds = int(getattr(settings, "LOGIN_SESSION_MAX_SECONDS", 16 * 60 * 60))
+    seconds = int(getattr(settings, "LOGIN_SESSION_MAX_SECONDS", 12 * 60 * 60))
     return timedelta(seconds=seconds)
 
 
@@ -112,6 +112,12 @@ def close_expired_login_sessions(now=None):
     closed_session_keys = [login_session.session_key for login_session in closed_sessions]
     if closed_session_keys:
         Session.objects.filter(session_key__in=closed_session_keys).delete()
+
+    from reports.notifications import notify_missing_logout
+
+    for login_session in closed_sessions:
+        if login_session.checkout_review_status == CheckoutReviewStatus.PENDING:
+            notify_missing_logout(login_session)
 
     for login_session in closed_sessions:
         if not UserLoginSession.objects.filter(

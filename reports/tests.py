@@ -339,13 +339,22 @@ class ReportRoleVisibilityTests(TestCase):
         response = self.client.get(reverse("reports:sales_report"), {"user": other_crm.pk})
         self.assertEqual(response.context["selected_user"], other_crm)
 
-    def test_project_report_stays_scoped_for_project_managers(self):
+    def test_project_manager_gets_full_project_report(self):
+        other_manager = make_user(username="report-other-pm")
+        other_manager.groups.add(self.manager_group)
+        Project.objects.create(name="OTHER-MANAGER-PROJECT", manager=other_manager)
+
         self.client.force_login(self.project_manager)
         response = self.client.get(reverse("reports:project_report"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context["selected_user"], self.project_manager)
-        self.assertFalse(response.context["show_detailed_data"])
+        self.assertIsNone(response.context["selected_user"])
+        self.assertTrue(response.context["show_detailed_data"])
+        self.assertContains(response, "ADMIN-ONLY-TASK-DETAIL")
+        self.assertContains(response, "OTHER-MANAGER-PROJECT")
+
+        response = self.client.get(reverse("reports:project_report"), {"user": other_manager.pk})
+        self.assertEqual(response.context["selected_user"], other_manager)
         self.assertNotContains(response, "ADMIN-ONLY-TASK-DETAIL")
 
     def test_employee_report_has_no_attendance_section(self):

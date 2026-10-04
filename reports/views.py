@@ -26,7 +26,6 @@ from common.models import (
 )
 from common.browser_presence import session_presence
 from common.roles import (
-    ROLE_ADMIN,
     ROLE_CRM_MANAGER,
     ROLE_PROJECT_MANAGER,
     ROLE_EMPLOYEE,
@@ -677,28 +676,19 @@ class ProjectReportView(ProjectReportAccessMixin, ReportTabsMixin, ReportPDFMixi
     report_tab = "projects"
 
     def get_selected_project_manager(self):
-        request = self.request
-        current_user = request.user
-
-        selected_id = _selected_user_id(request)
-
-        if user_has_role(current_user, ROLE_ADMIN):
-            if selected_id:
-                return User.objects.filter(
-                    id=selected_id,
-                    groups__name=ROLE_PROJECT_MANAGER,
-                    is_active=True,
-                ).first()
-
+        selected_id = _selected_user_id(self.request)
+        if not selected_id:
             return None
 
-        return current_user
+        return User.objects.filter(
+            id=selected_id,
+            groups__name=ROLE_PROJECT_MANAGER,
+            is_active=True,
+        ).first()
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
-        current_user = self.request.user
-        is_admin = user_has_role(current_user, ROLE_ADMIN)
         date_from, date_to = _get_date_range(self.request)
         selected_user = self.get_selected_project_manager()
         today = timezone.localdate()
@@ -813,11 +803,11 @@ class ProjectReportView(ProjectReportAccessMixin, ReportTabsMixin, ReportPDFMixi
             "date_to": date_to,
             "selected_user": selected_user,
             "selected_user_name": _user_display(selected_user),
-            "people": _users_in_role(ROLE_PROJECT_MANAGER) if is_admin else [],
+            "people": _users_in_role(ROLE_PROJECT_MANAGER),
             "person_label": "Project manager",
             "project_managers": _users_in_role(ROLE_PROJECT_MANAGER),
             "pdf_download_url": self.get_pdf_url(),
-            "show_detailed_data": is_admin,
+            "show_detailed_data": True,
             "charts": charts,
             "kpis": [
                 _kpi("Projects", project_count, "Created in this period", "bi-kanban"),
@@ -864,12 +854,12 @@ class ProjectReportView(ProjectReportAccessMixin, ReportTabsMixin, ReportPDFMixi
             "task_department_counts": task_department_counts,
             "deliverable_department_counts": deliverable_department_counts,
 
-            "recent_projects": projects_in_period.order_by("-created_at")[:10] if is_admin else [],
-            "overdue_projects": overdue_projects.order_by("due_date")[:10] if is_admin else [],
-            "recent_tasks": tasks_in_period.order_by("-created_at")[:10] if is_admin else [],
-            "overdue_tasks": overdue_tasks.order_by("due_date")[:10] if is_admin else [],
-            "recent_deliverables": deliverables_in_period.order_by("-created_at")[:10] if is_admin else [],
-            "overdue_deliverables": overdue_deliverables.order_by("due_date")[:10] if is_admin else [],
+            "recent_projects": projects_in_period.order_by("-created_at")[:10],
+            "overdue_projects": overdue_projects.order_by("due_date")[:10],
+            "recent_tasks": tasks_in_period.order_by("-created_at")[:10],
+            "overdue_tasks": overdue_tasks.order_by("due_date")[:10],
+            "recent_deliverables": deliverables_in_period.order_by("-created_at")[:10],
+            "overdue_deliverables": overdue_deliverables.order_by("due_date")[:10],
         })
 
         return context

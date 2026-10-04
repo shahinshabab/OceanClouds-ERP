@@ -1112,4 +1112,22 @@ details.form-collapse > summary::-webkit-details-marker { display: none; }
 details.form-collapse > summary .collapse-caret { margin-left: auto; color: var(--oc-muted); transition: transform .15s; }
 details.form-collapse[open] > summary { margin-bottom: .9rem; }
 details.form-collapse[open] > summary .collapse-caret { transform: rotate(180deg); }
-.role-form .check-grid > div, .role-form .check-grid > ul { max-height: 60vh; }
+
+/* Role permission matrix */
+.perm-matrix { display: grid; gap: .6rem; }
+.perm-app { border: 1px solid var(--oc-line); border-radius: 10px; background: var(--oc-paper); }
+.perm-app > summary { display: flex; align-items: center; gap: .5rem; padding: .7rem .9rem; font-weight: 600; cursor: pointer; list-style: none; }
+.perm-app > summary::-webkit-details-marker { display: none; }
+.perm-app > summary .bi { transition: transform .15s; color: var(--oc-muted); }
+.perm-app[open] > summary .bi { transform: rotate(90deg); }
+.perm-app[open] > summary { border-bottom: 1px solid var(--oc-line); }
+.perm-count { margin-left: auto; color: var(--oc-muted); font-size: .78rem; font-weight: 500; }
+.perm-app table th, .perm-app table td { padding: .45rem .9rem; }
+.perm-app thead th { font-size: .72rem; letter-spacing: .05em; text-transform: uppercase; color: var(--oc-muted); }
+.perm-row, .perm-col { padding: 0; border: 0; background: none; color: inherit; font: inherit; text-transform: inherit; letter-spacing: inherit; }
+.perm-row { font-weight: 550; text-align: left; }
+.perm-row:hover, .perm-col:hover { text-decoration: underline; }
+.perm-app input[type="checkbox"] { width: 1rem; height: 1rem; accent-color: var(--oc-ink); }
+.perm-extra { display: inline-flex; align-items: center; gap: .35rem; margin-right: .9rem; font-size: .8rem; }
+.form-field-check { flex-wrap: wrap; }
+.form-field-check > .form-text { flex-basis: 100%; margin-top: .1rem; }

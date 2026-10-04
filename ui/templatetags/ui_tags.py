@@ -102,6 +102,10 @@ def field(bound, col="auto", label=None, hint=None, prefix=None, suffix=None, pl
     css = widget.attrs.get("class", "")
     if bound.errors:
         css = f"{css} is-invalid".strip()
+    if kind == "CheckboxSelectMultiple":
+        # The class would land on the wrapper div too; the check grid styles the boxes itself.
+        css = ""
+        attrs["class"] = ""
     if css:
         attrs["class"] = css
     if placeholder:
@@ -126,3 +130,35 @@ def form_fields(form, col="auto", exclude=""):
     """Every visible field of a form in the shared layout, minus `exclude` (comma list)."""
     skip = {name.strip() for name in exclude.split(",") if name.strip()}
     return {"fields": [f for f in form.visible_fields() if f.name not in skip], "col": col}
+
+
+PERMISSION_ACTIONS = ("view", "add", "change", "delete")
+
+
+@register.filter
+def permission_matrix(bound):
+    """
+    Group a permissions checkbox field into app -> model rows with one box per
+    action (view, add, change, delete) plus any custom permissions.
+    """
+    apps = {}
+    for sub in bound.subwidgets:
+        perm = getattr(sub.data["value"], "instance", None)
+        if perm is None:
+            continue
+        ct = perm.content_type
+        app = apps.setdefault(ct.app_label, {"label": ct.app_label.replace("_", " ").title(), "models": {}})
+        model = app["models"].setdefault(ct.model, {"label": ct.name.capitalize(), "actions": {}, "extra": []})
+        action = perm.codename.split("_", 1)[0]
+        if action in PERMISSION_ACTIONS and perm.codename == f"{action}_{ct.model}":
+            model["actions"][action] = sub
+        else:
+            model["extra"].append(sub)
+    result = []
+    for app in sorted(apps.values(), key=lambda a: a["label"]):
+        rows = []
+        for m in sorted(app["models"].values(), key=lambda m: m["label"]):
+            m["cells"] = [m["actions"].get(a) for a in PERMISSION_ACTIONS]
+            rows.append(m)
+        result.append({"label": app["label"], "rows": rows})
+    return result

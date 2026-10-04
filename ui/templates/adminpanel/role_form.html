@@ -5,7 +5,7 @@
 {% block form_eyebrow %}<i class="bi bi-shield-lock"></i> Admin · Roles{% endblock %}
 {% block form_title %}{% if object %}Edit {{ object.name }}{% else %}New role{% endif %}{% endblock %}
 {% block form_subtitle %}A role is a set of permissions you can give to users.{% endblock %}
-{% block page_class %}wide role-form{% endblock %}
+{% block page_class %}wide{% endblock %}
 
 {% block form_body %}
   <section class="form-section">
@@ -17,11 +17,75 @@
 
   <section class="form-section">
     <h2 class="form-section-title"><i class="bi bi-ui-checks-grid"></i>Permissions</h2>
-    <div class="row g-3">
-      {% field form.permissions "col-12" label="" %}
+    <p class="form-section-note">Tick what this role can do for each kind of record. Use a row or column header to tick all of it.</p>
+    {% for error in form.permissions.errors %}<div class="field-error"><i class="bi bi-exclamation-circle"></i>{{ error }}</div>{% endfor %}
+    <div class="perm-matrix">
+      {% for app in form.permissions|permission_matrix %}
+        <details class="perm-app" {% if forloop.first %}open{% endif %}>
+          <summary><i class="bi bi-chevron-right"></i>{{ app.label }}<span class="perm-count js-perm-count"></span></summary>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Record</th>
+                  <th class="text-center"><button type="button" class="perm-col js-perm-col" data-col="0">View</button></th>
+                  <th class="text-center"><button type="button" class="perm-col js-perm-col" data-col="1">Add</button></th>
+                  <th class="text-center"><button type="button" class="perm-col js-perm-col" data-col="2">Change</button></th>
+                  <th class="text-center"><button type="button" class="perm-col js-perm-col" data-col="3">Delete</button></th>
+                  <th>Other</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in app.rows %}
+                  <tr>
+                    <th scope="row"><button type="button" class="perm-row js-perm-row">{{ row.label }}</button></th>
+                    {% for cell in row.cells %}
+                      <td class="text-center" data-col="{{ forloop.counter0 }}">{% if cell %}{{ cell.tag }}{% endif %}</td>
+                    {% endfor %}
+                    <td>
+                      {% for sub in row.extra %}
+                        <label class="perm-extra">{{ sub.tag }}{{ sub.data.value.instance.name }}</label>
+                      {% endfor %}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      {% endfor %}
     </div>
   </section>
 {% endblock %}
 
 {% block cancel_url %}{% url 'adminpanel:role_list' %}{% endblock %}
 {% block submit_label %}Save role{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const matrix = document.querySelector(".perm-matrix");
+  if (!matrix) return;
+  const count = (app) => {
+    const boxes = app.querySelectorAll("input[type=checkbox]");
+    const on = [...boxes].filter((b) => b.checked).length;
+    app.querySelector(".js-perm-count").textContent = on + " of " + boxes.length;
+  };
+  const toggle = (boxes) => {
+    const all = [...boxes].every((b) => b.checked);
+    boxes.forEach((b) => { b.checked = !all; });
+  };
+  matrix.querySelectorAll(".perm-app").forEach(count);
+  matrix.addEventListener("change", (e) => count(e.target.closest(".perm-app")));
+  matrix.addEventListener("click", (e) => {
+    const row = e.target.closest(".js-perm-row");
+    const col = e.target.closest(".js-perm-col");
+    if (!row && !col) return;
+    const app = e.target.closest(".perm-app");
+    if (row) toggle(row.closest("tr").querySelectorAll("input[type=checkbox]"));
+    if (col) toggle(app.querySelectorAll('td[data-col="' + col.dataset.col + '"] input[type=checkbox]'));
+    count(app);
+  });
+})();
+</script>
+{% endblock %}

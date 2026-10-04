@@ -21,7 +21,7 @@
 
   {% with i=form.instance %}
   <details class="form-section form-collapse" {% if form.errors or i.project_id or i.task_id or i.deliverable_id or i.client_id or i.lead_id or i.deal_id or i.proposal_id or i.contract_id or i.invoice_id or i.event_id or i.checklist_item_id %}open{% endif %}>
-    <summary class="form-section-title"><i class="bi bi-link-45deg"></i>Link to a record <span class="form-section-note ms-1">optional</span><i class="bi bi-chevron-down collapse-caret"></i></summary>
+    <summary class="form-section-title"><i class="bi bi-link-45deg"></i>Link to a record <span class="text-muted fw-normal small">optional</span><i class="bi bi-chevron-down collapse-caret"></i></summary>
     <p class="form-section-note">Connect this to-do to a client, sale, project or event so it shows up there.</p>
     <div class="row g-3">
       {% field form.client "col-md-4" %}

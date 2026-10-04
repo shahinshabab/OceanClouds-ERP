@@ -39,7 +39,7 @@
       {% if is_admin or is_project_manager %}
         <a href="{% url 'projects:project_update' project.pk %}"
            class="btn btn-primary btn-sm">
-          Edit Project
+          <i class="bi bi-pencil"></i>Edit Project
         </a>
       {% endif %}
     </div>
@@ -382,7 +382,7 @@
           {% if is_admin or is_project_manager %}
             <a href="{% url 'projects:task_create_for_project' project.pk %}"
                class="btn btn-sm btn-outline-primary">
-              + Add Task
+              <i class="bi bi-plus-lg"></i>Add Task
             </a>
           {% endif %}
         </div>
@@ -447,7 +447,7 @@
           {% if is_admin or is_project_manager %}
             <a href="{% url 'projects:deliverable_create_for_project' project.pk %}"
                class="btn btn-sm btn-outline-primary">
-              + Add Deliverable
+              <i class="bi bi-plus-lg"></i>Add Deliverable
             </a>
           {% endif %}
         </div>
@@ -508,7 +508,7 @@
 
   <div class="text-center mt-4">
     <a href="{% url 'projects:project_list' %}" class="btn btn-secondary">
-      Back to Projects
+      <i class="bi bi-arrow-left"></i>Back to Projects
     </a>
   </div>
 

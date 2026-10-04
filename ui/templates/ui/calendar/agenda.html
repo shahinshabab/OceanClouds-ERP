@@ -1,0 +1,31 @@
+{% if cal_agenda %}
+  <ol class="cal-agenda">
+    {% for day in cal_agenda %}
+      <li class="cal-agenda-day{% if day.is_today %} today{% endif %}">
+        <div class="cal-agenda-date">
+          <span class="num">{{ day.date|date:"j" }}</span>
+          <span class="txt">{{ day.date|date:"D" }}<br>{{ day.date|date:"M Y" }}{% if day.is_today %}<br>Today{% endif %}</span>
+        </div>
+        <div class="cal-agenda-items">
+          {% for item in day.items %}
+            {% if item.url %}<a href="{{ item.url }}"{% else %}<div{% endif %} class="cal-entry">
+              <span class="when">
+                {% if item.start %}{{ item.start|time:"g:i A" }}{% if item.end %}<small>to {{ item.end|time:"g:i A" }}</small>{% endif %}{% else %}All day{% endif %}
+              </span>
+              <span class="bar is-{{ item.tone }}" aria-hidden="true"></span>
+              <span class="what">
+                <span class="t d-block">{% if item.icon %}<i class="bi {{ item.icon }}"></i> {% endif %}{{ item.title }}</span>
+                {% if item.meta %}
+                  <span class="m">{% for icon, text in item.meta %}<span><i class="bi {{ icon }}"></i>{{ text }}</span>{% endfor %}</span>
+                {% endif %}
+              </span>
+              {% if item.status %}<span class="status {{ item.status_tone }}">{{ item.status }}</span>{% else %}<span></span>{% endif %}
+            {% if item.url %}</a>{% else %}</div>{% endif %}
+          {% endfor %}
+        </div>
+      </li>
+    {% endfor %}
+  </ol>
+{% else %}
+  <div class="empty-state"><i class="bi bi-calendar-x"></i>Nothing scheduled from {{ cal.anchor|date:"d M" }} for the next 30 days.</div>
+{% endif %}

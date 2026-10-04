@@ -56,19 +56,19 @@
       {% if is_admin or is_crm_manager %}
         <a href="{% url 'crm:review_update' review.pk %}"
            class="btn btn-primary btn-sm">
-          Edit
+          <i class="bi bi-pencil"></i>Edit
         </a>
       {% endif %}
 
       {% if review.client %}
         <a href="{% url 'crm:client_detail' review.client.pk %}"
            class="btn btn-secondary btn-sm">
-          Back to Client
+          <i class="bi bi-arrow-left"></i>Back to Client
         </a>
       {% else %}
         <a href="{% url 'crm:review_list' %}"
            class="btn btn-secondary btn-sm">
-          Back to Reviews
+          <i class="bi bi-arrow-left"></i>Back to Reviews
         </a>
       {% endif %}
     </div>

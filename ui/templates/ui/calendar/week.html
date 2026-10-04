@@ -1,0 +1,41 @@
+<div class="cal-week-scroll">
+  <div class="cal-week" style="--cal-hour: {{ cal_hour_height }}px;">
+    <div class="cal-wh"></div>
+    {% for col in cal_columns %}
+      <div class="cal-wh{% if col.is_today %} today{% endif %}">
+        <div class="dow">{{ col.date|date:"D" }}</div>
+        <a class="dnum" href="{{ col.day_url }}">{{ col.date|date:"j" }}</a>
+      </div>
+    {% endfor %}
+
+    {% if cal_has_all_day %}
+      <div class="cal-allday-label">All day</div>
+      {% for col in cal_columns %}
+        <div class="cal-allday">
+          {% for item in col.all_day %}{% include "ui/calendar/item.html" %}{% endfor %}
+        </div>
+      {% endfor %}
+    {% endif %}
+
+    <div class="cal-hours" style="height: {{ cal_grid_height }}px;">
+      {% for hour in cal_hours %}<div class="cal-hour-label">{% if not forloop.first %}{{ hour.label }}{% endif %}</div>{% endfor %}
+    </div>
+    {% for col in cal_columns %}
+      <div class="cal-col{% if col.is_today %} today{% endif %}{% if col.is_weekend %} weekend{% endif %}" style="height: {{ cal_grid_height }}px;">
+        {% for block in col.blocks %}
+          {% with item=block.entry %}
+            {% if item.url %}<a href="{{ item.url }}"{% else %}<div{% endif %}
+              class="cal-block is-{{ item.tone }}"
+              style="top: {{ block.top }}px; height: {{ block.height }}px; left: calc({{ block.left }}% + 3px); width: calc({{ block.width }}% - 6px); right: auto;"
+              title="{{ item.title }} · {{ item.start|time:'g:i A' }}{% if item.end %}–{{ item.end|time:'g:i A' }}{% endif %}{% for icon, text in item.meta %} · {{ text }}{% endfor %}">
+              <span class="t">{% if item.icon %}<i class="bi {{ item.icon }}"></i> {% endif %}{{ item.title }}</span>
+              <span class="m">{{ item.start|time:"g:i A" }}{% if item.end %} – {{ item.end|time:"g:i A" }}{% endif %}</span>
+              {% if not block.short %}{% for icon, text in item.meta|slice:":2" %}<span class="m"><i class="bi {{ icon }}"></i> {{ text }}</span>{% endfor %}{% endif %}
+            {% if item.url %}</a>{% else %}</div>{% endif %}
+          {% endwith %}
+        {% endfor %}
+        {% if col.now_top is not None %}<div class="cal-now" style="top: {{ col.now_top }}px;" aria-hidden="true"></div>{% endif %}
+      </div>
+    {% endfor %}
+  </div>
+</div>

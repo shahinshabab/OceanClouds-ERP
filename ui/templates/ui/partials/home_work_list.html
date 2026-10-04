@@ -1,0 +1,33 @@
+{# ui/partials/home_work_list.html: a dashboard card listing tasks or deliverables. #}
+{% load ui_tags %}
+<div class="card h-100">
+  <div class="card-header">
+    <span><i class="bi {{ icon }}"></i> {{ title }}</span>
+    <a href="{% url list_url_name %}" class="small">Open board <i class="bi bi-arrow-right"></i></a>
+  </div>
+  {% if items %}
+    <ul class="mini-list">
+      {% for item in items %}
+        <li>
+          <div class="date-chip{% if item.due_date == today %} today{% endif %}">
+            {% if item.due_date %}
+              <b>{{ item.due_date|date:"d" }}</b><small>{{ item.due_date|date:"M" }}</small>
+            {% else %}
+              <small>No date</small>
+            {% endif %}
+          </div>
+          <div class="grow">
+            <div class="t"><a href="{{ item.get_absolute_url }}">{{ item.name }}</a></div>
+            <div class="m">
+              {{ item.project.name|default:"No project" }}{% if show_assignee %} · {{ item.assigned_to|default:"Unassigned" }}{% endif %}
+              {% if item.due_date and item.due_date < today %}<span class="text-danger fw-semibold"> · Overdue</span>{% endif %}
+            </div>
+          </div>
+          {% status_pill item.status item.get_status_display %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <div class="empty-state py-4"><i class="bi bi-check2-circle"></i><p class="mb-0">{{ empty }}</p></div>
+  {% endif %}
+</div>

@@ -1,5 +1,5 @@
 {% extends "ui/base.html" %}
-{% load roles_tags %}
+{% load roles_tags ui_tags %}
 
 {% block title %}Leads{% endblock %}
 
@@ -7,235 +7,99 @@
 {% is_admin request.user as is_admin %}
 {% is_crm_manager request.user as is_crm_manager %}
 
-<div class="container py-3">
-
-  <!-- Header -->
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2 class="fw-semibold mb-0">Leads</h2>
-
+<div class="container">
+  <div class="page-header">
+    <div>
+      <div class="page-eyebrow"><i class="bi bi-person-lines-fill"></i> Sales pipeline</div>
+      <h1 class="page-title">Leads</h1>
+      <div class="page-subtitle">Qualified inquiries. Convert a lead to a deal to start proposals.</div>
+    </div>
     {% if is_admin or is_crm_manager %}
-      <a href="{% url 'crm:lead_create' %}" class="btn btn-success btn-sm">
-        + New Lead
-      </a>
+      <div class="page-actions">
+        <a href="{% url 'crm:lead_create' %}" class="btn btn-dark btn-sm"><i class="bi bi-plus-lg"></i>New lead</a>
+      </div>
     {% endif %}
   </div>
 
-  <!-- Search + Filters -->
-  <form method="get" class="row g-2 align-items-end mb-3">
-    <div class="col-md-4">
-      <label class="form-label mb-1 small text-muted">Search</label>
-      <input type="text"
-             name="q"
-             value="{{ request.GET.q }}"
-             class="form-control"
-             placeholder="Search by name, email, phone, WhatsApp or location">
+  <div class="card">
+    <div class="list-tabs">
+      <a href="?q={{ request.GET.q|urlencode }}&amp;source={{ request.GET.source }}" class="{% if not request.GET.status %}active{% endif %}">All</a>
+      {% for value, label in status_choices %}
+        <a href="?q={{ request.GET.q|urlencode }}&amp;source={{ request.GET.source }}&amp;status={{ value }}" class="{% if request.GET.status == value %}active{% endif %}">{{ label }}</a>
+      {% endfor %}
     </div>
-
-    <div class="col-md-3">
-      <label class="form-label mb-1 small text-muted">Status</label>
-      <select name="status" class="form-select">
-        <option value="">All statuses</option>
-        <option value="new" {% if request.GET.status == "new" %}selected{% endif %}>New</option>
-        <option value="contacted" {% if request.GET.status == "contacted" %}selected{% endif %}>Contacted</option>
-        <option value="qualified" {% if request.GET.status == "qualified" %}selected{% endif %}>Qualified</option>
-        <option value="proposal_sent" {% if request.GET.status == "proposal_sent" %}selected{% endif %}>Proposal Sent</option>
-        <option value="lost" {% if request.GET.status == "lost" %}selected{% endif %}>Lost</option>
-        <option value="converted" {% if request.GET.status == "converted" %}selected{% endif %}>Converted</option>
-      </select>
-    </div>
-
-    <div class="col-md-3">
-      <label class="form-label mb-1 small text-muted">Source</label>
-      <select name="source" class="form-select">
+    <form method="get" class="filter-bar">
+      <input type="hidden" name="status" value="{{ request.GET.status }}">
+      <div class="search-input" style="flex-basis: 280px">
+        <i class="bi bi-search"></i>
+        <input type="search" name="q" value="{{ request.GET.q }}" placeholder="Name, phone, email or location" class="form-control form-control-sm" aria-label="Search">
+      </div>
+      <select name="source" class="form-select form-select-sm" aria-label="Source" onchange="this.form.submit()">
         <option value="">All sources</option>
-        <option value="website" {% if request.GET.source == "website" %}selected{% endif %}>Website</option>
-        <option value="phone" {% if request.GET.source == "phone" %}selected{% endif %}>Phone</option>
-        <option value="whatsapp" {% if request.GET.source == "whatsapp" %}selected{% endif %}>WhatsApp</option>
-        <option value="instagram" {% if request.GET.source == "instagram" %}selected{% endif %}>Instagram</option>
-        <option value="facebook" {% if request.GET.source == "facebook" %}selected{% endif %}>Facebook</option>
-        <option value="email" {% if request.GET.source == "email" %}selected{% endif %}>Email</option>
-        <option value="referral" {% if request.GET.source == "referral" %}selected{% endif %}>Referral</option>
-        <option value="other" {% if request.GET.source == "other" %}selected{% endif %}>Other</option>
+        {% for value, label in source_choices %}
+          <option value="{{ value }}" {% if request.GET.source == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
       </select>
-    </div>
+      <div class="filter-actions">
+        <button type="submit" class="btn btn-dark btn-sm"><i class="bi bi-funnel"></i>Filter</button>
+        {% if request.GET.q or request.GET.status or request.GET.source %}<a href="?" class="btn btn-light btn-sm">Clear</a>{% endif %}
+      </div>
+    </form>
 
-    <div class="col-md-2">
-      <button type="submit" class="btn btn-outline-secondary w-100">
-        Apply
-      </button>
-    </div>
-  </form>
-
-  <!-- Leads Table -->
-  <div class="card shadow-sm">
-    <div class="card-body p-0">
-      <div class="table-responsive">
-        <table class="table table-hover mb-0 align-middle">
-          <thead class="table-light">
-            <tr>
-              <th>Name</th>
-              <th>Contact</th>
-              <th>Status</th>
-              <th>Source</th>
-              <th>Wedding Date</th>
-              <th>Budget</th>
-              <th class="text-end">Actions</th>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Lead</th>
+            <th class="d-none d-md-table-cell">Contact</th>
+            <th>Status</th>
+            <th class="d-none d-lg-table-cell">Wedding</th>
+            <th class="d-none d-lg-table-cell text-end">Budget</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for lead in leads %}
+            <tr data-href="{% url 'crm:lead_detail' lead.pk %}">
+              <td>
+                <a href="{% url 'crm:lead_detail' lead.pk %}" class="cell-title">{{ lead.name }}</a>
+                <span class="cell-sub">{{ lead.get_source_display|default:"No source" }}{% if lead.owner %} · {{ lead.owner }}{% endif %}</span>
+              </td>
+              <td class="d-none d-md-table-cell">
+                {{ lead.phone|default:lead.whatsapp|default:"—" }}
+                {% if lead.email %}<span class="cell-sub">{{ lead.email }}</span>{% endif %}
+              </td>
+              <td>{% status_pill lead.status lead.get_status_display %}</td>
+              <td class="d-none d-lg-table-cell">
+                {{ lead.wedding_date|date:"d M Y"|default:"—" }}
+                {% if lead.wedding_city %}<span class="cell-sub">{{ lead.wedding_city }}</span>{% endif %}
+              </td>
+              <td class="d-none d-lg-table-cell text-end tabular">
+                {% if lead.budget_min or lead.budget_max %}
+                  {% if lead.budget_min %}{{ lead.budget_min|inr }}{% endif %}{% if lead.budget_min and lead.budget_max %} – {% endif %}{% if lead.budget_max %}{{ lead.budget_max|inr }}{% endif %}
+                {% else %}<span class="text-muted">—</span>{% endif %}
+              </td>
+              <td class="row-actions">
+                {% if is_admin or is_crm_manager %}
+                  {% if lead.status == "converted" and lead.client %}
+                    <a href="{% url 'crm:client_detail' lead.client.pk %}" class="btn btn-light btn-sm" title="Open client"><i class="bi bi-people"></i></a>
+                  {% elif lead.status != "converted" %}
+                    <a href="{% url 'sales:lead_convert_to_deal' lead.pk %}" class="btn btn-outline-secondary btn-sm" title="Create a deal from this lead"><i class="bi bi-briefcase"></i>Deal</a>
+                  {% endif %}
+                  <a href="{% url 'crm:lead_update' lead.pk %}" class="btn btn-light btn-sm" title="Edit" aria-label="Edit"><i class="bi bi-pencil"></i></a>
+                {% endif %}
+                <a href="{% url 'crm:lead_detail' lead.pk %}" class="btn btn-light btn-sm" title="Open" aria-label="Open"><i class="bi bi-arrow-right"></i></a>
+              </td>
             </tr>
-          </thead>
-
-          <tbody>
-            {% for lead in leads %}
-              <tr>
-                <td>
-                  <a href="{% url 'crm:lead_detail' lead.pk %}" class="text-decoration-none">
-                    {{ lead.name }}
-                  </a>
-
-                </td>
-
-                <td>
-                  {% if lead.phone %}
-                    <div>{{ lead.phone }}</div>
-                  {% endif %}
-
-                  {% if lead.whatsapp %}
-                    <div class="small text-muted">WA: {{ lead.whatsapp }}</div>
-                  {% endif %}
-
-                  {% if lead.email %}
-                    <div class="small">
-                      <a href="mailto:{{ lead.email }}">{{ lead.email }}</a>
-                    </div>
-                  {% endif %}
-
-                  {% if not lead.phone and not lead.whatsapp and not lead.email %}
-                    <span class="text-muted">—</span>
-                  {% endif %}
-                </td>
-
-                <td>
-                  {% if lead.status == "converted" %}
-                    <span class="badge bg-success">
-                      {{ lead.get_status_display }}
-                    </span>
-                  {% elif lead.status == "proposal_sent" %}
-                    <span class="badge bg-primary">
-                      {{ lead.get_status_display }}
-                    </span>
-                  {% elif lead.status == "qualified" %}
-                    <span class="badge bg-info text-dark">
-                      {{ lead.get_status_display }}
-                    </span>
-                  {% elif lead.status == "lost" %}
-                    <span class="badge bg-dark">
-                      {{ lead.get_status_display }}
-                    </span>
-                  {% else %}
-                    <span class="badge bg-secondary">
-                      {{ lead.get_status_display }}
-                    </span>
-                  {% endif %}
-                </td>
-
-                <td>
-                  {% if lead.source %}
-                    <span class="badge bg-light text-dark border">
-                      {{ lead.get_source_display }}
-                    </span>
-                  {% else %}
-                    <span class="text-muted">—</span>
-                  {% endif %}
-                </td>
-
-                <td>
-                  {% if lead.wedding_date %}
-                    {{ lead.wedding_date }}
-                  {% else %}
-                    <span class="text-muted">—</span>
-                  {% endif %}
-                </td>
-
-                <td>
-                  {% if lead.budget_min or lead.budget_max %}
-                    {% if lead.budget_min %}{{ lead.budget_min }}{% endif %}
-                    –
-                    {% if lead.budget_max %}{{ lead.budget_max }}{% endif %}
-                  {% else %}
-                    <span class="text-muted">—</span>
-                  {% endif %}
-                </td>
-
-                <td class="text-end">
-                  <div class="btn-group btn-group-sm" role="group">
-
-                    <a href="{% url 'crm:lead_detail' lead.pk %}"
-                       class="btn btn-outline-secondary">
-                      View
-                    </a>
-
-                    {% if is_admin or is_crm_manager %}
-                      <a href="{% url 'crm:lead_update' lead.pk %}"
-                         class="btn btn-outline-primary">
-                        Edit
-                      </a>
-
-                      {% if lead.status == "converted" %}
-                        {% if lead.client %}
-                          <a href="{% url 'crm:client_detail' lead.client.pk %}"
-                             class="btn btn-outline-success">
-                            Client
-                          </a>
-                        {% endif %}
-                      {% else %}
-                        <a href="{% url 'sales:lead_convert_to_deal' lead.pk %}"
-                           class="btn btn-outline-success">
-                          Convert
-                        </a>
-                      {% endif %}
-
-                    {% endif %}
-
-                  </div>
-                </td>
-              </tr>
-
-            {% empty %}
-              <tr>
-                <td colspan="7" class="text-center text-muted py-3">
-                  No leads found.
-                </td>
-              </tr>
-            {% endfor %}
-          </tbody>
-
-        </table>
-      </div>
+          {% empty %}
+            <tr><td colspan="6">
+              <div class="empty-state"><i class="bi bi-person-lines-fill"></i><p class="mb-0">No leads match these filters.</p></div>
+            </td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
+    {% include "ui/partials/pagination.html" %}
   </div>
-
-  {% if is_paginated %}
-    <div class="mt-3 d-flex justify-content-between align-items-center">
-      <div>
-        {% if page_obj.has_previous %}
-          <a href="?page={{ page_obj.previous_page_number }}&q={{ request.GET.q }}&status={{ request.GET.status }}&source={{ request.GET.source }}">
-            ‹ Previous
-          </a>
-        {% endif %}
-      </div>
-
-      <div class="small text-muted">
-        Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
-      </div>
-
-      <div>
-        {% if page_obj.has_next %}
-          <a href="?page={{ page_obj.next_page_number }}&q={{ request.GET.q }}&status={{ request.GET.status }}&source={{ request.GET.source }}">
-            Next ›
-          </a>
-        {% endif %}
-      </div>
-    </div>
-  {% endif %}
-
 </div>
 {% endblock %}

@@ -178,6 +178,7 @@ TEMPLATES = [
                 "common.context_processors.notifications",
                 "django.contrib.messages.context_processors.messages",
                 "ui.context_processors.app_version",
+                "ui.context_processors.navigation",
             ],
         },
     },

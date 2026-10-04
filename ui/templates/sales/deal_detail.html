@@ -1,427 +1,212 @@
 {% extends "ui/base.html" %}
-{% load roles_tags %}
+{% load roles_tags ui_tags sales_flow %}
 
-{% block title %}Deal – {{ deal.name }}{% endblock %}
+{% block title %}{{ deal.name }}{% endblock %}
 
 {% block content %}
 {% is_admin request.user as is_admin %}
 {% is_crm_manager request.user as is_crm_manager %}
-{% is_project_manager request.user as is_project_manager %}
-{% is_employee request.user as is_employee %}
 
-<div class="container py-3">
-
+<div class="container">
   {% include "common/detail_messages.html" %}
-  <!-- Header -->
-  <div class="d-flex justify-content-between align-items-start mb-4 gap-3">
-    <div>
-      <h2 class="fw-semibold mb-0">{{ deal.name }}</h2>
 
-      <div class="mt-2">
-        {% if deal.stage == "won" %}
-          <span class="badge bg-success">{{ deal.get_stage_display }}</span>
-        {% elif deal.stage == "lost" %}
-          <span class="badge bg-dark">{{ deal.get_stage_display }}</span>
-        {% elif deal.stage == "proposal_sent" %}
-          <span class="badge bg-primary">{{ deal.get_stage_display }}</span>
-        {% elif deal.stage == "negotiation" %}
-          <span class="badge bg-warning text-dark">{{ deal.get_stage_display }}</span>
-        {% else %}
-          <span class="badge bg-secondary">{{ deal.get_stage_display }}</span>
-        {% endif %}
-
-        {% if deal.is_active %}
-          <span class="badge bg-light text-dark border">Active</span>
-        {% else %}
-          <span class="badge bg-light text-muted border">Inactive</span>
-        {% endif %}
+  <div class="page-header">
+    <div class="min-w-0">
+      <div class="page-eyebrow"><a href="{% url 'sales:deal_list' %}"><i class="bi bi-briefcase"></i> Deals</a></div>
+      <h1 class="page-title">{{ deal.name }}</h1>
+      <div class="page-subtitle d-flex flex-wrap align-items-center gap-2">
+        {% status_pill deal.stage deal.get_stage_display %}
+        {% if not deal.is_active %}<span class="status status-muted">Inactive</span>{% endif %}
+        {% if deal.customer %}<span><i class="bi bi-person"></i> {{ deal.customer }}</span>{% endif %}
+        {% if deal.amount %}<span class="tabular">{{ deal.amount|inr }}</span>{% endif %}
       </div>
     </div>
 
-    <div class="text-end d-flex flex-wrap justify-content-end gap-2">
+    <div class="page-actions">
       {% if is_admin or is_crm_manager %}
-        <a href="{% url 'sales:proposal_create' %}?deal={{ deal.pk }}"
-           class="btn btn-success btn-sm">
-          Generate Proposal
-        </a>
-
-        {% if deal.stage != "won" and deal.stage != "lost" %}
-          <a href="{% url 'sales:deal_record_advance' deal.pk %}"
-             class="btn btn-outline-success btn-sm">
-            Record Advance
-          </a>
-        {% endif %}
-
-        <a href="{% url 'sales:deal_update' deal.pk %}"
-           class="btn btn-primary btn-sm">
-          Edit
-        </a>
-
-        <a href="{% url 'sales:deal_delete' deal.pk %}"
-           class="btn btn-outline-danger btn-sm">
-          Delete
-        </a>
+        <a href="{% url 'sales:deal_update' deal.pk %}" class="btn btn-outline-dark btn-sm"><i class="bi bi-pencil"></i>Edit</a>
+        <div class="dropdown">
+          <button class="btn btn-outline-secondary btn-sm btn-icon" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="More actions">
+            <i class="bi bi-three-dots"></i>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><a class="dropdown-item" href="{% url 'sales:proposal_create' %}?deal={{ deal.pk }}"><i class="bi bi-file-earmark-plus"></i>New proposal</a></li>
+            {% if deal.stage != "won" and deal.stage != "lost" %}
+              <li><a class="dropdown-item" href="{% url 'sales:deal_record_advance' deal.pk %}"><i class="bi bi-cash-coin"></i>Record advance</a></li>
+            {% endif %}
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item text-danger" href="{% url 'sales:deal_delete' deal.pk %}"><i class="bi bi-trash"></i>Delete deal</a></li>
+          </ul>
+        </div>
       {% endif %}
-
-      <a href="{% url 'sales:deal_list' %}"
-         class="btn btn-secondary btn-sm">
-        Back
-      </a>
     </div>
   </div>
 
-  <!-- Deal Details -->
-  <div class="card mb-4 shadow-sm">
-    <div class="card-header bg-light">
-      <strong>Deal Information</strong>
-    </div>
+  {% sales_flow deal=deal here="deal" %}
 
-    <div class="card-body">
-      <div class="row mb-3">
+  <div class="row g-4">
+    <div class="col-xl-8">
 
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Client</div>
-          <div class="fw-semibold mt-1">
-            {% if deal.client %}
-              <a href="{% url 'crm:client_detail' deal.client.pk %}" class="text-decoration-none">
-                {{ deal.client }}
-              </a>
-            {% else %}
-              <span class="text-muted">Not created yet</span>
-              <div class="text-muted small fw-normal">Created after the contract is signed.</div>
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Lead</div>
-          <div class="fw-semibold mt-1">
-            {% if deal.lead %}
-              <a href="{% url 'crm:lead_detail' deal.lead.pk %}" class="text-decoration-none">
-                {{ deal.lead.name }}
-              </a>
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="col-md-4">
-          <div class="text-muted small text-uppercase">Stage</div>
-          <div class="fw-semibold mt-1">
-            {{ deal.get_stage_display }}
-          </div>
-        </div>
-
-      </div>
-
-      <div class="row mb-3">
-
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Amount</div>
-          <div class="fw-semibold mt-1">
-            {% if deal.amount %}
-              {{ deal.amount }}
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Expected Close</div>
-          <div class="fw-semibold mt-1">
-            {% if deal.expected_close_date %}
-              {{ deal.expected_close_date }}
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="col-md-4">
-          <div class="text-muted small text-uppercase">Closed On</div>
-          <div class="fw-semibold mt-1">
-            {% if deal.closed_on %}
-              {{ deal.closed_on }}
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
-        </div>
-
-      </div>
-
-      <div class="row mb-3">
-
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Owner</div>
-          <div class="fw-semibold mt-1">
-            {% if deal.owner %}
-              {{ deal.owner.get_full_name|default:deal.owner.username|default:deal.owner }}
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Created</div>
-          <div class="fw-semibold mt-1">
-            {{ deal.created_at|date:"Y-m-d H:i" }}
-          </div>
-        </div>
-
-        <div class="col-md-4">
-          <div class="text-muted small text-uppercase">Last Updated</div>
-          <div class="fw-semibold mt-1">
-            {{ deal.updated_at|date:"Y-m-d H:i" }}
-          </div>
-        </div>
-
-      </div>
-
-      <div class="row">
-        <div class="col-12">
-          <div class="text-muted small text-uppercase">Description</div>
-          <div class="mt-1">
-            {% if deal.description %}
-              {{ deal.description|linebreaks }}
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-
-    </div>
-  </div>
-
-  <!-- Proposals -->
-  <div class="card mb-4 shadow-sm">
-    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
-      <span>Proposals</span>
-
-      {% if is_admin or is_crm_manager %}
-        <a href="{% url 'sales:proposal_create' %}?deal={{ deal.pk }}"
-           class="btn btn-light btn-sm">
-          Generate Proposal
-        </a>
-      {% endif %}
-    </div>
-
-    <div class="card-body p-0">
-      {% if deal.proposals.all %}
-        <div class="table-responsive">
-          <table class="table table-hover mb-0 align-middle">
-            <thead class="table-light">
-              <tr>
-                <th>Title</th>
-                <th>Status</th>
-                <th>Total</th>
-                <th>Valid Until</th>
-                <th class="text-end">Actions</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {% for proposal in deal.proposals.all %}
-                <tr>
-                  <td>
-                    <a href="{% url 'sales:proposal_detail' proposal.pk %}" class="text-decoration-none fw-semibold">
-                      {{ proposal.title }}
-                    </a>
-                    <div class="small text-muted">Version {{ proposal.version }}</div>
-                  </td>
-
-                  <td>
-                    {% if proposal.status == "accepted" %}
-                      <span class="badge bg-success">{{ proposal.get_status_display }}</span>
-                    {% elif proposal.status == "sent" %}
-                      <span class="badge bg-primary">{{ proposal.get_status_display }}</span>
-                    {% elif proposal.status == "rejected" %}
-                      <span class="badge bg-dark">{{ proposal.get_status_display }}</span>
-                    {% elif proposal.status == "expired" %}
-                      <span class="badge bg-warning text-dark">{{ proposal.get_status_display }}</span>
-                    {% else %}
-                      <span class="badge bg-secondary">{{ proposal.get_status_display }}</span>
-                    {% endif %}
-                  </td>
-
-                  <td>
-                    {{ proposal.total }}
-                  </td>
-
-                  <td>
-                    {% if proposal.valid_until %}
-                      {{ proposal.valid_until }}
-                    {% else %}
-                      <span class="text-muted">—</span>
-                    {% endif %}
-                  </td>
-
-                  <td class="text-end">
-                    <a href="{% url 'sales:proposal_detail' proposal.pk %}"
-                       class="btn btn-sm btn-outline-success">
-                      View
-                    </a>
-                  </td>
-                </tr>
-              {% endfor %}
-            </tbody>
-
-          </table>
-        </div>
-      {% else %}
-        <div class="text-center text-muted py-4">
-          <p class="mb-2">No proposals generated for this deal yet.</p>
-
+      <!-- Proposals -->
+      <div class="card mb-4">
+        <div class="card-header">
+          <h2 class="section-title"><i class="bi bi-file-earmark-richtext"></i>Proposals <span class="text-muted fw-normal">{{ proposals|length }}</span></h2>
           {% if is_admin or is_crm_manager %}
-            <a href="{% url 'sales:proposal_create' %}?deal={{ deal.pk }}"
-               class="btn btn-success btn-sm">
-              Generate First Proposal
-            </a>
+            <a href="{% url 'sales:proposal_create' %}?deal={{ deal.pk }}" class="btn btn-light btn-sm"><i class="bi bi-plus-lg"></i>New proposal</a>
           {% endif %}
         </div>
+        {% if proposals %}
+          <div class="table-responsive">
+            <table class="table table-hover align-middle">
+              <thead>
+                <tr><th>Proposal</th><th>Status</th><th class="text-end">Total</th><th>Valid until</th></tr>
+              </thead>
+              <tbody>
+                {% for proposal in proposals %}
+                  <tr data-href="{% url 'sales:proposal_detail' proposal.pk %}" class="row-link">
+                    <td>
+                      <a href="{% url 'sales:proposal_detail' proposal.pk %}">{{ proposal.title }}</a>
+                      <div class="small text-muted">Version {{ proposal.version }}</div>
+                    </td>
+                    <td>{% status_pill proposal.status proposal.get_status_display %}</td>
+                    <td class="text-end tabular">{{ proposal.total|inr }}</td>
+                    <td>{{ proposal.valid_until|date:"d M Y"|default:"—" }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="empty-state">
+            <i class="bi bi-file-earmark-richtext"></i>
+            No proposals yet.
+            {% if is_admin or is_crm_manager %}
+              <div><a href="{% url 'sales:proposal_create' %}?deal={{ deal.pk }}" class="btn btn-dark btn-sm"><i class="bi bi-plus-lg"></i>Create the first proposal</a></div>
+            {% endif %}
+          </div>
+        {% endif %}
+      </div>
+
+      <!-- Contracts -->
+      <div class="card mb-4">
+        <div class="card-header">
+          <h2 class="section-title"><i class="bi bi-pen"></i>Contracts <span class="text-muted fw-normal">{{ contracts|length }}</span></h2>
+        </div>
+        {% if contracts %}
+          <div class="table-responsive">
+            <table class="table table-hover align-middle">
+              <thead>
+                <tr><th>Contract</th><th>Status</th><th>From proposal</th><th>Signed</th></tr>
+              </thead>
+              <tbody>
+                {% for contract in contracts %}
+                  <tr data-href="{% url 'sales:contract_detail' contract.pk %}" class="row-link">
+                    <td><a href="{% url 'sales:contract_detail' contract.pk %}">{{ contract.number|default:"Draft contract" }}</a></td>
+                    <td>{% status_pill contract.status contract.get_status_display %}</td>
+                    <td>
+                      {% if contract.proposal %}
+                        <a href="{% url 'sales:proposal_detail' contract.proposal.pk %}" class="fw-normal">{{ contract.proposal.title }}</a>
+                      {% else %}<span class="text-muted">—</span>{% endif %}
+                    </td>
+                    <td>{{ contract.signed_date|date:"d M Y"|default:"—" }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="empty-state">
+            <i class="bi bi-pen"></i>
+            No contract yet. A contract is created from the accepted proposal.
+          </div>
+        {% endif %}
+      </div>
+
+      <!-- Invoices -->
+      <div class="card mb-4">
+        <div class="card-header">
+          <h2 class="section-title"><i class="bi bi-receipt"></i>Invoices &amp; payments <span class="text-muted fw-normal">{{ invoices|length }}</span></h2>
+        </div>
+        {% if invoices %}
+          <div class="table-responsive">
+            <table class="table table-hover align-middle">
+              <thead>
+                <tr><th>Invoice</th><th>Status</th><th class="text-end">Total</th><th class="text-end">Paid</th><th class="text-end">Balance</th></tr>
+              </thead>
+              <tbody>
+                {% for invoice in invoices %}
+                  <tr data-href="{% url 'sales:invoice_detail' invoice.pk %}" class="row-link">
+                    <td>
+                      <a href="{% url 'sales:invoice_detail' invoice.pk %}">{{ invoice.number|default:"Draft invoice" }}</a>
+                      {% if invoice.is_advance %}<span class="status status-muted ms-1">Advance</span>{% endif %}
+                      <div class="small text-muted">{{ invoice.issue_date|date:"d M Y" }}</div>
+                    </td>
+                    <td>{% status_pill invoice.status invoice.get_status_display %}</td>
+                    <td class="text-end tabular">{{ invoice.total|inr }}</td>
+                    <td class="text-end tabular">{{ invoice.amount_paid|inr }}</td>
+                    <td class="text-end tabular fw-semibold">{{ invoice.balance|inr }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="empty-state">
+            <i class="bi bi-receipt"></i>
+            No invoices yet. The advance invoice is created when you record the advance.
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="col-xl-4">
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-info-circle"></i>Details</h2></div>
+        <div class="card-body">
+          <ul class="info-list">
+            <li><span class="k">Client</span>
+              <span class="v">
+                {% if deal.client %}<a href="{% url 'crm:client_detail' deal.client.pk %}">{{ deal.client }}</a>
+                {% else %}<span class="text-muted fw-normal">After contract is signed</span>{% endif %}
+              </span>
+            </li>
+            <li><span class="k">Lead</span>
+              <span class="v">
+                {% if deal.lead %}<a href="{% url 'crm:lead_detail' deal.lead.pk %}">{{ deal.lead.name }}</a>{% else %}—{% endif %}
+              </span>
+            </li>
+            <li><span class="k">Amount</span><span class="v tabular">{{ deal.amount|inr }}</span></li>
+            <li><span class="k">Advance received</span><span class="v tabular">{{ deal.advance_paid|inr }}</span></li>
+            <li><span class="k">Expected close</span><span class="v">{{ deal.expected_close_date|date:"d M Y"|default:"—" }}</span></li>
+            <li><span class="k">Closed on</span><span class="v">{{ deal.closed_on|date:"d M Y"|default:"—" }}</span></li>
+            <li><span class="k">Owner</span><span class="v">{% if deal.owner %}{{ deal.owner.get_full_name|default:deal.owner.username }}{% else %}—{% endif %}</span></li>
+          </ul>
+        </div>
+      </div>
+
+      {% if deal.lead %}
+        <div class="card mb-4">
+          <div class="card-header"><h2 class="section-title"><i class="bi bi-telephone"></i>Contact</h2></div>
+          <div class="card-body">
+            <ul class="info-list">
+              <li><span class="k">Phone</span><span class="v">{% if deal.lead.phone %}<a href="tel:{{ deal.lead.phone }}">{{ deal.lead.phone }}</a>{% else %}—{% endif %}</span></li>
+              <li><span class="k">WhatsApp</span><span class="v">{{ deal.lead.whatsapp|default:"—" }}</span></li>
+              <li><span class="k">Email</span><span class="v">{% if deal.lead.email %}<a href="mailto:{{ deal.lead.email }}">{{ deal.lead.email }}</a>{% else %}—{% endif %}</span></li>
+              <li><span class="k">Wedding date</span><span class="v">{{ deal.lead.wedding_date|date:"d M Y"|default:"—" }}</span></li>
+              <li><span class="k">City</span><span class="v">{{ deal.lead.wedding_city|default:"—" }}</span></li>
+            </ul>
+          </div>
+        </div>
       {% endif %}
+
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-card-text"></i>Notes</h2></div>
+        <div class="card-body">
+          {% if deal.description %}{{ deal.description|linebreaks }}{% else %}<span class="text-muted">No notes.</span>{% endif %}
+          <div class="small text-muted mt-3">Created {{ deal.created_at|date:"d M Y, H:i" }} · Updated {{ deal.updated_at|date:"d M Y, H:i" }}</div>
+        </div>
+      </div>
     </div>
   </div>
-
-  <!-- Contracts -->
-  <div class="card mb-4 shadow-sm">
-    <div class="card-header bg-primary text-white">
-      Contracts
-    </div>
-
-    <div class="card-body p-0">
-      {% if deal.contracts.all %}
-        <div class="table-responsive">
-          <table class="table table-hover mb-0 align-middle">
-            <thead class="table-light">
-              <tr>
-                <th>Number</th>
-                <th>Status</th>
-                <th>Proposal</th>
-                <th>Signed Date</th>
-                <th class="text-end">Actions</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {% for contract in deal.contracts.all %}
-                <tr>
-                  <td>
-                    <a href="{% url 'sales:contract_detail' contract.pk %}" class="text-decoration-none fw-semibold">
-                      {{ contract.number|default:"Draft Contract" }}
-                    </a>
-                  </td>
-
-                  <td>
-                    <span class="badge bg-light text-dark border">
-                      {{ contract.get_status_display }}
-                    </span>
-                  </td>
-
-                  <td>
-                    {% if contract.proposal %}
-                      <a href="{% url 'sales:proposal_detail' contract.proposal.pk %}">
-                        {{ contract.proposal.title }}
-                      </a>
-                    {% else %}
-                      <span class="text-muted">—</span>
-                    {% endif %}
-                  </td>
-
-                  <td>
-                    {% if contract.signed_date %}
-                      {{ contract.signed_date }}
-                    {% else %}
-                      <span class="text-muted">—</span>
-                    {% endif %}
-                  </td>
-
-                  <td class="text-end">
-                    <a href="{% url 'sales:contract_detail' contract.pk %}"
-                       class="btn btn-sm btn-outline-primary">
-                      View
-                    </a>
-                  </td>
-                </tr>
-              {% endfor %}
-            </tbody>
-
-          </table>
-        </div>
-      {% else %}
-        <div class="p-3 text-muted">
-          No contracts created for this deal yet.
-        </div>
-      {% endif %}
-    </div>
-  </div>
-
-  <!-- Invoices -->
-  <div class="card mb-4 shadow-sm">
-    <div class="card-header bg-secondary text-white">
-      Invoices
-    </div>
-
-    <div class="card-body p-0">
-      {% if deal.invoices.all %}
-        <div class="table-responsive">
-          <table class="table table-hover mb-0 align-middle">
-            <thead class="table-light">
-              <tr>
-                <th>Number</th>
-                <th>Status</th>
-                <th>Total</th>
-                <th>Paid</th>
-                <th>Balance</th>
-                <th class="text-end">Actions</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {% for invoice in deal.invoices.all %}
-                <tr>
-                  <td>
-                    <a href="{% url 'sales:invoice_detail' invoice.pk %}" class="text-decoration-none fw-semibold">
-                      {{ invoice.number|default:"Draft Invoice" }}
-                    </a>
-                    {% if invoice.is_advance %}
-                      <span class="badge bg-info text-dark ms-1">Advance</span>
-                    {% endif %}
-                  </td>
-
-                  <td>
-                    <span class="badge bg-light text-dark border">
-                      {{ invoice.get_status_display }}
-                    </span>
-                  </td>
-
-                  <td>{{ invoice.total }}</td>
-                  <td>{{ invoice.amount_paid }}</td>
-                  <td>{{ invoice.balance }}</td>
-
-                  <td class="text-end">
-                    <a href="{% url 'sales:invoice_detail' invoice.pk %}"
-                       class="btn btn-sm btn-outline-secondary">
-                      View
-                    </a>
-                  </td>
-                </tr>
-              {% endfor %}
-            </tbody>
-
-          </table>
-        </div>
-      {% else %}
-        <div class="p-3 text-muted">
-          No invoices created for this deal yet.
-        </div>
-      {% endif %}
-    </div>
-  </div>
-
 </div>
 {% endblock %}

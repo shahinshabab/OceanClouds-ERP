@@ -14,7 +14,7 @@
 
     {% if can_manage_events %}
       <a href="{% url 'events:venue_create' %}" class="btn btn-success btn-sm">
-        + New Venue
+        <i class="bi bi-plus-lg"></i>New Venue
       </a>
     {% endif %}
   </div>
@@ -107,11 +107,11 @@
                 {% if can_manage_events %}
                   <a href="{% url 'events:venue_update' venue.pk %}"
                      class="btn btn-sm btn-outline-secondary">
-                    Edit
+                    <i class="bi bi-pencil"></i>Edit
                   </a>
                   <a href="{% url 'events:venue_delete' venue.pk %}"
                      class="btn btn-sm btn-outline-danger">
-                    Delete
+                    <i class="bi bi-trash"></i>Delete
                   </a>
                 {% endif %}
               </td>

@@ -1,5 +1,5 @@
 {% extends "ui/base.html" %}
-{% load roles_tags %}
+{% load roles_tags ui_tags %}
 
 {% block title %}Inquiries{% endblock %}
 {% block live_topics %}inquiry{% endblock %}
@@ -8,213 +8,95 @@
 {% is_admin request.user as is_admin %}
 {% is_crm_manager request.user as is_crm_manager %}
 {% is_project_manager request.user as is_project_manager %}
-{% is_employee request.user as is_employee %}
 
-<div class="container py-3">
-
-  <!-- Header -->
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2 class="fw-semibold mb-0">Inquiries</h2>
-
-    {# Everyone can create inquiries #}
-    <a href="{% url 'crm:inquiry_create' %}" class="btn btn-success btn-sm">
-      + New Inquiry
-    </a>
+<div class="container">
+  <div class="page-header">
+    <div>
+      <div class="page-eyebrow"><i class="bi bi-inbox"></i> Sales pipeline</div>
+      <h1 class="page-title">Inquiries</h1>
+      <div class="page-subtitle">Every first contact lands here. Qualify it into a lead, or close it.</div>
+    </div>
+    <div class="page-actions">
+      <a href="{% url 'crm:inquiry_create' %}" class="btn btn-dark btn-sm"><i class="bi bi-plus-lg"></i>New inquiry</a>
+    </div>
   </div>
 
-  <!-- Search + Filters -->
-  <form method="get" class="row g-2 align-items-end mb-3">
-    <div class="col-md-4">
-      <label class="form-label mb-1 small text-muted">Search</label>
-      <input type="text"
-             name="q"
-             value="{{ request.GET.q }}"
-             class="form-control"
-             placeholder="Search by name, email, phone, WhatsApp or message">
+  <div class="card">
+    <div class="list-tabs">
+      <a href="?q={{ request.GET.q|urlencode }}&amp;channel={{ request.GET.channel }}" class="{% if not request.GET.status %}active{% endif %}">All</a>
+      {% for value, label in status_choices %}
+        <a href="?q={{ request.GET.q|urlencode }}&amp;channel={{ request.GET.channel }}&amp;status={{ value }}" class="{% if request.GET.status == value %}active{% endif %}">{{ label }}</a>
+      {% endfor %}
     </div>
-
-    <div class="col-md-3">
-      <label class="form-label mb-1 small text-muted">Status</label>
-      <select name="status" class="form-select">
-        <option value="">All statuses</option>
-        <option value="open" {% if request.GET.status == "open" %}selected{% endif %}>Open</option>
-        <option value="in_progress" {% if request.GET.status == "in_progress" %}selected{% endif %}>In Progress</option>
-        <option value="closed" {% if request.GET.status == "closed" %}selected{% endif %}>Closed</option>
-        <option value="converted" {% if request.GET.status == "converted" %}selected{% endif %}>Converted</option>
-      </select>
-    </div>
-
-    <div class="col-md-3">
-      <label class="form-label mb-1 small text-muted">Channel</label>
-      <select name="channel" class="form-select">
-        <option value="">All channels</option>
-        <option value="website" {% if request.GET.channel == "website" %}selected{% endif %}>Website</option>
-        <option value="phone" {% if request.GET.channel == "phone" %}selected{% endif %}>Phone</option>
-        <option value="whatsapp" {% if request.GET.channel == "whatsapp" %}selected{% endif %}>WhatsApp</option>
-        <option value="instagram" {% if request.GET.channel == "instagram" %}selected{% endif %}>Instagram</option>
-        <option value="facebook" {% if request.GET.channel == "facebook" %}selected{% endif %}>Facebook</option>
-        <option value="email" {% if request.GET.channel == "email" %}selected{% endif %}>Email</option>
-        <option value="referral" {% if request.GET.channel == "referral" %}selected{% endif %}>Referral</option>
-        <option value="other" {% if request.GET.channel == "other" %}selected{% endif %}>Other</option>
-      </select>
-    </div>
-
-    <div class="col-md-2">
-      <button type="submit" class="btn btn-outline-secondary w-100">
-        Apply
-      </button>
-    </div>
-  </form>
-
-  <!-- Inquiries table -->
-  <div class="card shadow-sm">
-    <div class="card-body p-0">
-      <div class="table-responsive">
-        <table class="table table-hover mb-0 align-middle">
-          <thead class="table-light">
-            <tr>
-              <th>Name</th>
-              <th>Contact</th>
-              <th>Channel</th>
-              <th>Status</th>
-              <th>Handled By</th>
-              <th>Created At</th>
-              <th class="text-end">Actions</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {% for inquiry in inquiries %}
-            <tr>
-              <td>
-                <a href="{% url 'crm:inquiry_detail' inquiry.pk %}" class="text-decoration-none">
-                  {{ inquiry.name|default:"(No name)" }}
-                </a>
-              </td>
-
-              <td>
-                {% if inquiry.phone %}
-                  <div>{{ inquiry.phone }}</div>
-                {% endif %}
-
-                {% if inquiry.whatsapp %}
-                  <div class="small text-muted">WA: {{ inquiry.whatsapp }}</div>
-                {% endif %}
-
-                {% if inquiry.email %}
-                  <div class="small">
-                    <a href="mailto:{{ inquiry.email }}">{{ inquiry.email }}</a>
-                  </div>
-                {% endif %}
-
-                {% if not inquiry.phone and not inquiry.whatsapp and not inquiry.email %}
-                  <span class="text-muted">—</span>
-                {% endif %}
-              </td>
-
-              <td>{{ inquiry.get_channel_display }}</td>
-
-              <td>
-                {% if inquiry.status == "converted" %}
-                  <span class="badge bg-success">
-                    {{ inquiry.get_status_display }}
-                  </span>
-                {% elif inquiry.status == "in_progress" %}
-                  <span class="badge bg-primary">
-                    {{ inquiry.get_status_display }}
-                  </span>
-                {% elif inquiry.status == "closed" %}
-                  <span class="badge bg-dark">
-                    {{ inquiry.get_status_display }}
-                  </span>
-                {% else %}
-                  <span class="badge bg-secondary">
-                    {{ inquiry.get_status_display }}
-                  </span>
-                {% endif %}
-              </td>
-
-              <td>
-                {% if inquiry.handled_by %}
-                  {{ inquiry.handled_by.get_full_name|default:inquiry.handled_by.username }}
-                {% else %}
-                  <span class="text-muted">—</span>
-                {% endif %}
-              </td>
-
-              <td>
-                {{ inquiry.created_at|date:"Y-m-d" }}
-              </td>
-
-              <td class="text-end">
-                <div class="btn-group btn-group-sm" role="group">
-
-                  <a href="{% url 'crm:inquiry_detail' inquiry.pk %}"
-                     class="btn btn-outline-secondary">
-                    View
-                  </a>
-
-                  {% if is_admin or is_crm_manager or is_project_manager %}
-                    <a href="{% url 'crm:inquiry_update' inquiry.pk %}"
-                       class="btn btn-outline-primary">
-                      Edit
-                    </a>
-                  {% endif %}
-
-                  {% if is_admin or is_crm_manager %}
-                    {% if inquiry.lead %}
-                      <a href="{% url 'crm:lead_detail' inquiry.lead.pk %}"
-                         class="btn btn-outline-success">
-                        Lead
-                      </a>
-                    {% elif inquiry.status != "converted" %}
-                      <a href="{% url 'crm:inquiry_convert_to_lead' inquiry.pk %}"
-                         class="btn btn-outline-success">
-                        Convert
-                      </a>
-                    {% endif %}
-                  {% endif %}
-                </div>
-              </td>
-            </tr>
-
-            {% empty %}
-            <tr>
-              <td colspan="7" class="text-center text-muted py-3">
-                No inquiries found.
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-
-        </table>
+    <form method="get" class="filter-bar">
+      <input type="hidden" name="status" value="{{ request.GET.status }}">
+      <div class="search-input" style="flex-basis: 280px">
+        <i class="bi bi-search"></i>
+        <input type="search" name="q" value="{{ request.GET.q }}" placeholder="Name, phone, email, message or handler" class="form-control form-control-sm" aria-label="Search">
       </div>
+      <select name="channel" class="form-select form-select-sm" aria-label="Channel" onchange="this.form.submit()">
+        <option value="">All channels</option>
+        {% for value, label in channel_choices %}
+          <option value="{{ value }}" {% if request.GET.channel == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <div class="filter-actions">
+        <button type="submit" class="btn btn-dark btn-sm"><i class="bi bi-funnel"></i>Filter</button>
+        {% if request.GET.q or request.GET.status or request.GET.channel %}<a href="?" class="btn btn-light btn-sm">Clear</a>{% endif %}
+      </div>
+    </form>
+
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Inquiry</th>
+            <th class="d-none d-md-table-cell">Contact</th>
+            <th>Status</th>
+            <th class="d-none d-lg-table-cell">Handled by</th>
+            <th class="d-none d-lg-table-cell">Received</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for inquiry in inquiries %}
+            <tr data-href="{% url 'crm:inquiry_detail' inquiry.pk %}">
+              <td>
+                <a href="{% url 'crm:inquiry_detail' inquiry.pk %}" class="cell-title">{{ inquiry.name|default:"(No name)" }}</a>
+                <span class="cell-sub">{{ inquiry.get_channel_display }}{% if inquiry.wedding_date %} · Wedding {{ inquiry.wedding_date|date:"d M Y" }}{% endif %}</span>
+              </td>
+              <td class="d-none d-md-table-cell">
+                {{ inquiry.phone|default:inquiry.whatsapp|default:"—" }}
+                {% if inquiry.email %}<span class="cell-sub">{{ inquiry.email }}</span>{% endif %}
+              </td>
+              <td>{% status_pill inquiry.status inquiry.get_status_display %}</td>
+              <td class="d-none d-lg-table-cell">
+                {% if inquiry.handled_by %}{{ inquiry.handled_by.get_full_name|default:inquiry.handled_by.username }}{% else %}<span class="text-muted">—</span>{% endif %}
+              </td>
+              <td class="d-none d-lg-table-cell text-nowrap">{{ inquiry.created_at|date:"d M Y" }}</td>
+              <td class="row-actions">
+                {% if is_admin or is_crm_manager %}
+                  {% if inquiry.lead %}
+                    <a href="{% url 'crm:lead_detail' inquiry.lead.pk %}" class="btn btn-light btn-sm" title="Open lead"><i class="bi bi-person-lines-fill"></i></a>
+                  {% elif inquiry.status != "converted" %}
+                    <a href="{% url 'crm:inquiry_convert_to_lead' inquiry.pk %}" class="btn btn-outline-secondary btn-sm" title="Convert to lead"><i class="bi bi-arrow-right-circle"></i>Lead</a>
+                  {% endif %}
+                {% endif %}
+                {% if is_admin or is_crm_manager or is_project_manager %}
+                  <a href="{% url 'crm:inquiry_update' inquiry.pk %}" class="btn btn-light btn-sm" title="Edit" aria-label="Edit"><i class="bi bi-pencil"></i></a>
+                {% endif %}
+                <a href="{% url 'crm:inquiry_detail' inquiry.pk %}" class="btn btn-light btn-sm" title="Open" aria-label="Open"><i class="bi bi-arrow-right"></i></a>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="6">
+              <div class="empty-state"><i class="bi bi-inbox"></i><p class="mb-0">No inquiries match these filters.</p></div>
+            </td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
+    {% include "ui/partials/pagination.html" %}
   </div>
-
-  {% if is_paginated %}
-  <div class="mt-3 d-flex justify-content-between align-items-center">
-    <div>
-      {% if page_obj.has_previous %}
-        <a href="?page={{ page_obj.previous_page_number }}&q={{ request.GET.q }}&status={{ request.GET.status }}&channel={{ request.GET.channel }}">
-          ‹ Previous
-        </a>
-      {% endif %}
-    </div>
-
-    <div class="small text-muted">
-      Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
-    </div>
-
-    <div>
-      {% if page_obj.has_next %}
-        <a href="?page={{ page_obj.next_page_number }}&q={{ request.GET.q }}&status={{ request.GET.status }}&channel={{ request.GET.channel }}">
-          Next ›
-        </a>
-      {% endif %}
-    </div>
-  </div>
-  {% endif %}
-
 </div>
 {% endblock %}

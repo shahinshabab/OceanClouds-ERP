@@ -52,23 +52,23 @@
 
         <a href="{% url 'sales:payment_update' payment.pk %}"
            class="btn btn-primary btn-sm">
-          Edit
+          <i class="bi bi-pencil"></i>Edit
         </a>
 
         <a href="{% url 'sales:payment_delete' payment.pk %}"
            class="btn btn-outline-danger btn-sm">
-          Delete
+          <i class="bi bi-trash"></i>Delete
         </a>
 
       {% endif %}
 
       {% if request.GET.next|local_url %}
         <a href="{{ request.GET.next|local_url }}" class="btn btn-secondary btn-sm">
-          Back
+          <i class="bi bi-arrow-left"></i>Back
         </a>
       {% else %}
         <a href="{% url 'sales:payment_list' %}" class="btn btn-secondary btn-sm">
-          Back
+          <i class="bi bi-arrow-left"></i>Back
         </a>
       {% endif %}
     </div>
@@ -221,19 +221,19 @@
 
       <a href="{% url 'sales:payment_update' payment.pk %}"
          class="btn btn-primary px-4">
-        Edit
+        <i class="bi bi-pencil"></i>Edit
       </a>
 
       <a href="{% url 'sales:payment_delete' payment.pk %}"
          class="btn btn-outline-danger">
-        Delete
+        <i class="bi bi-trash"></i>Delete
       </a>
 
     {% endif %}
 
     <a href="{% url 'sales:invoice_detail' invoice.pk %}"
        class="btn btn-secondary">
-      Back to Invoice
+      <i class="bi bi-arrow-left"></i>Back to Invoice
     </a>
 
     <a href="{% url 'sales:payment_list' %}"

@@ -4,15 +4,15 @@
 {% block title %}{{ deal.name }}{% endblock %}
 
 {% block content %}
+{% has_sales_access request.user as is_sales %}
 {% is_admin request.user as is_admin %}
 {% is_crm_manager request.user as is_crm_manager %}
 
 <div class="container">
-  {% include "common/detail_messages.html" %}
 
   <div class="page-header">
     <div class="min-w-0">
-      <div class="page-eyebrow"><a href="{% url 'sales:deal_list' %}"><i class="bi bi-briefcase"></i> Deals</a></div>
+      <div class="page-eyebrow">{% if is_sales %}<a href="{% url 'sales:deal_list' %}"><i class="bi bi-briefcase"></i> Deals</a>{% else %}<i class="bi bi-briefcase"></i> Deal{% endif %}</div>
       <h1 class="page-title">{{ deal.name }}</h1>
       <div class="page-subtitle d-flex flex-wrap align-items-center gap-2">
         {% status_pill deal.stage deal.get_stage_display %}
@@ -182,7 +182,7 @@
             </li>
             <li><span class="k">Lead</span>
               <span class="v">
-                {% if deal.lead %}<a href="{% url 'crm:lead_detail' deal.lead.pk %}">{{ deal.lead.name }}</a>{% else %}—{% endif %}
+                {% if deal.lead and is_sales %}<a href="{% url 'crm:lead_detail' deal.lead.pk %}">{{ deal.lead.name }}</a>{% elif deal.lead %}{{ deal.lead.name }}{% else %}—{% endif %}
               </span>
             </li>
             <li><span class="k">Amount</span><span class="v tabular">{{ deal.amount|inr }}</span></li>

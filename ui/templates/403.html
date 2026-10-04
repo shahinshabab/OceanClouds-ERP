@@ -1,0 +1,3 @@
+{% extends "ui/error_page.html" %}
+{% block title %}Access denied · Ocean Clouds{% endblock %}
+{% block content %}{% with error_code="403" error_title="Access denied" error_message="Your role does not have access to this page. Ask an admin if you need it." %}{{ block.super }}{% endwith %}{% endblock %}

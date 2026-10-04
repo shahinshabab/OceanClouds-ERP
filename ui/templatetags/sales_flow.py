@@ -15,7 +15,7 @@ step that is not done carries the suggested next action.
 from django import template
 from django.urls import reverse
 
-from common.roles import can_access_sales
+from common.roles import can_access_crm, can_access_sales
 
 register = template.Library()
 
@@ -267,6 +267,9 @@ def _finalise(steps, user, current_key):
         first_open["state"] = "current"
     for step in steps:
         step["is_here"] = step["key"] == current_key
+        if step["key"] == "lead" and not (user and can_access_crm(user)):
+            # Project managers see the deal but cannot open the lead.
+            step["url"] = ""
     next_action = first_open["action"] if first_open else None
     if first_open and first_open["key"] == current_key and next_action and next_action["url"] == first_open["url"]:
         # The page itself is the next step; its own buttons carry the action.

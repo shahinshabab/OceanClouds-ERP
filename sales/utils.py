@@ -452,8 +452,8 @@ def _event_date_for_day(contract, day=None):
 
     return (
         (day.event_date if day else None)
-        or contract.start_date
         or (lead.wedding_date if lead else None)
+        or contract.start_date
         or (deal.expected_close_date if deal else None)
     )
 

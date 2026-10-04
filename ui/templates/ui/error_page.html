@@ -1,0 +1,20 @@
+{% extends "base_public.html" %}
+
+{% block title %}{{ error_title }} · Ocean Clouds{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-md-7 col-lg-6">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body p-4 text-center">
+          <div class="page-eyebrow justify-content-center mb-2">Error {{ error_code }}</div>
+          <h1 class="h4 mb-3">{{ error_title }}</h1>
+          <p class="text-muted">{{ error_message }}</p>
+          <a href="/" class="btn btn-dark btn-sm"><i class="bi bi-house"></i> Go to home</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

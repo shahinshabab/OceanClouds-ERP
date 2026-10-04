@@ -304,3 +304,55 @@ class EmailRenderingTests(TestCase):
 
         self.assertEqual(subject, f"Invoice {invoice.number} for Ravi & Priya")
         self.assertIn("Ravi & Priya", text)
+
+
+class FinalCheckTests(TestCase):
+    """Regression tests for the final pre-release check."""
+
+    def test_signed_out_visitor_is_sent_to_login(self):
+        response = self.client.get(reverse("crm:lead_list"))
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(reverse("ui:login"), response["Location"])
+
+    def test_signed_in_user_without_role_gets_friendly_403(self):
+        employee = make_user("final-employee", is_staff=False)
+        employee.groups.add(Group.objects.get_or_create(name=ROLE_EMPLOYEE)[0])
+        self.client.force_login(employee)
+        response = self.client.get(reverse("crm:lead_list"))
+        self.assertEqual(response.status_code, 403)
+        self.assertContains(response, "Access denied", status_code=403)
+
+    def test_messages_show_on_every_page(self):
+        from django.contrib.messages import get_messages  # noqa: F401
+        admin = make_user("final-admin", is_superuser=True)
+        admin.groups.add(Group.objects.get_or_create(name=ROLE_ADMIN)[0])
+        self.client.force_login(admin)
+        response = self.client.post(
+            reverse("todos:todo_create"),
+            {"title": "Call the venue", "priority": "medium", "status": "pending", "assigned_to": admin.pk},
+            follow=True,
+        )
+        self.assertContains(response, 'class="alert', msg_prefix="no message rendered")
+
+    def test_checklist_form_hides_events_that_already_have_one(self):
+        from events.forms import EventChecklistForm
+        from events.models import EventChecklist
+
+        taken = Event.objects.create(name="Taken", date=TODAY)
+        free = Event.objects.create(name="Free", date=TODAY)
+        EventChecklist.objects.get_or_create(event=taken, defaults={"title": "List"})
+        events = list(EventChecklistForm().fields["event"].queryset)
+        self.assertIn(free, events)
+        self.assertNotIn(taken, events)
+
+    def test_old_lead_phone_is_kept_when_not_edited(self):
+        from crm.forms import LeadForm
+        from crm.models import Lead
+
+        lead = Lead.objects.create(name="Old lead", phone="0484 2345678 / 98470", wedding_city="Kochi")
+        form = LeadForm(instance=lead)
+        data = {name: form[name].value() or "" for name in form.fields}
+        data.update({"name": "Old lead renamed", "country": "India", "wedding_country": "India"})
+        bound = LeadForm(data=data, instance=lead)
+        self.assertTrue(bound.is_valid(), bound.errors)
+        self.assertEqual(bound.save().phone, "0484 2345678 / 98470")

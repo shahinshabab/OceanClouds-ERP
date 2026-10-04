@@ -1186,7 +1186,6 @@ class Invoice(TimeStamped, Owned):
 
         return taxable_amount + (self.tax or Decimal("0.00"))
 
-    @transaction.atomic
     def advance_received(self):
         """Booking advance kept on the deal's advance invoices."""
         return net_paid_amount(
@@ -1205,6 +1204,7 @@ class Invoice(TimeStamped, Owned):
             self.recalculate_totals(save=True)
             self.refresh_payment_status()
 
+    @transaction.atomic
     def populate_from_contract(self, contract, clear_existing=False):
         """
         Creates invoice from all contract items.

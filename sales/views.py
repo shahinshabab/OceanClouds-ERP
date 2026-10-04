@@ -164,27 +164,6 @@ def _iter_proposal_event_days(proposal):
         .all()
     )
 
-class DetailMessageScopeMixin:
-    """
-    Adds one message scope to every detail page.
-
-    Example:
-    detail_message_scope = "scope:contract"
-
-    Then the template can show only messages that match:
-    - scope:contract
-    - scope:email
-    - scope:global
-    """
-
-    detail_message_scope = ""
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["detail_message_scope"] = self.detail_message_scope
-        return context
-
-
 def _scope_tags(*scopes):
     """
     Usage:
@@ -296,11 +275,10 @@ class DealListView(SalesAccessMixin, ListView):
         return context
 
 
-class DealDetailView(SalesReadOnlyAccessMixin, DetailMessageScopeMixin, DetailView):
+class DealDetailView(SalesReadOnlyAccessMixin, DetailView):
     model = Deal
     template_name = "sales/deal_detail.html"
     context_object_name = "deal"
-    detail_message_scope = "scope:deal"
 
     def get_queryset(self):
         return (
@@ -557,11 +535,10 @@ class ProposalListView(SalesAccessMixin, ListView):
         return context
 
 
-class ProposalDetailView(SalesReadOnlyAccessMixin, DetailMessageScopeMixin, DetailView):
+class ProposalDetailView(SalesReadOnlyAccessMixin, DetailView):
     model = Proposal
     template_name = "sales/proposal_detail.html"
     context_object_name = "proposal"
-    detail_message_scope = "scope:proposal"
 
     def get_queryset(self):
         return (
@@ -1366,12 +1343,20 @@ class ProposalConvertToContractView(SalesAccessMixin, OwnerAssignMixin, CreateVi
                 "proposal": self.proposal.pk,
                 "proposal_plan": selected_plan.pk if selected_plan else None,
                 "status": ContractStatus.DRAFT,
-                "start_date": timezone.localdate(),
+                "start_date": self._first_event_date(selected_plan) or timezone.localdate(),
                 "terms": self.proposal.terms,
             }
         )
 
         return initial
+
+    def _first_event_date(self, plan):
+        # The contract starts with the first event, not on the day it is drafted.
+        dates = []
+        if plan:
+            dates = [day.event_date for day in plan.event_days.all() if day.event_date]
+        lead = self.proposal.deal.lead if self.proposal.deal_id else None
+        return min(dates) if dates else (lead.wedding_date if lead else None)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -1644,11 +1629,10 @@ class ContractListView(ContractViewAccessMixin, ListView):
         return context
 
 
-class ContractDetailView(ContractViewAccessMixin, DetailMessageScopeMixin, DetailView):
+class ContractDetailView(ContractViewAccessMixin, DetailView):
     model = Contract
     template_name = "sales/contract_detail.html"
     context_object_name = "contract"
-    detail_message_scope = "scope:contract"
 
     def get_queryset(self):
         return _visible_contracts(
@@ -2036,11 +2020,10 @@ class InvoiceListView(SalesAccessMixin, ListView):
         return context
 
 
-class InvoiceDetailView(SalesReadOnlyAccessMixin, DetailMessageScopeMixin, DetailView):
+class InvoiceDetailView(SalesReadOnlyAccessMixin, DetailView):
     model = Invoice
     template_name = "sales/invoice_detail.html"
     context_object_name = "invoice"
-    detail_message_scope = "scope:invoice"
 
     def get_queryset(self):
         return (
@@ -2248,11 +2231,10 @@ class PaymentListView(SalesAccessMixin, ListView):
         return qs
 
 
-class PaymentDetailView(SalesReadOnlyAccessMixin, DetailMessageScopeMixin, DetailView):
+class PaymentDetailView(SalesReadOnlyAccessMixin, DetailView):
     model = Payment
     template_name = "sales/payment_detail.html"
     context_object_name = "payment"
-    detail_message_scope = "scope:payment"
 
     def get_queryset(self):
         return (
@@ -2915,11 +2897,16 @@ class ContractApproveView(SalesAccessMixin, View):
     are created in one step.
     """
 
+    @transaction.atomic
     def post(self, request, pk):
+        # Lock the row so a double click cannot approve twice.
         contract = get_object_or_404(
-            Contract.objects.select_related("deal", "deal__client", "deal__lead"),
+            Contract.objects.select_for_update().select_related("deal", "deal__client", "deal__lead"),
             pk=pk,
         )
+        if contract.approved_at:
+            messages.info(request, "This contract is already approved.", extra_tags=_scope_tags("contract"))
+            return redirect("sales:contract_detail", pk=contract.pk)
         if contract.status != ContractStatus.SIGNED:
             messages.error(request, "Only a signed contract can be approved.", extra_tags=_scope_tags("contract"))
             return redirect("sales:contract_detail", pk=contract.pk)

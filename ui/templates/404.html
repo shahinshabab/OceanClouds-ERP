@@ -1,0 +1,3 @@
+{% extends "ui/error_page.html" %}
+{% block title %}Page not found · Ocean Clouds{% endblock %}
+{% block content %}{% with error_code="404" error_title="Page not found" error_message="This page does not exist or the record was deleted." %}{{ block.super }}{% endwith %}{% endblock %}

@@ -1,0 +1,3 @@
+{% extends "ui/error_page.html" %}
+{% block title %}Something went wrong · Ocean Clouds{% endblock %}
+{% block content %}{% with error_code="500" error_title="Something went wrong" error_message="The error has been logged. Please try again, or tell an admin if it keeps happening." %}{{ block.super }}{% endwith %}{% endblock %}

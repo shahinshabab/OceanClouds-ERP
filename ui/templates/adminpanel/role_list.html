@@ -1,76 +1,64 @@
 {% extends "ui/base.html" %}
 
+{% block title %}Roles{% endblock %}
+
 {% block content %}
-<div class="container-fluid py-3">
-
-  <div class="d-flex justify-content-between align-items-center mb-3">
+<div class="container">
+  <div class="page-header">
     <div>
-      <h4 class="mb-0">Roles</h4>
-      <div class="text-muted small">Manage user roles and permissions.</div>
+      <div class="page-eyebrow"><i class="bi bi-shield-lock"></i> Administration</div>
+      <h1 class="page-title">Roles</h1>
+      <div class="page-subtitle">Each role is a set of permissions. Users get access through their roles.</div>
     </div>
-
-    <a href="{% url 'adminpanel:role_create' %}" class="btn btn-dark">
-      <i class="bi bi-plus-circle me-1"></i>
-      Add Role
-    </a>
-  </div>
-
-  <div class="card border-0 shadow-sm mb-3">
-    <div class="card-body">
-      <form method="get" class="row g-2 align-items-end">
-        <div class="col-12 col-md-10">
-          <label class="form-label">Search</label>
-          <input
-            type="text"
-            name="q"
-            value="{{ q }}"
-            class="form-control"
-            placeholder="Search role name"
-          >
-        </div>
-
-        <div class="col-12 col-md-2 d-grid">
-          <button type="submit" class="btn btn-outline-dark">
-            Apply
-          </button>
-        </div>
-      </form>
+    <div class="page-actions">
+      <a href="{% url 'adminpanel:user_list' %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-people"></i>Users</a>
+      <a href="{% url 'adminpanel:role_create' %}" class="btn btn-dark btn-sm"><i class="bi bi-plus-lg"></i>New role</a>
     </div>
   </div>
 
-  <div class="card border-0 shadow-sm">
+  <div class="card">
+    <form method="get" class="filter-bar">
+      <div class="search-input" style="flex-basis: 320px">
+        <i class="bi bi-search"></i>
+        <input type="search" name="q" value="{{ q }}" placeholder="Role name" class="form-control form-control-sm" aria-label="Search">
+      </div>
+      <div class="filter-actions">
+        <button type="submit" class="btn btn-dark btn-sm"><i class="bi bi-funnel"></i>Filter</button>
+        {% if q %}<a href="?" class="btn btn-light btn-sm">Clear</a>{% endif %}
+      </div>
+    </form>
+
     <div class="table-responsive">
       <table class="table table-hover align-middle mb-0">
-        <thead class="table-light">
+        <thead>
           <tr>
-            <th>Role Name</th>
-            <th>Permission Count</th>
-            <th class="text-end">Action</th>
+            <th>Role</th>
+            <th class="text-end">Permissions</th>
+            <th></th>
           </tr>
         </thead>
-
         <tbody>
           {% for role in roles %}
-            <tr>
-              <td>{{ role.name }}</td>
-              <td>{{ role.permissions.count }}</td>
-              <td class="text-end">
-                <a href="{% url 'adminpanel:role_edit' role.pk %}" class="btn btn-sm btn-outline-dark">
-                  <i class="bi bi-pencil"></i>Edit
-                </a>
+            <tr data-href="{% url 'adminpanel:role_edit' role.pk %}">
+              <td><a href="{% url 'adminpanel:role_edit' role.pk %}" class="cell-title">{{ role.name }}</a></td>
+              <td class="text-end tabular">{{ role.permissions.count }}</td>
+              <td class="row-actions">
+                <a href="{% url 'adminpanel:role_edit' role.pk %}" class="btn btn-light btn-sm" title="Edit" aria-label="Edit"><i class="bi bi-pencil"></i></a>
               </td>
             </tr>
           {% empty %}
-            <tr>
-              <td colspan="3" class="text-center text-muted py-4">
-                No roles found.
-              </td>
-            </tr>
+            <tr><td colspan="3">
+              <div class="empty-state">
+                <i class="bi bi-shield-lock"></i>
+                {% if q %}No roles match "{{ q }}".{% else %}No roles yet.{% endif %}
+                {% if not q %}<div><a href="{% url 'adminpanel:role_create' %}" class="btn btn-dark btn-sm"><i class="bi bi-plus-lg"></i>Create the first role</a></div>{% endif %}
+              </div>
+            </td></tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
+    {% include "ui/partials/pagination.html" %}
   </div>
-
 </div>
 {% endblock %}

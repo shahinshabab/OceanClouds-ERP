@@ -38,7 +38,7 @@ class ReportsViewTests(AuthenticatedViewTestMixin):
 
 class EmployeeReportCalculationTests(TestCase):
     @override_settings(TIME_ZONE="Asia/Kolkata", USE_TZ=True)
-    def test_attendance_requires_eight_hours_of_used_login_time(self):
+    def test_attendance_requires_seven_hours_of_used_login_time(self):
         user = make_user(username="attendance-user")
         kolkata = ZoneInfo("Asia/Kolkata")
 
@@ -50,9 +50,9 @@ class EmployeeReportCalculationTests(TestCase):
 
         UserLoginSession.objects.create(
             user=user,
-            session_key="seven-hours",
+            session_key="six-hours",
             login_at=aware(2026, 7, 1, 9),
-            logout_at=aware(2026, 7, 1, 16),
+            logout_at=aware(2026, 7, 1, 15),
             end_reason=UserSessionEndReason.LOGOUT,
         )
         UserLoginSession.objects.create(
@@ -338,6 +338,42 @@ class ReportRoleVisibilityTests(TestCase):
         session.refresh_from_db()
         self.assertEqual(session.checkout_review_status, CheckoutReviewStatus.APPROVED)
         self.assertEqual(session.reviewed_by, self.project_manager)
+
+    def test_missing_logout_request_notifies_manager_and_answer_notifies_employee(self):
+        from common.models import Notification
+        from common.session_management import close_expired_login_sessions
+
+        login_at = timezone.now() - timedelta(hours=12, minutes=5)
+        session = UserLoginSession.objects.create(
+            user=self.employee,
+            session_key="twelve-hour-limit",
+            login_at=login_at,
+            last_activity_at=timezone.now() - timedelta(minutes=1),
+            expires_at=login_at + timedelta(hours=12),
+        )
+        close_expired_login_sessions()
+        session.refresh_from_db()
+        self.assertEqual(session.checkout_review_status, CheckoutReviewStatus.PENDING)
+        checkout = Notification.Type.ATTENDANCE_CHECKOUT
+        self.assertTrue(Notification.objects.filter(recipient=self.employee, notif_type=checkout).exists())
+
+        self.client.force_login(self.employee)
+        local_logout = timezone.localtime(login_at + timedelta(hours=8))
+        self.client.post(reverse("reports:attendance"), {
+            "action": "submit_checkout",
+            "session_id": session.pk,
+            "requested_logout_at": local_logout.strftime("%Y-%m-%dT%H:%M"),
+            "checkout_request_note": "Forgot to log out.",
+        })
+        self.assertTrue(Notification.objects.filter(recipient=self.project_manager, notif_type=checkout).exists())
+
+        self.client.force_login(self.project_manager)
+        self.client.post(reverse("reports:attendance"), {
+            "action": "approve_checkout", "session_id": session.pk, "review_note": "",
+        })
+        self.assertEqual(
+            Notification.objects.filter(recipient=self.employee, notif_type=checkout).count(), 2
+        )
 
     def test_submitted_checkout_hides_form_and_shows_manager_request_message(self):
         login_at = timezone.now() - timedelta(hours=12)

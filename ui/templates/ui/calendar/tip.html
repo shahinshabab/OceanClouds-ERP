@@ -1,0 +1,8 @@
+{# Hover card content for one calendar entry; ui/app.js shows it. #}
+<span class="cal-tip-src" hidden>
+  <span class="tip-kind">{% if item.kind == "task" %}Task{% elif item.kind == "deliverable" %}Deliverable{% else %}Event{% endif %}{% if item.status %} · {{ item.status }}{% endif %}</span>
+  <span class="tip-title">{{ item.title }}</span>
+  <span class="tip-when"><i class="bi bi-clock"></i>{{ item.date|date:"D, d M Y" }}{% if item.start %} · {{ item.start|time:"g:i A" }}{% if item.end %} – {{ item.end|time:"g:i A" }}{% endif %}{% endif %}</span>
+  {% for icon, text in item.meta %}<span class="tip-meta"><i class="bi {{ icon }}"></i>{{ text }}</span>{% endfor %}
+  {% if item.url %}<span class="tip-hint">Click to open</span>{% endif %}
+</span>

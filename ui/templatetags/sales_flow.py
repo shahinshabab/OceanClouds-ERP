@@ -4,7 +4,7 @@ The sales journey tracker shown on lead, deal, proposal, contract and
 invoice pages.
 
 The flow is: inquiry -> lead -> deal -> proposal -> advance -> contract
-(signed) -> invoice -> client & events. Existing customers can start at the
+(signed) -> approval, which creates the invoice, client and events. Existing customers can start at the
 deal with a client already set, so the inquiry and lead steps show as
 skipped for them.
 
@@ -15,7 +15,7 @@ step that is not done carries the suggested next action.
 from django import template
 from django.urls import reverse
 
-from common.roles import can_access_sales
+from common.roles import can_access_crm, can_access_sales
 
 register = template.Library()
 
@@ -55,8 +55,7 @@ def build_lead_flow(lead):
         _step("proposal", "Proposal", "bi-file-earmark-richtext"),
         _step("advance", "Advance", "bi-cash-coin"),
         _step("contract", "Contract", "bi-pen"),
-        _step("invoice", "Invoice", "bi-receipt"),
-        _step("client", "Client & events", "bi-people"),
+        _step("approval", "Invoice & client", "bi-check2-circle"),
     ]
     return steps
 
@@ -75,8 +74,7 @@ def build_inquiry_flow(inquiry):
         _step("proposal", "Proposal", "bi-file-earmark-richtext"),
         _step("advance", "Advance", "bi-cash-coin"),
         _step("contract", "Contract", "bi-pen"),
-        _step("invoice", "Invoice", "bi-receipt"),
-        _step("client", "Client & events", "bi-people"),
+        _step("approval", "Invoice & client", "bi-check2-circle"),
     ]
 
 
@@ -190,30 +188,27 @@ def build_deal_flow(deal):
             ) if accepted else None,
         ))
 
-    # Invoice
-    if invoice:
-        meta = invoice.get_status_display()
-        steps.append(_step("invoice", "Invoice", "bi-receipt", "done", meta,
-                           reverse("sales:invoice_detail", args=[invoice.pk])))
-    else:
-        steps.append(_step(
-            "invoice", "Invoice", "bi-receipt", "todo", "Not created",
-            action=_action(
-                "Generate invoice",
-                reverse("sales:contract_generate_invoice", args=[signed.pk]),
-                "bi-receipt",
-            ) if signed else None,
-        ))
+    # Once the customer has signed, the earlier steps are settled even if
+    # nobody updated them along the way.
+    if signed:
+        for step in steps:
+            if step["key"] == "proposal" and step["state"] == "todo":
+                step.update(state="done", action=None)
+            elif step["key"] == "advance" and step["state"] == "todo":
+                step.update(state="skipped", meta="None recorded", action=None)
 
-    # Client & events
+    # Approval: a CRM manager approves the signed contract, which creates
+    # the invoice, client and events.
     client_url = reverse("crm:client_detail", args=[deal.client_id]) if deal.client_id else ""
-    if existing_customer or has_events:
-        steps.append(_step("client", "Client & events", "bi-people", "done", str(deal.client or ""), client_url))
+    invoice_url = reverse("sales:invoice_detail", args=[invoice.pk]) if invoice else ""
+    if has_events or (existing_customer and invoice):
+        steps.append(_step("approval", "Invoice & client", "bi-check2-circle", "done",
+                           str(deal.client or "Approved"), invoice_url or client_url))
     elif signed and invoice:
+        # Invoiced before approvals existed: only the client & events are left.
         steps.append(_step(
-            "client", "Client & events", "bi-people", "todo",
-            str(deal.client) if deal.client_id else "Ready to create",
-            client_url,
+            "approval", "Invoice & client", "bi-check2-circle", "todo",
+            "Invoice ready", invoice_url,
             _action(
                 "Create client & events",
                 reverse("sales:contract_create_client_event", args=[signed.pk]),
@@ -221,11 +216,49 @@ def build_deal_flow(deal):
                 hint="Creates the client from the lead and one event per contract day.",
             ),
         ))
+    elif signed:
+        steps.append(_step(
+            "approval", "Invoice & client", "bi-check2-circle", "todo", "Waiting for approval",
+            reverse("sales:contract_detail", args=[signed.pk]),
+            _action(
+                "Review and approve",
+                reverse("sales:contract_detail", args=[signed.pk]) + "#approve",
+                "bi-check2-circle",
+                hint="Signed. A CRM manager approves to create the invoice and client.",
+            ),
+        ))
     else:
-        steps.append(_step("client", "Client & events", "bi-people", "todo",
-                           str(deal.client) if deal.client_id else "After contract", client_url))
+        steps.append(_step("approval", "Invoice & client", "bi-check2-circle", "todo", "After signing"))
 
     return steps
+
+
+def build_status_controls(deal):
+    """Status menus for the deal's latest proposal and contract."""
+    from sales.models import ContractStatus, ProposalStatus
+
+    controls = []
+    proposal = deal.proposals.order_by("-created_at").first()
+    if proposal:
+        options = [
+            {"value": value, "label": label, "url": reverse("sales:proposal_set_status", args=[proposal.pk])}
+            for value, label in ProposalStatus.choices
+            if value != ProposalStatus.ACCEPTED
+        ]
+        # Accepting also prices the deal, so it goes through its own view.
+        options.insert(2, {"value": ProposalStatus.ACCEPTED, "label": ProposalStatus.ACCEPTED.label,
+                           "url": reverse("sales:proposal_accept", args=[proposal.pk])})
+        controls.append({"title": f"Proposal · {proposal.title}", "current": proposal.status, "options": options})
+
+    contract = deal.contracts.order_by("-created_at").first()
+    if contract:
+        url = reverse("sales:contract_set_status", args=[contract.pk])
+        controls.append({
+            "title": f"Contract · {contract.number or 'draft'}",
+            "current": contract.status,
+            "options": [{"value": value, "label": label, "url": url} for value, label in ContractStatus.choices],
+        })
+    return controls
 
 
 def _finalise(steps, user, current_key):
@@ -234,6 +267,9 @@ def _finalise(steps, user, current_key):
         first_open["state"] = "current"
     for step in steps:
         step["is_here"] = step["key"] == current_key
+        if step["key"] == "lead" and not (user and can_access_crm(user)):
+            # Project managers see the deal but cannot open the lead.
+            step["url"] = ""
     next_action = first_open["action"] if first_open else None
     if first_open and first_open["key"] == current_key and next_action and next_action["url"] == first_open["url"]:
         # The page itself is the next step; its own buttons carry the action.
@@ -269,4 +305,11 @@ def sales_flow(context, deal=None, lead=None, inquiry=None, here=""):
     else:
         return {"flow": None}
     flow = _finalise(steps, user, here)
-    return {"flow": flow, "csrf_token": context.get("csrf_token"), "here": here}
+    if deal is not None and user is not None and can_access_sales(user):
+        flow["status_controls"] = build_status_controls(deal)
+    return {
+        "flow": flow,
+        "csrf_token": context.get("csrf_token"),
+        "here": here,
+        "current_url": request.get_full_path() if request else "",
+    }

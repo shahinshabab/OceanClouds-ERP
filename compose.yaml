@@ -102,7 +102,16 @@ services:
     command:
       - /bin/sh
       - -c
-      - while true; do python manage.py close_expired_login_sessions --verbosity 0; sleep 60; done
+      # Every minute: close expired sessions. Every hour (and at start): make
+      # the day's due to-dos and reminders; repeats within a day are skipped.
+      - |
+        n=0
+        while true; do
+          python manage.py close_expired_login_sessions --verbosity 0
+          if [ $((n % 60)) -eq 0 ]; then python manage.py generate_due_todos --verbosity 0 || true; fi
+          n=$((n + 1))
+          sleep 60
+        done
 
   nginx:
     image: nginx:alpine

@@ -318,17 +318,19 @@
                   </li>
                 {% endfor %}
               </ul>
-
-              <hr>
-
-              <h3 class="h6 fw-bold mb-3">Important</h3>
-
-              <ul>
-                {% for item in important_terms %}
-                  <li>{{ item }}</li>
-                {% endfor %}
-              </ul>
             </div>
+
+            {% if payment_terms %}
+              <h2 class="section-heading">Payment Terms</h2>
+
+              <div class="terms-box mb-4">
+                <ul>
+                  {% for item in payment_terms %}
+                    <li>{{ item }}</li>
+                  {% endfor %}
+                </ul>
+              </div>
+            {% endif %}
 
             {% if contract.terms %}
               <h2 class="section-heading">Additional Contract Terms</h2>

@@ -18,10 +18,7 @@
         <a href="{% url 'crm:inquiry_create' %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-inbox"></i>New inquiry</a>
         <a href="{% url 'sales:deal_create' %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-briefcase"></i>New deal</a>
       {% endif %}
-      {% if show_employee_section or show_project_section %}
-        <a href="{% url 'projects:project_calendar' %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-calendar-week"></i>Work calendar</a>
-      {% endif %}
-      <a href="{% url 'events:event_calendar' %}" class="btn btn-dark btn-sm"><i class="bi bi-calendar-event"></i>Event calendar</a>
+      <a href="{% url 'events:event_calendar' %}" class="btn btn-dark btn-sm"><i class="bi bi-calendar-event"></i>Calendar</a>
     </div>
   </div>
 
@@ -105,7 +102,7 @@
                 </div>
                 <div class="grow">
                   <div class="t">
-                    {% if can_open_events %}<a href="{{ event.get_absolute_url }}">{{ event.name }}</a>{% else %}{{ event.name }}{% endif %}
+                    <a href="{{ event.get_absolute_url }}">{{ event.name }}</a>
                   </div>
                   <div class="m">
                     {% if event.start_time %}{{ event.start_time|time:"g:i A" }} · {% endif %}{{ event.client|default:"No client" }}{% if event.venue %} · {{ event.venue }}{% endif %}

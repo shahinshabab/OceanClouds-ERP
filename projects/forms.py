@@ -199,19 +199,32 @@ class DeliverableForm(AssigneeChoiceMixin, BootstrapModelForm):
         self.setup_assignee_field()
         self.fields["tasks"].label_from_instance = self._task_option_label
 
+        # Linked tasks come from the deliverable's project. The browser loads
+        # them when a project is picked, so a submitted form must accept the
+        # tasks of the project it was submitted with.
+        task_project_id = None
+        if self.instance and self.instance.pk:
+            task_project_id = self.instance.project_id
+        elif self.fixed_project:
+            task_project_id = self.fixed_project.pk
+        elif self.is_bound:
+            raw = self.data.get(self.add_prefix("project"))
+            if raw and str(raw).isdigit():
+                task_project_id = int(raw)
+        else:
+            initial = self.initial.get("project")
+            task_project_id = getattr(initial, "pk", initial)
+
         if self.fixed_project:
             self.fields["project"].required = False
             self.fields["project"].initial = self.fixed_project
+
+        if task_project_id:
             self.fields["tasks"].queryset = Task.objects.select_related("assigned_to").filter(
-                project=self.fixed_project
+                project_id=task_project_id
             ).order_by(F("due_date").asc(nulls_last=True), "status", "priority", "created_at")
         else:
             self.fields["tasks"].queryset = Task.objects.none()
-
-        if self.instance and self.instance.pk:
-            self.fields["tasks"].queryset = Task.objects.select_related("assigned_to").filter(
-                project=self.instance.project
-            ).order_by(F("due_date").asc(nulls_last=True), "status", "priority", "created_at")
 
     @staticmethod
     def _task_option_label(task):

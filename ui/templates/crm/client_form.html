@@ -1,191 +1,40 @@
-{% extends "ui/base.html" %}
-{% load roles_tags %}
+{% extends "ui/form_page.html" %}
+{% load ui_tags %}
 
-{% block title %}{% if form.instance.pk %}Edit Client{% else %}New Client{% endif %}{% endblock %}
+{% block title %}{% if form.instance.pk %}Edit client{% else %}New client{% endif %}{% endblock %}
 
-{% block content %}
-{% is_admin request.user as is_admin %}
-{% is_crm_manager request.user as is_crm_manager %}
-{% is_employee request.user as is_employee %}
+{% block form_eyebrow %}<i class="bi bi-people"></i> Clients &amp; events · Clients{% endblock %}
+{% block form_title %}{% if form.instance.pk %}Edit {{ form.instance.display_name|default:form.instance.name }}{% else %}New client{% endif %}{% endblock %}
+{% block form_subtitle %}{% if not form.instance.pk %}Clients are normally created from a signed contract. Add one here only for an existing customer.{% endif %}{% endblock %}
 
-<div class="container py-3 max-w-2xl">
-
-  <h2 class="fw-semibold mb-4">
-    {% if form.instance.pk %}Edit Client{% else %}New Client{% endif %}
-  </h2>
-
-  <form method="post" novalidate>
-    {% csrf_token %}
-    {% if form.non_field_errors %}
-      <div class="alert alert-danger">
-        {{ form.non_field_errors }}
-      </div>
-    {% endif %}
-
-    <div class="card shadow-sm">
-      <div class="card-body">
-
-        <!-- Row 1 -->
-        <div class="row">
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.name.label }}{% if form.name.field.required %} *{% endif %}
-            </label>
-            {{ form.name }}
-            {% for error in form.name.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.display_name.label }}
-            </label>
-            {{ form.display_name }}
-            {% for error in form.display_name.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.email.label }}
-            </label>
-            {{ form.email }}
-            {% for error in form.email.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Row 2 -->
-        <div class="row">
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.phone.label }}
-            </label>
-            {{ form.phone }}
-            {% for error in form.phone.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.city.label }}
-            </label>
-            {{ form.city }}
-            {% for error in form.city.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.district.label }}
-            </label>
-            {{ form.district }}
-            {% for error in form.district.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Row 3 -->
-        <div class="row">
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.state.label }}
-            </label>
-            {{ form.state }}
-            {% for error in form.state.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.country.label }}
-            </label>
-            {{ form.country }}
-            {% for error in form.country.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.instagram_handle.label }}
-            </label>
-            {{ form.instagram_handle }}
-            {% for error in form.instagram_handle.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Row 4: Billing address -->
-        <div class="row">
-          <div class="col-12 mb-3">
-            <label class="form-label">
-              {{ form.billing_address.label }}
-            </label>
-            {{ form.billing_address }}
-            {% for error in form.billing_address.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Row 5: Notes + Active -->
-        <div class="row">
-          <div class="col-md-9 mb-3">
-            <label class="form-label">
-              {{ form.notes.label }}
-            </label>
-            {{ form.notes }}
-            {% if form.notes.help_text %}
-              <small class="form-text text-muted">{{ form.notes.help_text }}</small>
-            {% endif %}
-            {% for error in form.notes.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-3 mb-3 d-flex align-items-center">
-            <div>
-              <label class="form-label d-block">
-                {{ form.is_active.label }}
-              </label>
-              <div class="form-check">
-                {{ form.is_active }}
-                <label class="form-check-label ms-1">Active</label>
-              </div>
-              {% for error in form.is_active.errors %}
-                <div class="text-danger small">{{ error }}</div>
-              {% endfor %}
-            </div>
-          </div>
-        </div>
-
-      </div>
+{% block form_body %}
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-person-vcard"></i>Client</h2>
+    <div class="row g-3">
+      {% field form.name "col-md-6" %}
+      {% field form.display_name "col-md-6" %}
+      {% field form.phone "col-md-6" %}
+      {% field form.email "col-md-6" %}
+      {% field form.is_active "col-12" %}
     </div>
+  </section>
 
-    <!-- Buttons row -->
-    <div class="row mt-3">
-      <div class="col-12 d-flex justify-content-center gap-2">
-        {% if is_admin or is_crm_manager %}
-          <button type="submit" class="btn btn-primary px-4">
-            Save
-          </button>
-        {% endif %}
-        <a href="{% url 'crm:client_list' %}" class="btn btn-secondary">
-          Cancel
-        </a>
-      </div>
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-geo-alt"></i>Address</h2>
+    <div class="row g-3">
+      {% field form.city "col-md-3" %}
+      {% field form.district "col-md-3" %}
+      {% field form.state "col-md-3" %}
+      {% field form.country "col-md-3" %}
+      {% field form.billing_address "col-12" %}
     </div>
+  </section>
 
-  </form>
-
-</div>
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-journal-text"></i>Notes</h2>
+    <div class="row g-3">{% field form.notes "col-12" label="" %}</div>
+  </section>
 {% endblock %}
+
+{% block cancel_url %}{% if form.instance.pk %}{% url 'crm:client_detail' form.instance.pk %}{% else %}{% url 'crm:client_list' %}{% endif %}{% endblock %}
+{% block submit_label %}Save client{% endblock %}

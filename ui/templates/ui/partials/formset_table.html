@@ -1,0 +1,31 @@
+{% comment %}
+An editable table for an inline formset, with an "add row" button.
+  {% include "ui/partials/formset_table.html" with formset=items_formset title="Items" icon="bi-list" add_label="Add item" note="…" %}
+Columns come from the formset's visible fields. app.js handles adding rows.
+{% endcomment %}
+<section class="form-section" data-formset="{{ formset.prefix }}">
+  <h2 class="form-section-title">
+    <i class="bi {{ icon|default:'bi-list-ul' }}"></i>{{ title }}
+    <button type="button" class="btn btn-outline-secondary btn-sm ms-auto js-formset-add"><i class="bi bi-plus-lg"></i>{{ add_label|default:"Add row" }}</button>
+  </h2>
+  {% if note %}<p class="form-section-note">{{ note }}</p>{% endif %}
+  {{ formset.management_form }}
+  {% if formset.non_form_errors %}
+    <div class="alert alert-danger py-2">{% for error in formset.non_form_errors %}<div>{{ error }}</div>{% endfor %}</div>
+  {% endif %}
+  <div class="table-responsive formset-wrap">
+    <table class="table formset-table align-middle mb-0">
+      <thead>
+        <tr>
+          {% for f in formset.empty_form.visible_fields %}{% if f.name != "DELETE" %}<th>{{ f.label }}</th>{% endif %}{% endfor %}
+          <th class="text-end"><span class="visually-hidden">Remove</span></th>
+        </tr>
+      </thead>
+      <tbody class="js-formset-body">
+        {% for form in formset %}{% include "ui/partials/formset_row.html" %}{% endfor %}
+      </tbody>
+    </table>
+    <div class="formset-empty text-muted small">Nothing added yet.</div>
+  </div>
+  <template class="js-formset-template">{% include "ui/partials/formset_row.html" with form=formset.empty_form %}</template>
+</section>

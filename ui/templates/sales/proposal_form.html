@@ -1,366 +1,171 @@
-{% extends "ui/base.html" %}
-{% load roles_tags %}
+{% extends "ui/form_page.html" %}
+{% load ui_tags %}
 
-{% block title %}
-  {% if form.instance.pk %}Edit Proposal{% else %}New Proposal{% endif %}
-{% endblock %}
+{% block title %}{% if form.instance.pk %}Edit proposal{% else %}New proposal{% endif %}{% endblock %}
 
-{% block extra_css %}
-<style>
-  .delete-flag,
-  .is-deleted {
-    display: none;
-  }
+{% block form_eyebrow %}<i class="bi bi-file-earmark-richtext"></i> Sales pipeline · Proposals{% endblock %}
+{% block form_title %}{% if form.instance.pk %}Edit {{ form.instance.title }}{% else %}New proposal{% endif %}{% endblock %}
+{% block form_subtitle %}Build the quote day by day: add each event, the services or packages for it, and what you will deliver.{% endblock %}
+{% block page_class %}wide{% endblock %}
+{% block layout_class %}with-aside{% endblock %}
 
-  .line-total-box {
-    min-height: 38px;
-  }
-</style>
-{% endblock %}
-
-{% block content %}
-{% is_admin request.user as is_admin %}
-{% is_crm_manager request.user as is_crm_manager %}
-
-<div class="container py-3">
-  <h2 class="fw-semibold mb-4">
-    {% if form.instance.pk %}Edit Proposal{% else %}New Proposal{% endif %}
-  </h2>
-
-  <form method="post" novalidate>
-    {% csrf_token %}
-
-    {% if form.non_field_errors %}
-      <div class="alert alert-danger">{{ form.non_field_errors }}</div>
-    {% endif %}
-
-    <div class="card shadow-sm mb-3">
-      <div class="card-header bg-light">
-        <strong>Proposal Information</strong>
-      </div>
-
-      <div class="card-body">
-        <div class="row">
-          <div class="col-md-4 mb-3">
-            <label class="form-label">{{ form.deal.label }}</label>
-            {{ form.deal }}
-            {% for error in form.deal.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">{{ form.title.label }}</label>
-            {{ form.title }}
-            {% for error in form.title.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">{{ form.status.label }}</label>
-            {{ form.status }}
-            {% for error in form.status.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
-          </div>
-        </div>
-
-        <div class="row">
-          <div class="col-md-3 mb-3">
-            <label class="form-label">{{ form.version.label }}</label>
-            {{ form.version }}
-            {% for error in form.version.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
-          </div>
-
-          <div class="col-md-3 mb-3">
-            <label class="form-label">{{ form.valid_until.label }}</label>
-            {{ form.valid_until }}
-            {% for error in form.valid_until.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
-          </div>
-
-          <div class="col-md-3 mb-3">
-            <label class="form-label">Subtotal</label>
-            <input type="text" id="id_subtotal" class="form-control" value="{{ form.instance.subtotal|default_if_none:'0.00' }}" readonly>
-          </div>
-
-          <div class="col-md-3 mb-3">
-            <label class="form-label">Total</label>
-            <input type="text" id="id_total" class="form-control" value="{{ form.instance.total|default_if_none:'0.00' }}" readonly>
-          </div>
-        </div>
-
-        <div class="mb-3">
-          <label class="form-label">{{ form.intro.label }}</label>
-          {{ form.intro }}
-          <div class="form-text">Printed on the welcome page of the proposal PDF.</div>
-          {% for error in form.intro.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
-        </div>
-
-        <div class="mb-3">
-          <label class="form-label">{{ form.terms.label }}</label>
-          {{ form.terms }}
-          <div class="form-text">{{ form.terms.help_text }}</div>
-          {% for error in form.terms.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
-        </div>
-
-        <div class="mb-0">
-          <label class="form-label">{{ form.notes.label }}</label>
-          {{ form.notes }}
-          {% for error in form.notes.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
-        </div>
-      </div>
+{% block form_body %}
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-file-earmark-text"></i>Proposal</h2>
+    <div class="row g-3">
+      {% field form.deal "col-md-6" %}
+      {% field form.title "col-md-6" %}
+      {% field form.status "col-md-4" %}
+      {% field form.version "col-md-4" %}
+      {% field form.valid_until "col-md-4" %}
+      {% field form.intro "col-12" hint="Printed on the welcome page of the proposal PDF." %}
     </div>
+  </section>
 
-    <div class="card shadow-sm mb-3">
-      <div class="card-header bg-light">
-        <strong>Pricing Plan</strong>
-      </div>
-
-      <div class="card-body">
-        {% if plan_form.non_field_errors %}
-          <div class="alert alert-danger">{{ plan_form.non_field_errors }}</div>
-        {% endif %}
-
-        <div class="row">
-          <div class="col-md-4 mb-3">
-            <label class="form-label">{{ plan_form.name.label }}</label>
-            {{ plan_form.name }}
-            {% for error in plan_form.name.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">{{ plan_form.discount.label }}</label>
-            {{ plan_form.discount }}
-            {% for error in plan_form.discount.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">{{ plan_form.tax_rate.label }}</label>
-            {{ plan_form.tax_rate }}
-            {% for error in plan_form.tax_rate.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
-          </div>
-        </div>
-
-        <div class="row">
-          <div class="col-md-8 mb-3">
-            <label class="form-label">{{ plan_form.description.label }}</label>
-            {{ plan_form.description }}
-            {% for error in plan_form.description.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">{{ plan_form.sort_order.label }}</label>
-            {{ plan_form.sort_order }}
-            {% for error in plan_form.sort_order.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
-          </div>
-        </div>
-
-        <div class="d-flex flex-wrap gap-4">
-          <div class="form-check">
-            {{ plan_form.is_primary }}
-            <label class="form-check-label">{{ plan_form.is_primary.label }}</label>
-          </div>
-          <div class="form-check">
-            {{ plan_form.is_accepted }}
-            <label class="form-check-label">{{ plan_form.is_accepted.label }}</label>
-          </div>
-        </div>
-      </div>
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-tags"></i>Pricing plan</h2>
+    {% if plan_form.non_field_errors %}<div class="alert alert-danger">{{ plan_form.non_field_errors }}</div>{% endif %}
+    <div class="row g-3">
+      {% field plan_form.name "col-md-5" %}
+      {% field plan_form.sort_order "col-md-2" label="Order" %}
+      {% field plan_form.discount "col-md-3" prefix="₹" label="Discount" hint="" %}
+      {% field plan_form.tax_rate "col-md-2" suffix="%" label="Tax" hint="" %}
+      {% field plan_form.description "col-12" %}
+      {% field plan_form.is_primary "col-md-6" %}
+      {% field plan_form.is_accepted "col-md-6" %}
     </div>
+  </section>
 
-    <div class="card shadow-sm mb-3">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <strong>Events, Services & Deliverables</strong>
-        <button type="button" class="btn btn-sm btn-outline-success" id="add-event"><i class="bi bi-plus-lg"></i>Add Event</button>
-      </div>
+  <section class="form-section builder">
+    <h2 class="form-section-title">
+      <i class="bi bi-calendar-event"></i>Events, services and deliverables
+      <button type="button" class="btn btn-dark btn-sm ms-auto" id="add-event"><i class="bi bi-plus-lg"></i>Add event</button>
+    </h2>
+    <input type="hidden" id="id_events-TOTAL_FORMS" name="events-TOTAL_FORMS" value="{{ event_entries|length }}">
 
-      <div class="card-body">
-        <input type="hidden" id="id_events-TOTAL_FORMS" name="events-TOTAL_FORMS" value="{{ event_entries|length }}">
+    <div id="events-wrapper" class="builder-events">
+      {% for event_entry in event_entries %}
+        <div class="event-card" data-event-index="{{ forloop.counter0 }}">
+          <input type="hidden" name="{{ event_entry.prefix }}-id" value="{{ event_entry.instance.pk|default:'' }}">
+          <input type="checkbox" class="delete-flag" name="{{ event_entry.prefix }}-DELETE">
+          <div class="builder-head">
+            <span class="builder-badge"><i class="bi bi-calendar-event"></i></span>
+            <h3 class="event-title">Event {{ forloop.counter }}</h3>
+            <button type="button" class="btn btn-light btn-sm text-danger ms-auto js-delete-event"><i class="bi bi-trash"></i>Remove event</button>
+          </div>
+          {% if event_entry.form.non_field_errors %}<div class="alert alert-danger">{{ event_entry.form.non_field_errors }}</div>{% endif %}
+          {% with f=event_entry.form %}
+          <div class="row g-3">
+            {% field f.title "col-md-6" %}
+            {% field f.event_date "col-md-6" %}
+            {% field f.venue "col-md-6" %}
+            {% field f.start_time "col-6 col-md-2" %}
+            {% field f.end_time "col-6 col-md-2" %}
+            {% field f.sort_order "col-md-2" label="Order" %}
+            {% field f.notes "col-12" %}
+          </div>
+          {% endwith %}
 
-        <div id="events-wrapper" class="d-grid gap-3">
-          {% for event_entry in event_entries %}
-            <div class="event-card border rounded p-3" data-event-index="{{ forloop.counter0 }}">
-              <input type="hidden" name="{{ event_entry.prefix }}-id" value="{{ event_entry.instance.pk|default:'' }}">
-              <input type="checkbox" class="delete-flag" name="{{ event_entry.prefix }}-DELETE">
-
-              <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="mb-0 event-title">Event {{ forloop.counter }}</h5>
-                <button type="button" class="btn btn-sm btn-outline-danger js-delete-event"><i class="bi bi-trash"></i>Delete Event</button>
-              </div>
-
-              {% if event_entry.form.non_field_errors %}
-                <div class="alert alert-danger">{{ event_entry.form.non_field_errors }}</div>
-              {% endif %}
-
-              <div class="row">
-                <div class="col-md-3 mb-3">
-                  <label class="form-label">{{ event_entry.form.event_date.label }}</label>
-                  {{ event_entry.form.event_date }}
-                  {% for error in event_entry.form.event_date.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+          <div class="builder-sub">
+            <span>Services and packages</span>
+            <button type="button" class="btn btn-outline-secondary btn-sm js-add-item"><i class="bi bi-plus-lg"></i>Add service</button>
+          </div>
+          <input type="hidden" name="{{ event_entry.prefix }}-items-TOTAL_FORMS" value="{{ event_entry.items|length }}">
+          <div class="items-wrapper">
+            {% for item_entry in event_entry.items %}
+              <div class="item-card" data-item-index="{{ forloop.counter0 }}">
+                <input type="hidden" name="{{ item_entry.prefix }}-id" value="{{ item_entry.instance.pk|default:'' }}">
+                <input type="checkbox" class="delete-flag" name="{{ item_entry.prefix }}-DELETE">
+                {{ item_entry.form.sort_order.as_hidden }}
+                <div class="builder-head small">
+                  <h4 class="item-title">Service {{ forloop.counter }}</h4>
+                  <span class="line-total-pill ms-auto">₹<span class="line-total">0.00</span></span>
+                  <button type="button" class="btn btn-light btn-sm text-danger js-delete-item" title="Remove service" aria-label="Remove service"><i class="bi bi-trash"></i></button>
                 </div>
-                <div class="col-md-3 mb-3">
-                  <label class="form-label">{{ event_entry.form.title.label }}</label>
-                  {{ event_entry.form.title }}
-                  {% for error in event_entry.form.title.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                {% if item_entry.form.non_field_errors %}<div class="alert alert-danger">{{ item_entry.form.non_field_errors }}</div>{% endif %}
+                {% with f=item_entry.form %}
+                <div class="row g-3">
+                  {% field f.catalog_item "col-md-6" %}
+                  {% field f.quantity "col-4 col-md-2" %}
+                  {% field f.unit_price "col-8 col-md-4" prefix="₹" label="Price" %}
+                  {% field f.description "col-md-6" %}
+                  {% field f.notes "col-md-6" %}
                 </div>
-                <div class="col-md-3 mb-3">
-                  <label class="form-label">{{ event_entry.form.venue.label }}</label>
-                  {{ event_entry.form.venue }}
-                  {% for error in event_entry.form.venue.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                {% endwith %}
+
+                <div class="builder-sub muted">
+                  <span>Deliverables</span>
+                  <button type="button" class="btn btn-light btn-sm js-add-deliverable"><i class="bi bi-plus-lg"></i>Add deliverable</button>
                 </div>
-                <div class="col-md-3 mb-3">
-                  <label class="form-label">{{ event_entry.form.sort_order.label }}</label>
-                  {{ event_entry.form.sort_order }}
-                  {% for error in event_entry.form.sort_order.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
-                </div>
-              </div>
-
-              <div class="row">
-                <div class="col-md-3 mb-3">
-                  <label class="form-label">{{ event_entry.form.start_time.label }}</label>
-                  {{ event_entry.form.start_time }}
-                </div>
-                <div class="col-md-3 mb-3">
-                  <label class="form-label">{{ event_entry.form.end_time.label }}</label>
-                  {{ event_entry.form.end_time }}
-                </div>
-                <div class="col-md-6 mb-3">
-                  <label class="form-label">{{ event_entry.form.notes.label }}</label>
-                  {{ event_entry.form.notes }}
-                </div>
-              </div>
-
-              <div class="d-flex justify-content-between align-items-center border-top pt-3 mb-2">
-                <strong class="small text-uppercase text-muted">Services</strong>
-                <button type="button" class="btn btn-sm btn-outline-primary js-add-item"><i class="bi bi-plus-lg"></i>Add Service</button>
-              </div>
-
-              <input type="hidden" name="{{ event_entry.prefix }}-items-TOTAL_FORMS" value="{{ event_entry.items|length }}">
-              <div class="items-wrapper d-grid gap-3">
-                {% for item_entry in event_entry.items %}
-                  <div class="item-card border rounded p-3 bg-light" data-item-index="{{ forloop.counter0 }}">
-                    <input type="hidden" name="{{ item_entry.prefix }}-id" value="{{ item_entry.instance.pk|default:'' }}">
-                    <input type="checkbox" class="delete-flag" name="{{ item_entry.prefix }}-DELETE">
-
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                      <h6 class="mb-0 item-title">Service {{ forloop.counter }}</h6>
-                      <button type="button" class="btn btn-sm btn-outline-danger js-delete-item"><i class="bi bi-trash"></i>Delete Service</button>
-                    </div>
-
-                    {% if item_entry.form.non_field_errors %}
-                      <div class="alert alert-danger">{{ item_entry.form.non_field_errors }}</div>
-                    {% endif %}
-
-                    {{ item_entry.form.sort_order.as_hidden }}
-
-                    <div class="row">
-                      <div class="col-md-4 mb-3">
-                        <label class="form-label">{{ item_entry.form.catalog_item.label }}</label>
-                        {{ item_entry.form.catalog_item }}
-                        {% for error in item_entry.form.catalog_item.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
-                      </div>
-                      <div class="col-md-4 mb-3">
-                        <label class="form-label">{{ item_entry.form.description.label }}</label>
-                        {{ item_entry.form.description }}
-                        {% for error in item_entry.form.description.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
-                      </div>
-                      <div class="col-md-2 mb-3">
-                        <label class="form-label">{{ item_entry.form.quantity.label }}</label>
-                        {{ item_entry.form.quantity }}
-                        {% for error in item_entry.form.quantity.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
-                      </div>
-                      <div class="col-md-2 mb-3">
-                        <label class="form-label">{{ item_entry.form.unit_price.label }}</label>
-                        {{ item_entry.form.unit_price }}
-                        {% for error in item_entry.form.unit_price.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
-                      </div>
-                    </div>
-
-                    <div class="row">
-                      <div class="col-md-9 mb-3">
-                        <label class="form-label">{{ item_entry.form.notes.label }}</label>
-                        {{ item_entry.form.notes }}
-                        {% for error in item_entry.form.notes.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
-                      </div>
-                      <div class="col-md-3 mb-3">
-                        <label class="form-label">Line Total</label>
-                        <div class="form-control bg-body line-total-box">
-                          <span class="line-total">0.00</span>
+                <input type="hidden" name="{{ item_entry.prefix }}-deliverables-TOTAL_FORMS" value="{{ item_entry.deliverables|length }}">
+                <div class="deliverables-wrapper">
+                  {% for deliverable_entry in item_entry.deliverables %}
+                    <div class="deliverable-row" data-deliverable-index="{{ forloop.counter0 }}">
+                      <input type="hidden" name="{{ deliverable_entry.prefix }}-id" value="{{ deliverable_entry.instance.pk|default:'' }}">
+                      <input type="checkbox" class="delete-flag" name="{{ deliverable_entry.prefix }}-DELETE">
+                      {% if deliverable_entry.form.non_field_errors %}<div class="alert alert-danger py-2">{{ deliverable_entry.form.non_field_errors }}</div>{% endif %}
+                      {% with f=deliverable_entry.form %}
+                      <div class="row g-2 align-items-end">
+                        {{ f.sort_order.as_hidden }}
+                        {% field f.title "col-md-4" %}
+                        {% field f.description "col-md-3" %}
+                        {% field f.quantity "col-5 col-md-2" label="Qty" %}
+                        {% field f.unit "col-5 col-md-2" %}
+                        <div class="col-2 col-md-1 d-flex align-items-center justify-content-end gap-1 pb-1">
+                          <span class="form-check m-0" title="Included in the price">{{ f.is_included }}</span>
+                          <button type="button" class="btn btn-light btn-sm text-danger js-delete-deliverable" title="Remove deliverable" aria-label="Remove deliverable"><i class="bi bi-x-lg"></i></button>
                         </div>
                       </div>
+                      {% endwith %}
                     </div>
-
-                    <div class="d-flex justify-content-between align-items-center border-top pt-3 mb-2">
-                      <strong class="small text-uppercase text-muted">Deliverables</strong>
-                      <button type="button" class="btn btn-sm btn-outline-secondary js-add-deliverable"><i class="bi bi-plus-lg"></i>Add Deliverable</button>
-                    </div>
-
-                    <input type="hidden" name="{{ item_entry.prefix }}-deliverables-TOTAL_FORMS" value="{{ item_entry.deliverables|length }}">
-                    <div class="deliverables-wrapper d-grid gap-2">
-                      {% for deliverable_entry in item_entry.deliverables %}
-                        <div class="deliverable-row border rounded p-2 bg-body" data-deliverable-index="{{ forloop.counter0 }}">
-                          <input type="hidden" name="{{ deliverable_entry.prefix }}-id" value="{{ deliverable_entry.instance.pk|default:'' }}">
-                          <input type="checkbox" class="delete-flag" name="{{ deliverable_entry.prefix }}-DELETE">
-
-                          {% if deliverable_entry.form.non_field_errors %}
-                            <div class="alert alert-danger py-2">{{ deliverable_entry.form.non_field_errors }}</div>
-                          {% endif %}
-
-                          <div class="row align-items-end">
-                            <div class="col-md-3 mb-2">
-                              <label class="form-label">{{ deliverable_entry.form.title.label }}</label>
-                              {{ deliverable_entry.form.title }}
-                              {% for error in deliverable_entry.form.title.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
-                            </div>
-                            <div class="col-md-3 mb-2">
-                              <label class="form-label">{{ deliverable_entry.form.description.label }}</label>
-                              {{ deliverable_entry.form.description }}
-                              {% for error in deliverable_entry.form.description.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
-                            </div>
-                            <div class="col-md-2 mb-2">
-                              <label class="form-label">{{ deliverable_entry.form.quantity.label }}</label>
-                              {{ deliverable_entry.form.quantity }}
-                              {% for error in deliverable_entry.form.quantity.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
-                            </div>
-                            <div class="col-md-2 mb-2">
-                              <label class="form-label">{{ deliverable_entry.form.unit.label }}</label>
-                              {{ deliverable_entry.form.unit }}
-                              {% for error in deliverable_entry.form.unit.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
-                            </div>
-                            <div class="col-md-1 mb-2">
-                              <label class="form-label">{{ deliverable_entry.form.sort_order.label }}</label>
-                              {{ deliverable_entry.form.sort_order }}
-                            </div>
-                            <div class="col-md-1 mb-2 text-end">
-                              <div class="form-check mb-2">
-                                {{ deliverable_entry.form.is_included }}
-                              </div>
-                              <button type="button" class="btn btn-sm btn-outline-danger js-delete-deliverable"><i class="bi bi-trash"></i>Delete</button>
-                            </div>
-                          </div>
-                        </div>
-                      {% endfor %}
-                    </div>
-                  </div>
-                {% endfor %}
+                  {% endfor %}
+                </div>
               </div>
-            </div>
-          {% endfor %}
+            {% endfor %}
+          </div>
         </div>
-      </div>
+      {% endfor %}
     </div>
+  </section>
 
-    <div class="row mt-3">
-      <div class="col-12 d-flex justify-content-center flex-wrap gap-2">
-        {% if is_admin or is_crm_manager %}
-          <button type="submit" class="btn btn-primary px-4">Save</button>
-        {% endif %}
-
-        {% if form.instance.pk %}
-          <a href="{% url 'sales:proposal_detail' form.instance.pk %}" class="btn btn-secondary">Cancel</a>
-        {% else %}
-          <a href="{% url 'sales:proposal_list' %}" class="btn btn-secondary">Cancel</a>
-        {% endif %}
-      </div>
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-journal-text"></i>Terms and notes</h2>
+    <div class="row g-3">
+      {% field form.terms "col-12" %}
+      {% field form.notes "col-12" hint="Only your team sees these." %}
     </div>
-  </form>
-</div>
+  </section>
+{% endblock %}
 
+{% block form_aside %}
+  <aside class="form-aside">
+    <div class="aside-card proposal-summary">
+      <h3>Summary</h3>
+      <dl>
+        <dt>Subtotal</dt><dd id="sum-subtotal">{{ form.instance.subtotal|inr:2 }}</dd>
+        <dt>Discount</dt><dd>− <span id="sum-discount">₹0.00</span></dd>
+        <dt>Tax</dt><dd><span id="sum-tax">0</span>%</dd>
+        <dt class="total">Total</dt><dd class="total" id="sum-total">{{ form.instance.total|inr:2 }}</dd>
+      </dl>
+      <input type="hidden" id="id_subtotal" value="{{ form.instance.subtotal|default_if_none:'0.00' }}">
+      <input type="hidden" id="id_total" value="{{ form.instance.total|default_if_none:'0.00' }}">
+      <div class="small text-muted"><span id="sum-events">0</span> events · <span id="sum-items">0</span> services</div>
+    </div>
+    <div class="aside-card">
+      <h3>Tips</h3>
+      <ul>
+        <li>Picking a service fills its price and default deliverables.</li>
+        <li>Untick a deliverable to list it as not included.</li>
+        <li>Mark the plan accepted once the client agrees.</li>
+      </ul>
+    </div>
+  </aside>
+{% endblock %}
+
+{% block cancel_url %}{% if form.instance.pk %}{% url 'sales:proposal_detail' form.instance.pk %}{% else %}{% url 'sales:proposal_list' %}{% endif %}{% endblock %}
+{% block submit_label %}Save proposal{% endblock %}
+
+{% block after_form %}
 <script id="price-data" type="application/json">
 {
   "services": {{ services_price_map_json }},
@@ -376,91 +181,79 @@
 </script>
 
 <template id="event-template">
-  <div class="event-card border rounded p-3" data-event-index="__event__">
+  <div class="event-card" data-event-index="__event__">
     <input type="hidden" name="event-__event__-id" value="">
     <input type="checkbox" class="delete-flag" name="event-__event__-DELETE">
-
-    <div class="d-flex justify-content-between align-items-center mb-3">
-      <h5 class="mb-0 event-title">Event</h5>
-      <button type="button" class="btn btn-sm btn-outline-danger js-delete-event"><i class="bi bi-trash"></i>Delete Event</button>
+    <div class="builder-head">
+      <span class="builder-badge"><i class="bi bi-calendar-event"></i></span>
+      <h3 class="event-title">Event</h3>
+      <button type="button" class="btn btn-light btn-sm text-danger ms-auto js-delete-event"><i class="bi bi-trash"></i>Remove event</button>
     </div>
-
-    <div class="row">
-      <div class="col-md-3 mb-3"><label class="form-label">{{ empty_event_form.event_date.label }}</label>{{ empty_event_form.event_date }}</div>
-      <div class="col-md-3 mb-3"><label class="form-label">{{ empty_event_form.title.label }}</label>{{ empty_event_form.title }}</div>
-      <div class="col-md-3 mb-3"><label class="form-label">{{ empty_event_form.venue.label }}</label>{{ empty_event_form.venue }}</div>
-      <div class="col-md-3 mb-3"><label class="form-label">{{ empty_event_form.sort_order.label }}</label>{{ empty_event_form.sort_order }}</div>
+    {% with f=empty_event_form %}
+    <div class="row g-3">
+      {% field f.title "col-md-6" %}
+      {% field f.event_date "col-md-6" %}
+      {% field f.venue "col-md-6" %}
+      {% field f.start_time "col-6 col-md-2" %}
+      {% field f.end_time "col-6 col-md-2" %}
+      {% field f.sort_order "col-md-2" label="Order" %}
+      {% field f.notes "col-12" %}
     </div>
-
-    <div class="row">
-      <div class="col-md-3 mb-3"><label class="form-label">{{ empty_event_form.start_time.label }}</label>{{ empty_event_form.start_time }}</div>
-      <div class="col-md-3 mb-3"><label class="form-label">{{ empty_event_form.end_time.label }}</label>{{ empty_event_form.end_time }}</div>
-      <div class="col-md-6 mb-3"><label class="form-label">{{ empty_event_form.notes.label }}</label>{{ empty_event_form.notes }}</div>
+    {% endwith %}
+    <div class="builder-sub">
+      <span>Services and packages</span>
+      <button type="button" class="btn btn-outline-secondary btn-sm js-add-item"><i class="bi bi-plus-lg"></i>Add service</button>
     </div>
-
-    <div class="d-flex justify-content-between align-items-center border-top pt-3 mb-2">
-      <strong class="small text-uppercase text-muted">Services</strong>
-      <button type="button" class="btn btn-sm btn-outline-primary js-add-item"><i class="bi bi-plus-lg"></i>Add Service</button>
-    </div>
-
     <input type="hidden" name="event-__event__-items-TOTAL_FORMS" value="0">
-    <div class="items-wrapper d-grid gap-3"></div>
+    <div class="items-wrapper"></div>
   </div>
 </template>
 
 <template id="item-template">
-  <div class="item-card border rounded p-3 bg-light" data-item-index="__item__">
+  <div class="item-card" data-item-index="__item__">
     <input type="hidden" name="event-__event__-item-__item__-id" value="">
     <input type="checkbox" class="delete-flag" name="event-__event__-item-__item__-DELETE">
-
-    <div class="d-flex justify-content-between align-items-center mb-3">
-      <h6 class="mb-0 item-title">Service</h6>
-      <button type="button" class="btn btn-sm btn-outline-danger js-delete-item"><i class="bi bi-trash"></i>Delete Service</button>
-    </div>
-
     {{ empty_item_form.sort_order.as_hidden }}
-
-    <div class="row">
-      <div class="col-md-4 mb-3"><label class="form-label">{{ empty_item_form.catalog_item.label }}</label>{{ empty_item_form.catalog_item }}</div>
-      <div class="col-md-4 mb-3"><label class="form-label">{{ empty_item_form.description.label }}</label>{{ empty_item_form.description }}</div>
-      <div class="col-md-2 mb-3"><label class="form-label">{{ empty_item_form.quantity.label }}</label>{{ empty_item_form.quantity }}</div>
-      <div class="col-md-2 mb-3"><label class="form-label">{{ empty_item_form.unit_price.label }}</label>{{ empty_item_form.unit_price }}</div>
+    <div class="builder-head small">
+      <h4 class="item-title">Service</h4>
+      <span class="line-total-pill ms-auto">₹<span class="line-total">0.00</span></span>
+      <button type="button" class="btn btn-light btn-sm text-danger js-delete-item" title="Remove service" aria-label="Remove service"><i class="bi bi-trash"></i></button>
     </div>
-
-    <div class="row">
-      <div class="col-md-9 mb-3"><label class="form-label">{{ empty_item_form.notes.label }}</label>{{ empty_item_form.notes }}</div>
-      <div class="col-md-3 mb-3">
-        <label class="form-label">Line Total</label>
-        <div class="form-control bg-body line-total-box"><span class="line-total">0.00</span></div>
-      </div>
+    {% with f=empty_item_form %}
+    <div class="row g-3">
+      {% field f.catalog_item "col-md-6" %}
+      {% field f.quantity "col-4 col-md-2" %}
+      {% field f.unit_price "col-8 col-md-4" prefix="₹" label="Price" %}
+      {% field f.description "col-md-6" %}
+      {% field f.notes "col-md-6" %}
     </div>
-
-    <div class="d-flex justify-content-between align-items-center border-top pt-3 mb-2">
-      <strong class="small text-uppercase text-muted">Deliverables</strong>
-      <button type="button" class="btn btn-sm btn-outline-secondary js-add-deliverable"><i class="bi bi-plus-lg"></i>Add Deliverable</button>
+    {% endwith %}
+    <div class="builder-sub muted">
+      <span>Deliverables</span>
+      <button type="button" class="btn btn-light btn-sm js-add-deliverable"><i class="bi bi-plus-lg"></i>Add deliverable</button>
     </div>
-
     <input type="hidden" name="event-__event__-item-__item__-deliverables-TOTAL_FORMS" value="0">
-    <div class="deliverables-wrapper d-grid gap-2"></div>
+    <div class="deliverables-wrapper"></div>
   </div>
 </template>
 
 <template id="deliverable-template">
-  <div class="deliverable-row border rounded p-2 bg-body" data-deliverable-index="__deliverable__">
+  <div class="deliverable-row" data-deliverable-index="__deliverable__">
     <input type="hidden" name="event-__event__-item-__item__-deliverable-__deliverable__-id" value="">
     <input type="checkbox" class="delete-flag" name="event-__event__-item-__item__-deliverable-__deliverable__-DELETE">
-
-    <div class="row align-items-end">
-      <div class="col-md-3 mb-2"><label class="form-label">{{ empty_deliverable_form.title.label }}</label>{{ empty_deliverable_form.title }}</div>
-      <div class="col-md-3 mb-2"><label class="form-label">{{ empty_deliverable_form.description.label }}</label>{{ empty_deliverable_form.description }}</div>
-      <div class="col-md-2 mb-2"><label class="form-label">{{ empty_deliverable_form.quantity.label }}</label>{{ empty_deliverable_form.quantity }}</div>
-      <div class="col-md-2 mb-2"><label class="form-label">{{ empty_deliverable_form.unit.label }}</label>{{ empty_deliverable_form.unit }}</div>
-      <div class="col-md-1 mb-2"><label class="form-label">{{ empty_deliverable_form.sort_order.label }}</label>{{ empty_deliverable_form.sort_order }}</div>
-      <div class="col-md-1 mb-2 text-end">
-        <div class="form-check mb-2">{{ empty_deliverable_form.is_included }}</div>
-        <button type="button" class="btn btn-sm btn-outline-danger js-delete-deliverable"><i class="bi bi-trash"></i>Delete</button>
+    {% with f=empty_deliverable_form %}
+    <div class="row g-2 align-items-end">
+      {{ f.sort_order.as_hidden }}
+      {% field f.title "col-md-4" %}
+      {% field f.description "col-md-3" %}
+      {% field f.quantity "col-5 col-md-2" label="Qty" %}
+      {% field f.unit "col-5 col-md-2" %}
+      <div class="col-2 col-md-1 d-flex align-items-center justify-content-end gap-1 pb-1">
+        <span class="form-check m-0" title="Included in the price">{{ f.is_included }}</span>
+        <button type="button" class="btn btn-light btn-sm text-danger js-delete-deliverable" title="Remove deliverable" aria-label="Remove deliverable"><i class="bi bi-x-lg"></i></button>
       </div>
     </div>
+    {% endwith %}
   </div>
 </template>
 
@@ -604,6 +397,15 @@
 
     if (subtotalInput) subtotalInput.value = money(subtotal);
     if (totalInput) totalInput.value = money(total);
+
+    const setText = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
+    const inr = value => "₹" + Number(value).toLocaleString("en-IN", {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    setText("sum-subtotal", inr(subtotal));
+    setText("sum-total", inr(total));
+    setText("sum-discount", inr(discount));
+    setText("sum-tax", taxRate);
+    setText("sum-events", visibleRows(".event-card", eventsWrapper).length);
+    setText("sum-items", visibleRows(".item-card", eventsWrapper).length);
   }
 
   function applyCatalog(itemCard, shouldLoadDeliverables) {

@@ -1,178 +1,110 @@
 {% extends "ui/base.html" %}
-{% load roles_tags %}
+{% load roles_tags ui_tags %}
 
 {% block title %}Inventory{% endblock %}
 
 {% block content %}
 {% has_services_manage_access request.user as can_manage_services %}
 
-<div class="container py-4">
-
-  <!-- Row 1: Heading + Button -->
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="h4 mb-0">Inventory</h1>
-
+<div class="container">
+  <div class="page-header">
+    <div>
+      <div class="page-eyebrow"><i class="bi bi-boxes"></i> Catalogue</div>
+      <h1 class="page-title">Inventory</h1>
+      <div class="page-subtitle">Equipment and stock, with what is available right now.</div>
+    </div>
     {% if can_manage_services %}
-      <a href="{% url 'services:inventory_create' %}" class="btn btn-success btn-sm">
-        <i class="bi bi-plus-lg"></i>New Item
-      </a>
+      <div class="page-actions">
+        <a href="{% url 'services:inventory_create' %}" class="btn btn-dark btn-sm"><i class="bi bi-plus-lg"></i>New item</a>
+      </div>
     {% endif %}
   </div>
 
-  <!-- Row 2: Search + Two Filters + Apply -->
-  <form method="get" class="row g-2 align-items-end mb-3">
-    <div class="col-md-4">
-      <label class="form-label small text-muted">Search</label>
-      <input type="text"
-             name="q"
-             value="{{ q }}"
-             class="form-control form-control-sm"
-             placeholder="Search by name, SKU, or location…">
+  <div class="card">
+    <div class="list-tabs">
+      <a href="?q={{ q|urlencode }}&amp;category={{ category }}&amp;service={{ service_filter }}&amp;is_active={{ is_active }}" class="{% if not stock_status %}active{% endif %}">All</a>
+      <a href="?q={{ q|urlencode }}&amp;category={{ category }}&amp;service={{ service_filter }}&amp;is_active={{ is_active }}&amp;stock_status=in_stock" class="{% if stock_status == 'in_stock' %}active{% endif %}">In stock</a>
+      <a href="?q={{ q|urlencode }}&amp;category={{ category }}&amp;service={{ service_filter }}&amp;is_active={{ is_active }}&amp;stock_status=out_of_stock" class="{% if stock_status == 'out_of_stock' %}active{% endif %}">Out of stock</a>
     </div>
-
-    <div class="col-md-3">
-      <label class="form-label small text-muted">Category</label>
-      <select name="category" class="form-select form-select-sm">
+    <form method="get" class="filter-bar">
+      <input type="hidden" name="stock_status" value="{{ stock_status }}">
+      <div class="search-input" style="flex-basis: 260px">
+        <i class="bi bi-search"></i>
+        <input type="search" name="q" value="{{ q }}" placeholder="Name, SKU or location" class="form-control form-control-sm" aria-label="Search">
+      </div>
+      <select name="category" class="form-select form-select-sm" aria-label="Category" onchange="this.form.submit()">
         <option value="">All categories</option>
         {% for value, label in category_choices %}
-          <option value="{{ value }}" {% if category == value %}selected{% endif %}>
-            {{ label }}
-          </option>
+          <option value="{{ value }}" {% if category == value %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
-    </div>
-
-    <div class="col-md-3">
-      <label class="form-label small text-muted">Stock Status</label>
-      <select name="stock_status" class="form-select form-select-sm">
-        <option value="">Any stock status</option>
-        <option value="in_stock" {% if stock_status == "in_stock" %}selected{% endif %}>In stock</option>
-        <option value="out_of_stock" {% if stock_status == "out_of_stock" %}selected{% endif %}>Out of stock</option>
+      <select name="service" class="form-select form-select-sm" aria-label="Service" onchange="this.form.submit()">
+        <option value="">All services</option>
+        {% for service in service_choices %}
+          <option value="{{ service.pk }}" {% if service_filter == service.pk|stringformat:"s" %}selected{% endif %}>{{ service.name }}</option>
+        {% endfor %}
       </select>
-    </div>
+      <select name="is_active" class="form-select form-select-sm" aria-label="Status" onchange="this.form.submit()">
+        <option value="">Active and inactive</option>
+        <option value="active" {% if is_active == "active" %}selected{% endif %}>Active</option>
+        <option value="inactive" {% if is_active == "inactive" %}selected{% endif %}>Inactive</option>
+      </select>
+      <div class="filter-actions">
+        <button type="submit" class="btn btn-dark btn-sm"><i class="bi bi-funnel"></i>Filter</button>
+        {% if q or category or service_filter or stock_status or is_active %}<a href="?" class="btn btn-light btn-sm">Clear</a>{% endif %}
+      </div>
+    </form>
 
-    <div class="col-md-2">
-      <button type="submit" class="btn btn-outline-secondary btn-sm w-100">
-        Apply
-      </button>
-    </div>
-  </form>
-
-  <!-- Row 3: Table -->
-  <div class="card">
-    <div class="card-body p-0">
-      <div class="table-responsive">
-      <table class="table table-hover mb-0 align-middle">
-        <thead class="table-light">
-        <tr>
-          <th>Name</th>
-          <th>SKU</th>
-          <th>Category</th>
-          <th>Service</th>
-          <th>Available</th>
-          <th>Location</th>
-          <th>Status</th>
-          <th class="text-end">Actions</th>
-        </tr>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th class="d-none d-md-table-cell">Category</th>
+            <th class="d-none d-lg-table-cell">Service</th>
+            <th class="text-end">Available</th>
+            <th class="d-none d-lg-table-cell">Location</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
         </thead>
-
         <tbody>
-        {% for item in inventory_items %}
-          <tr>
-            <td>{{ item.name }}</td>
-            <td>{{ item.sku|default:"—" }}</td>
-            <td>
-              <span class="badge bg-light text-dark">
-                {{ item.get_category_display }}
-              </span>
-            </td>
-            <td>
-              {% if item.service %}
-                {{ item.service.name }}
-              {% else %}
-                —
-              {% endif %}
-            </td>
-            <td>
-              {{ item.quantity_available }}/{{ item.quantity_total }} {{ item.unit }}
-
-              {% if item.quantity_available <= 0 %}
-                <span class="badge bg-danger ms-1">Out</span>
-              {% endif %}
-            </td>
-            <td>{{ item.location|default:"—" }}</td>
-            <td>
-              {% if item.is_active %}
-                <span class="badge bg-success">Active</span>
-              {% else %}
-                <span class="badge bg-secondary">Inactive</span>
-              {% endif %}
-            </td>
-            <td class="text-end">
-              <a href="{% url 'services:inventory_detail' item.pk %}"
-                 class="btn btn-sm btn-outline-primary">
-                View
-              </a>
-
-              {% if can_manage_services %}
-                <a href="{% url 'services:inventory_update' item.pk %}"
-                   class="btn btn-sm btn-outline-secondary">
-                  <i class="bi bi-pencil"></i>Edit
-                </a>
-                <a href="{% url 'services:inventory_delete' item.pk %}"
-                   class="btn btn-sm btn-outline-danger">
-                  <i class="bi bi-trash"></i>Delete
-                </a>
-              {% endif %}
-            </td>
-          </tr>
-        {% empty %}
-          <tr>
-            <td colspan="8" class="text-center text-muted py-4">
-              No inventory items found.
-            </td>
-          </tr>
-        {% endfor %}
+          {% for item in inventory_items %}
+            <tr data-href="{% url 'services:inventory_detail' item.pk %}">
+              <td>
+                <a href="{% url 'services:inventory_detail' item.pk %}" class="cell-title">{{ item.name }}</a>
+                <span class="cell-sub">{% if item.sku %}SKU {{ item.sku }}{% else %}No SKU{% endif %}</span>
+              </td>
+              <td class="d-none d-md-table-cell">{{ item.get_category_display|default:"—" }}</td>
+              <td class="d-none d-lg-table-cell">{{ item.service.name|default:"—" }}</td>
+              <td class="text-end tabular text-nowrap">
+                {{ item.quantity_available }}/{{ item.quantity_total }} {{ item.unit }}
+                {% if item.quantity_available <= 0 %}<span class="cell-sub">{% status_pill "overdue" "Out of stock" %}</span>{% endif %}
+              </td>
+              <td class="d-none d-lg-table-cell">{{ item.location|default:"—" }}</td>
+              <td>{% if item.is_active %}{% status_pill "active" "Active" %}{% else %}{% status_pill "inactive" "Inactive" %}{% endif %}</td>
+              <td class="row-actions">
+                {% if can_manage_services %}
+                  <a href="{% url 'services:inventory_update' item.pk %}" class="btn btn-light btn-sm" title="Edit" aria-label="Edit"><i class="bi bi-pencil"></i></a>
+                  <a href="{% url 'services:inventory_delete' item.pk %}" class="btn btn-light btn-sm" title="Delete" aria-label="Delete"><i class="bi bi-trash"></i></a>
+                {% endif %}
+                <a href="{% url 'services:inventory_detail' item.pk %}" class="btn btn-light btn-sm" title="Open" aria-label="Open"><i class="bi bi-arrow-right"></i></a>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="7">
+              <div class="empty-state">
+                <i class="bi bi-boxes"></i>No inventory items found.
+                {% if can_manage_services and not q and not category and not service_filter and not stock_status and not is_active %}
+                  <div><a href="{% url 'services:inventory_create' %}" class="btn btn-dark btn-sm"><i class="bi bi-plus-lg"></i>Add the first item</a></div>
+                {% endif %}
+              </div>
+            </td></tr>
+          {% endfor %}
         </tbody>
       </table>
-      </div>
     </div>
+    {% include "ui/partials/pagination.html" %}
   </div>
-
-  <!-- Pagination -->
-  {% if is_paginated %}
-    <nav aria-label="Inventory pagination" class="mt-3">
-      <ul class="pagination pagination-sm justify-content-between align-items-center mb-0">
-        <li class="page-item {% if not page_obj.has_previous %}disabled{% endif %}">
-          {% if page_obj.has_previous %}
-            <a class="page-link"
-               href="?page={{ page_obj.previous_page_number }}&q={{ q }}&category={{ category }}&stock_status={{ stock_status }}">
-              Previous
-            </a>
-          {% else %}
-            <span class="page-link">Previous</span>
-          {% endif %}
-        </li>
-
-        <li class="page-item disabled">
-          <span class="page-link">
-            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
-          </span>
-        </li>
-
-        <li class="page-item {% if not page_obj.has_next %}disabled{% endif %}">
-          {% if page_obj.has_next %}
-            <a class="page-link"
-               href="?page={{ page_obj.next_page_number }}&q={{ q }}&category={{ category }}&stock_status={{ stock_status }}">
-              Next
-            </a>
-          {% else %}
-            <span class="page-link">Next</span>
-          {% endif %}
-        </li>
-      </ul>
-    </nav>
-  {% endif %}
-
 </div>
 {% endblock %}

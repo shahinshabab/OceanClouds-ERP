@@ -27,13 +27,13 @@ from common.mixins import ProjectAccessMixin, ProjectWorkAccessMixin
 from common.roles import (
     ROLE_EMPLOYEE,
     ROLE_PROJECT_MANAGER,
-    can_manage_events,
 )
 
 from events.models import Event
 
 from .forms import ProjectForm, TaskForm, DeliverableForm
 from .models import (
+    OPEN_PROJECT_STATUSES,
     Project,
     Task,
     Deliverable,
@@ -61,33 +61,6 @@ from .utils import (
 )
 
 User = get_user_model()
-
-
-# ============================================================
-# Scoped message helpers
-# ============================================================
-
-class DetailMessageScopeMixin:
-    """
-    Adds one message scope to detail/form pages.
-
-    Example:
-        detail_message_scope = "scope:project"
-
-    Template can show only:
-    - scope:project
-    - scope:task
-    - scope:deliverable
-    - scope:email
-    - scope:global
-    """
-
-    detail_message_scope = ""
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["detail_message_scope"] = self.detail_message_scope
-        return context
 
 
 # ============================================================
@@ -143,11 +116,10 @@ class ProjectListView(ProjectAccessMixin, ListView):
         return context
 
 
-class ProjectDetailView(ProjectAccessMixin, DetailMessageScopeMixin, DetailView):
+class ProjectDetailView(ProjectAccessMixin, DetailView):
     model = Project
     template_name = "projects/project_detail.html"
     context_object_name = "project"
-    detail_message_scope = "scope:project"
 
     def get_queryset(self):
         return visible_projects_for(self.request.user).prefetch_related(
@@ -185,11 +157,10 @@ class ProjectDetailView(ProjectAccessMixin, DetailMessageScopeMixin, DetailView)
         return context
 
 
-class ProjectOverviewView(ProjectAccessMixin, DetailMessageScopeMixin, DetailView):
+class ProjectOverviewView(ProjectAccessMixin, DetailView):
     model = Project
     template_name = "projects/project_overview.html"
     context_object_name = "project"
-    detail_message_scope = "scope:project"
 
     def get_queryset(self):
         return visible_projects_for(self.request.user)
@@ -212,12 +183,8 @@ class ProjectOverviewView(ProjectAccessMixin, DetailMessageScopeMixin, DetailVie
                 proposals_qs = deal.proposals.all().order_by("-created_at")
 
             if hasattr(deal, "contracts"):
-                contracts_qs = deal.contracts.all().annotate(
-                    total_amount=Coalesce(
-                        Sum("items__line_total"),
-                        Decimal("0.00"),
-                    )
-                )
+                # Contract stores its own total; it has no line items to sum.
+                contracts_qs = deal.contracts.all()
 
             if hasattr(deal, "invoices"):
                 invoices_qs = deal.invoices.all().select_related("deal")
@@ -267,11 +234,10 @@ class ProjectOverviewView(ProjectAccessMixin, DetailMessageScopeMixin, DetailVie
         return context
 
 
-class ProjectCreateView(ProjectAccessMixin, DetailMessageScopeMixin, CreateView):
+class ProjectCreateView(ProjectAccessMixin, CreateView):
     model = Project
     form_class = ProjectForm
     template_name = "projects/project_form.html"
-    detail_message_scope = "scope:project"
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -342,11 +308,10 @@ class ProjectCreateView(ProjectAccessMixin, DetailMessageScopeMixin, CreateView)
         return reverse("projects:project_detail", args=[self.object.pk])
 
 
-class ProjectUpdateView(ProjectAccessMixin, DetailMessageScopeMixin, UpdateView):
+class ProjectUpdateView(ProjectAccessMixin, UpdateView):
     model = Project
     form_class = ProjectForm
     template_name = "projects/project_form.html"
-    detail_message_scope = "scope:project"
 
     def get_queryset(self):
         return Project.objects.all()
@@ -511,7 +476,7 @@ class TaskListView(ProjectWorkAccessMixin, ListView):
 
     def get_queryset(self):
         qs = visible_tasks_for(self.request.user).filter(
-            project__status=ProjectStatus.ACTIVE
+            project__status__in=OPEN_PROJECT_STATUSES
         )
 
         q = self.request.GET.get("q")
@@ -581,19 +546,18 @@ class TaskListView(ProjectWorkAccessMixin, ListView):
         if is_admin_or_project_manager(self.request.user):
             context["employee_choices"] = User.objects.filter(
                 is_active=True,
-                groups__name=ROLE_EMPLOYEE,
-            ).order_by("first_name", "last_name", "username")
+                groups__name__in=[ROLE_EMPLOYEE, ROLE_PROJECT_MANAGER],
+            ).distinct().order_by("first_name", "last_name", "username")
         else:
             context["employee_choices"] = User.objects.none()
 
         return context
 
 
-class TaskCreateView(ProjectAccessMixin, DetailMessageScopeMixin, CreateView):
+class TaskCreateView(ProjectAccessMixin, CreateView):
     model = Task
     form_class = TaskForm
     template_name = "projects/task_form.html"
-    detail_message_scope = "scope:task"
 
     def dispatch(self, request, *args, **kwargs):
         self.project = None
@@ -659,11 +623,10 @@ class TaskCreateView(ProjectAccessMixin, DetailMessageScopeMixin, CreateView):
         return super().form_invalid(form)
 
 
-class TaskUpdateView(ProjectAccessMixin, DetailMessageScopeMixin, UpdateView):
+class TaskUpdateView(ProjectAccessMixin, UpdateView):
     model = Task
     form_class = TaskForm
     template_name = "projects/task_form.html"
-    detail_message_scope = "scope:task"
 
     def get_queryset(self):
         user = self.request.user
@@ -724,11 +687,10 @@ class TaskUpdateView(ProjectAccessMixin, DetailMessageScopeMixin, UpdateView):
         return super().form_invalid(form)
 
 
-class TaskDetailView(ProjectWorkAccessMixin, DetailMessageScopeMixin, DetailView):
+class TaskDetailView(ProjectWorkAccessMixin, DetailView):
     model = Task
     template_name = "projects/task_detail.html"
     context_object_name = "task"
-    detail_message_scope = "scope:task"
 
     def get_queryset(self):
         return visible_tasks_for(self.request.user).prefetch_related("deliverables")
@@ -755,7 +717,7 @@ class TaskKanbanView(ProjectWorkAccessMixin, TemplateView):
     def get_queryset(self):
         return (
             visible_tasks_for(self.request.user)
-            .filter(project__status=ProjectStatus.ACTIVE)
+            .filter(project__status__in=OPEN_PROJECT_STATUSES)
             .select_related("project", "assigned_to")
             .prefetch_related("deliverables")
         )
@@ -939,7 +901,7 @@ class DeliverableListView(ProjectWorkAccessMixin, ListView):
 
     def get_queryset(self):
         qs = visible_deliverables_for(self.request.user).filter(
-            project__status=ProjectStatus.ACTIVE
+            project__status__in=OPEN_PROJECT_STATUSES
         )
 
         q = self.request.GET.get("q")
@@ -997,19 +959,18 @@ class DeliverableListView(ProjectWorkAccessMixin, ListView):
         if is_admin_or_project_manager(self.request.user):
             context["employee_choices"] = User.objects.filter(
                 is_active=True,
-                groups__name=ROLE_EMPLOYEE,
-            ).order_by("first_name", "last_name", "username")
+                groups__name__in=[ROLE_EMPLOYEE, ROLE_PROJECT_MANAGER],
+            ).distinct().order_by("first_name", "last_name", "username")
         else:
             context["employee_choices"] = User.objects.none()
 
         return context
 
 
-class DeliverableCreateView(ProjectAccessMixin, DetailMessageScopeMixin, CreateView):
+class DeliverableCreateView(ProjectAccessMixin, CreateView):
     model = Deliverable
     form_class = DeliverableForm
     template_name = "projects/deliverable_form.html"
-    detail_message_scope = "scope:deliverable"
 
     def dispatch(self, request, *args, **kwargs):
         self.project = None
@@ -1070,11 +1031,10 @@ class DeliverableCreateView(ProjectAccessMixin, DetailMessageScopeMixin, CreateV
         return super().form_invalid(form)
 
 
-class DeliverableUpdateView(ProjectAccessMixin, DetailMessageScopeMixin, UpdateView):
+class DeliverableUpdateView(ProjectAccessMixin, UpdateView):
     model = Deliverable
     form_class = DeliverableForm
     template_name = "projects/deliverable_form.html"
-    detail_message_scope = "scope:deliverable"
 
     def get_queryset(self):
         user = self.request.user
@@ -1138,11 +1098,10 @@ class DeliverableUpdateView(ProjectAccessMixin, DetailMessageScopeMixin, UpdateV
         return super().form_invalid(form)
 
 
-class DeliverableDetailView(ProjectWorkAccessMixin, DetailMessageScopeMixin, DetailView):
+class DeliverableDetailView(ProjectWorkAccessMixin, DetailView):
     model = Deliverable
     template_name = "projects/deliverable_detail.html"
     context_object_name = "deliverable"
-    detail_message_scope = "scope:deliverable"
 
     def get_queryset(self):
         return visible_deliverables_for(self.request.user)
@@ -1169,7 +1128,7 @@ class DeliverableKanbanView(ProjectWorkAccessMixin, TemplateView):
     def get_queryset(self):
         return (
             visible_deliverables_for(self.request.user)
-            .filter(project__status=ProjectStatus.ACTIVE)
+            .filter(project__status__in=OPEN_PROJECT_STATUSES)
             .select_related("project", "assigned_to")
             .prefetch_related("tasks")
         )
@@ -1584,158 +1543,16 @@ class EndWorkSessionView(WorkSessionActionMixin, View):
 # Project calendar
 # ============================================================
 
-def _person_name(user):
-    if not user:
-        return ""
-    return user.get_full_name().strip() or user.username
-
-
-class ProjectCalendarView(ProjectWorkAccessMixin, TemplateView):
+class ProjectCalendarView(View):
     """
-    Calendar of project work: events, tasks and deliverables, each entry
-    showing who is assigned. Month, week and agenda views.
-
-    Tasks and deliverables sit on their due date (start date if no due date).
-    Employees see only their own work; events are shown to everyone.
+    The work calendar merged into the one calendar (events:event_calendar);
+    old links and bookmarks keep their filters.
     """
 
-    template_name = "projects/project_calendar.html"
-
-    def get_context_data(self, **kwargs):
-        from ui.calendar import CalendarRange
-        from ui.templatetags.ui_tags import status_tone
-
-        context = super().get_context_data(**kwargs)
-        user = self.request.user
-
-        project_id = (self.request.GET.get("project") or "").strip()
-        staff_id = (self.request.GET.get("staff") or "").strip()
-        show = (self.request.GET.get("show") or "").strip()
-        can_filter_staff = is_admin_or_project_manager(user)
-
-        cal = CalendarRange.from_request(self.request, keep=("project", "staff", "show"))
-        grid_start, grid_end = cal.start, cal.end
-
-        in_range = (
-            Q(due_date__range=(grid_start, grid_end))
-            | Q(due_date__isnull=True, start_date__range=(grid_start, grid_end))
-        )
-
-        tasks = (
-            visible_tasks_for(user)
-            .filter(in_range)
-            .exclude(status=TaskStatus.CANCELLED)
-            .select_related("project", "assigned_to")
-        )
-        deliverables = (
-            visible_deliverables_for(user)
-            .filter(in_range)
-            .exclude(status=DeliverableStatus.CANCELLED)
-            .select_related("project", "assigned_to")
-        )
-        events = (
-            Event.objects.filter(date__range=(grid_start, grid_end))
-            .exclude(status="cancelled")
-            .select_related("client", "project", "venue")
-            .prefetch_related("projects")
-        )
-
-        if project_id.isdigit():
-            tasks = tasks.filter(project_id=project_id)
-            deliverables = deliverables.filter(project_id=project_id)
-            events = events.filter(Q(project_id=project_id) | Q(projects__id=project_id)).distinct()
-
-        if staff_id.isdigit() and can_filter_staff:
-            tasks = tasks.filter(assigned_to_id=staff_id)
-            deliverables = deliverables.filter(assigned_to_id=staff_id)
-
-        if show == "mine":
-            tasks = tasks.filter(assigned_to=user)
-            deliverables = deliverables.filter(assigned_to=user)
-
-        if show in ("tasks", "deliverables", "mine"):
-            events = events.none()
-        if show == "tasks":
-            deliverables = deliverables.none()
-        if show == "deliverables":
-            tasks = tasks.none()
-        if show == "events":
-            tasks = tasks.none()
-            deliverables = deliverables.none()
-
-        entries = []
-        can_open_events = can_manage_events(user)
-        for event in events:
-            project = event.linked_project
-            meta = []
-            if event.venue_id:
-                meta.append(("bi-geo-alt", event.venue.name))
-            if project:
-                meta.append(("bi-kanban", project.name))
-            else:
-                meta.append(("bi-exclamation-circle", "No project yet"))
-            entries.append({
-                "date": event.date,
-                "start": event.start_time,
-                "end": event.end_time,
-                "title": event.name,
-                "url": reverse("events:event_detail", args=[event.pk]) if can_open_events else "",
-                "tone": "solid",
-                "icon": "bi-stars",
-                "meta": meta,
-                "status": event.get_status_display(),
-                "status_tone": status_tone(event.status),
-                "order": 0,
-            })
-
-        def work_entry(obj, kind, url_name, done):
-            assignee = _person_name(obj.assigned_to) or "Unassigned"
-            mine = obj.assigned_to_id == user.id
-            meta = [("bi-kanban", obj.project.name), ("bi-person", assignee + (" (me)" if mine else ""))]
-            if obj.due_date and obj.start_date and obj.start_date != obj.due_date:
-                meta.append(("bi-play", f"Started {obj.start_date:%d %b}"))
-            tone = "soft" if done else ("danger" if obj.is_overdue else ("outline" if kind == "task" else "gray"))
-            return {
-                "date": obj.due_date or obj.start_date,
-                "title": obj.name,
-                "url": reverse(url_name, args=[obj.pk]),
-                "tone": tone,
-                "icon": "bi-check2-square" if kind == "task" else "bi-box-seam",
-                "meta": meta,
-                "status": ("Overdue · " if obj.is_overdue and not done else "") + obj.get_status_display(),
-                "status_tone": "status-danger" if obj.is_overdue and not done else status_tone(obj.status),
-                "mine": mine,
-                "order": 1 if kind == "task" else 2,
-            }
-
-        for task in tasks:
-            entries.append(work_entry(task, "task", "projects:task_detail", task.status == TaskStatus.COMPLETED))
-        for deliverable in deliverables:
-            entries.append(work_entry(
-                deliverable, "deliverable", "projects:deliverable_detail",
-                deliverable.status == DeliverableStatus.DELIVERED,
-            ))
-
-        context.update(cal.layout(entries))
-        context.update({
-            "project_filter": project_id,
-            "staff_filter": staff_id,
-            "show_filter": show,
-            "project_choices": visible_projects_for(user).exclude(
-                status__in=[ProjectStatus.CLOSED, ProjectStatus.CANCELLED]
-            ).order_by("name") if can_filter_staff else Project.objects.none(),
-            "staff_choices": User.objects.filter(
-                is_active=True,
-                groups__name__in=[ROLE_EMPLOYEE, ROLE_PROJECT_MANAGER],
-            ).distinct().order_by("first_name", "last_name", "username") if can_filter_staff else User.objects.none(),
-            "can_filter_staff": can_filter_staff,
-            "counts": {
-                "events": len([e for e in entries if e["order"] == 0]),
-                "tasks": len([e for e in entries if e["order"] == 1]),
-                "deliverables": len([e for e in entries if e["order"] == 2]),
-            },
-        })
-        return context
+    def get(self, request, *args, **kwargs):
+        url = reverse("events:event_calendar")
+        query = request.GET.urlencode()
+        return redirect(f"{url}?{query}" if query else url)
 
 
 # ============================================================

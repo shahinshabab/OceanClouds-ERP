@@ -1,248 +1,115 @@
 {% extends "ui/base.html" %}
-{% load url_tags %}
-{% load roles_tags %}
+{% load url_tags roles_tags ui_tags %}
 
-{% block title %}Payment – {{ payment.invoice.number }}{% endblock %}
+{% block title %}Payment · {{ payment.invoice.number }}{% endblock %}
 
 {% block content %}
+{% has_sales_access request.user as is_sales %}
 {% is_admin request.user as is_admin %}
 {% is_crm_manager request.user as is_crm_manager %}
 {% is_project_manager request.user as is_project_manager %}
 {% is_employee request.user as is_employee %}
 
 {% with invoice=payment.invoice client=payment.invoice.deal.client %}
+<div class="container">
 
-<div class="container py-3">
-
-  {% include "common/detail_messages.html" %}
-
-  <!-- Header -->
-  <div class="d-flex justify-content-between align-items-start mb-4 gap-3">
-    <div>
-      <h2 class="fw-semibold mb-0">
-        Payment {{ payment.amount }}
-      </h2>
-
-      <div class="mt-2">
-        <span class="badge bg-success">
-          {{ payment.get_method_display }}
-        </span>
-
-        <span class="badge bg-light text-dark border">
-          Invoice {{ invoice.number }}
-        </span>
-
-        {% if client %}
-          <span class="badge bg-light text-dark border">
-            {{ client.display_name|default:client.name }}
-          </span>
+  <div class="page-header">
+    <div class="min-w-0">
+      <div class="page-eyebrow">
+        {% if request.GET.next|local_url %}
+          <a href="{{ request.GET.next|local_url }}"><i class="bi bi-arrow-left"></i> Back</a>
+        {% elif is_sales %}
+          <a href="{% url 'sales:payment_list' %}"><i class="bi bi-cash-coin"></i> Payments</a>
         {% endif %}
       </div>
+      <h1 class="page-title tabular">{{ payment.amount|inr:2 }}</h1>
+      <div class="page-subtitle d-flex flex-wrap align-items-center gap-2">
+        {% if payment.payment_type %}{% status_pill payment.payment_type payment.get_payment_type_display %}{% endif %}
+        <span class="status status-muted">{{ payment.get_method_display }}</span>
+        <span><i class="bi bi-receipt"></i> <a href="{% url 'sales:invoice_detail' invoice.pk %}">{{ invoice.number|default:"Draft invoice" }}</a></span>
+        {% if client %}<span><i class="bi bi-person"></i> {{ client.display_name|default:client.name }}</span>{% endif %}
+        <span><i class="bi bi-calendar3"></i> {{ payment.date|date:"d M Y" }}</span>
+      </div>
     </div>
 
-    <div class="text-end d-flex flex-wrap justify-content-end gap-2">
-      {% if is_admin or is_crm_manager %}
-
+    {% if is_admin or is_crm_manager %}
+      <div class="page-actions">
         <form method="post" action="{% url 'sales:payment_send_email' payment.pk %}" class="d-inline">
           {% csrf_token %}
-          <button type="submit" class="btn btn-outline-secondary btn-sm">
-            Send Email
-          </button>
+          <button type="submit" class="btn btn-outline-secondary btn-sm"><i class="bi bi-envelope"></i>Send email</button>
         </form>
-
-        <a href="{% url 'sales:payment_update' payment.pk %}"
-           class="btn btn-primary btn-sm">
-          <i class="bi bi-pencil"></i>Edit
-        </a>
-
-        <a href="{% url 'sales:payment_delete' payment.pk %}"
-           class="btn btn-outline-danger btn-sm">
-          <i class="bi bi-trash"></i>Delete
-        </a>
-
-      {% endif %}
-
-      {% if request.GET.next|local_url %}
-        <a href="{{ request.GET.next|local_url }}" class="btn btn-secondary btn-sm">
-          <i class="bi bi-arrow-left"></i>Back
-        </a>
-      {% else %}
-        <a href="{% url 'sales:payment_list' %}" class="btn btn-secondary btn-sm">
-          <i class="bi bi-arrow-left"></i>Back
-        </a>
-      {% endif %}
-    </div>
-  </div>
-
-  <!-- Payment Details -->
-  <div class="card mb-4 shadow-sm">
-    <div class="card-header bg-light">
-      <strong>Payment Information</strong>
-    </div>
-
-    <div class="card-body">
-
-      <div class="row mb-3">
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Invoice</div>
-          <div class="fw-semibold mt-1">
-            <a href="{% url 'sales:invoice_detail' invoice.pk %}">
-              {{ invoice.number }}
-            </a>
-          </div>
-        </div>
-
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Client</div>
-          <div class="fw-semibold mt-1">
-            {% if client %}
-              <a href="{% url 'crm:client_detail' client.pk %}" class="text-decoration-none">
-                {{ client.display_name|default:client.name }}
-              </a>
-            {% elif payment.invoice.deal.lead %}
-              {{ payment.invoice.deal.lead.name }} <span class="badge bg-light text-muted border">Lead</span>
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="col-md-4">
-          <div class="text-muted small text-uppercase">Payment Date</div>
-          <div class="fw-semibold mt-1">
-            {{ payment.date }}
-          </div>
+        <a href="{% url 'sales:payment_update' payment.pk %}" class="btn btn-outline-dark btn-sm"><i class="bi bi-pencil"></i>Edit</a>
+        <div class="dropdown">
+          <button class="btn btn-outline-secondary btn-sm btn-icon" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="More actions">
+            <i class="bi bi-three-dots"></i>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><a class="dropdown-item" href="{% url 'sales:invoice_detail' invoice.pk %}"><i class="bi bi-receipt"></i>Open invoice</a></li>
+            <li><a class="dropdown-item" href="{% url 'sales:payment_list' %}"><i class="bi bi-list-ul"></i>All payments</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item text-danger" href="{% url 'sales:payment_delete' payment.pk %}"><i class="bi bi-trash"></i>Delete payment</a></li>
+          </ul>
         </div>
       </div>
-
-      <div class="row mb-3">
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Amount</div>
-          <div class="fw-bold fs-5 mt-1">
-            {{ payment.amount }}
-          </div>
-        </div>
-
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Payment Type</div>
-          <div class="fw-semibold mt-1">
-            {% if payment.payment_type %}
-              {{ payment.get_payment_type_display }}
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="col-md-4">
-          <div class="text-muted small text-uppercase">Method</div>
-          <div class="fw-semibold mt-1">
-            {{ payment.get_method_display }}
-          </div>
-        </div>
-      </div>
-
-      <div class="row mb-3">
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Reference</div>
-          <div class="fw-semibold mt-1">
-            {{ payment.reference|default:"—" }}
-          </div>
-        </div>
-
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Received By</div>
-          <div class="fw-semibold mt-1">
-            {% if payment.received_by %}
-              {{ payment.received_by.get_full_name|default:payment.received_by.username }}
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="col-md-4">
-          <div class="text-muted small text-uppercase">Created At</div>
-          <div class="fw-semibold mt-1">
-            {{ payment.created_at|date:"Y-m-d H:i" }}
-          </div>
-        </div>
-      </div>
-
-      <div class="row mb-3">
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Invoice Total</div>
-          <div class="fw-semibold mt-1">
-            {{ invoice.total }}
-          </div>
-        </div>
-
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Amount Paid</div>
-          <div class="fw-semibold mt-1">
-            {{ invoice.amount_paid }}
-          </div>
-        </div>
-
-        <div class="col-md-4">
-          <div class="text-muted small text-uppercase">Balance</div>
-          <div class="fw-bold mt-1">
-            {{ invoice.balance }}
-          </div>
-        </div>
-      </div>
-
-      <div class="row">
-        <div class="col-12">
-          <div class="text-muted small text-uppercase">Notes</div>
-          <div class="mt-1">
-            {% if payment.notes %}
-              {{ payment.notes|linebreaks }}
-            {% else %}
-              <span class="text-muted">No notes.</span>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-
-    </div>
-  </div>
-
-  <!-- Bottom Actions -->
-  <div class="text-center d-flex justify-content-center flex-wrap gap-2">
-    {% if is_admin or is_crm_manager %}
-
-      <form method="post" action="{% url 'sales:payment_send_email' payment.pk %}" class="d-inline">
-        {% csrf_token %}
-        <button type="submit" class="btn btn-outline-secondary">
-          Send Email
-        </button>
-      </form>
-
-      <a href="{% url 'sales:payment_update' payment.pk %}"
-         class="btn btn-primary px-4">
-        <i class="bi bi-pencil"></i>Edit
-      </a>
-
-      <a href="{% url 'sales:payment_delete' payment.pk %}"
-         class="btn btn-outline-danger">
-        <i class="bi bi-trash"></i>Delete
-      </a>
-
     {% endif %}
-
-    <a href="{% url 'sales:invoice_detail' invoice.pk %}"
-       class="btn btn-secondary">
-      <i class="bi bi-arrow-left"></i>Back to Invoice
-    </a>
-
-    <a href="{% url 'sales:payment_list' %}"
-       class="btn btn-outline-secondary">
-      All Payments
-    </a>
   </div>
 
-</div>
+  <div class="row g-4">
+    <div class="col-xl-8">
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-cash-coin"></i>Payment</h2></div>
+        <div class="card-body">
+          <dl class="info-grid">
+            <div><dt>Amount</dt><dd class="tabular fs-5">{{ payment.amount|inr:2 }}</dd></div>
+            <div><dt>Payment date</dt><dd>{{ payment.date|date:"d M Y" }}</dd></div>
+            <div><dt>Payment type</dt><dd>{% if payment.payment_type %}{{ payment.get_payment_type_display }}{% else %}<span class="text-muted">—</span>{% endif %}</dd></div>
+            <div><dt>Method</dt><dd>{{ payment.get_method_display }}</dd></div>
+            <div><dt>Reference</dt><dd>{{ payment.reference|default:"—" }}</dd></div>
+            <div>
+              <dt>Received by</dt>
+              <dd>{% if payment.received_by %}{{ payment.received_by.get_full_name|default:payment.received_by.username }}{% else %}<span class="text-muted">—</span>{% endif %}</dd>
+            </div>
+            <div><dt>Invoice</dt><dd><a href="{% url 'sales:invoice_detail' invoice.pk %}">{{ invoice.number|default:"Draft invoice" }}</a></dd></div>
+            <div>
+              <dt>Client</dt>
+              <dd>
+                {% if client %}
+                  <a href="{% url 'crm:client_detail' client.pk %}">{{ client.display_name|default:client.name }}</a>
+                {% elif payment.invoice.deal.lead %}
+                  {{ payment.invoice.deal.lead.name }} <span class="status status-muted">Lead</span>
+                {% else %}<span class="text-muted">—</span>{% endif %}
+              </dd>
+            </div>
+            <div><dt>Recorded</dt><dd>{{ payment.created_at|date:"d M Y, H:i" }}</dd></div>
+          </dl>
+        </div>
+      </div>
 
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-card-text"></i>Notes</h2></div>
+        <div class="card-body">
+          {% if payment.notes %}{{ payment.notes|linebreaks }}{% else %}<span class="text-muted">No notes.</span>{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-4">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h2 class="section-title"><i class="bi bi-receipt"></i>Invoice {{ invoice.number }}</h2>
+          {% status_pill invoice.status invoice.get_status_display %}
+        </div>
+        <div class="card-body">
+          <ul class="info-list">
+            <li><span class="k">Invoice total</span><span class="v tabular">{{ invoice.total|inr:2 }}</span></li>
+            <li><span class="k">Amount paid</span><span class="v tabular">{{ invoice.amount_paid|inr:2 }}</span></li>
+            <li><span class="k">Balance</span><span class="v tabular">{{ invoice.balance|inr:2 }}</span></li>
+          </ul>
+          <a href="{% url 'sales:invoice_detail' invoice.pk %}" class="btn btn-outline-dark btn-sm w-100 mt-3"><i class="bi bi-arrow-right"></i>Open invoice</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 {% endwith %}
 {% endblock %}

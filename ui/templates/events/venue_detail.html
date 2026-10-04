@@ -1,154 +1,110 @@
 {% extends "ui/base.html" %}
-{% load roles_tags %}
+{% load roles_tags ui_tags %}
 
-{% block title %}Venue – {{ venue.name }}{% endblock %}
+{% block title %}{{ venue.name }} · Venue{% endblock %}
 
 {% block content %}
 {% has_event_manage_access request.user as can_manage_events %}
 
-<div class="container py-3 max-w-2xl">
+<div class="container">
 
-  <!-- Header -->
-  <div class="d-flex justify-content-between align-items-start mb-4">
-    <div>
-      <h2 class="fw-semibold mb-1">{{ venue.name }}</h2>
-
-      <span class="badge bg-light text-dark">
-        {{ venue.get_venue_type_display }}
-      </span>
-
-      {% if venue.is_active %}
-        <span class="badge bg-success ms-1">Active</span>
-      {% else %}
-        <span class="badge bg-secondary ms-1">Inactive</span>
-      {% endif %}
+  <div class="page-header">
+    <div class="min-w-0">
+      <div class="page-eyebrow"><a href="{% url 'events:venue_list' %}"><i class="bi bi-building"></i> Venues</a></div>
+      <h1 class="page-title">{{ venue.name }}</h1>
+      <div class="page-subtitle d-flex flex-wrap align-items-center gap-2">
+        {% if venue.is_active %}<span class="status status-solid">Active</span>{% else %}<span class="status status-muted">Inactive</span>{% endif %}
+        <span class="status status-muted">{{ venue.get_venue_type_display }}</span>
+        {% if venue.city or venue.district %}<span><i class="bi bi-geo-alt"></i> {{ venue.city }}{% if venue.district %}{% if venue.city %}, {% endif %}{{ venue.district }}{% endif %}</span>{% endif %}
+      </div>
     </div>
 
-    {% if can_manage_events %}
-      <div class="d-flex gap-2">
-        <a href="{% url 'events:venue_update' venue.pk %}" class="btn btn-primary btn-sm">
-          <i class="bi bi-pencil"></i>Edit Venue
-        </a>
-        <a href="{% url 'events:venue_delete' venue.pk %}" class="btn btn-outline-danger btn-sm">
-          <i class="bi bi-trash"></i>Delete
-        </a>
-      </div>
-    {% endif %}
+    <div class="page-actions">
+      {% if venue.phone %}<a href="tel:{{ venue.phone }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-telephone"></i>Call</a>{% endif %}
+      {% if venue.email %}<a href="mailto:{{ venue.email }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-envelope"></i>Email</a>{% endif %}
+      {% if can_manage_events %}
+        <a href="{% url 'events:venue_update' venue.pk %}" class="btn btn-outline-dark btn-sm"><i class="bi bi-pencil"></i>Edit</a>
+        <div class="dropdown">
+          <button class="btn btn-outline-secondary btn-sm btn-icon" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="More actions">
+            <i class="bi bi-three-dots"></i>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><a class="dropdown-item text-danger" href="{% url 'events:venue_delete' venue.pk %}"><i class="bi bi-trash"></i>Delete venue</a></li>
+          </ul>
+        </div>
+      {% endif %}
+    </div>
   </div>
 
-  <!-- Info Card -->
-  <div class="card shadow-sm mb-3">
-    <div class="card-body">
-
-      <div class="row gy-3">
-
-        <div class="col-md-6">
-          <h6 class="text-uppercase text-muted small mb-2">General</h6>
-
-          <div class="mb-2">
-            <div class="text-uppercase text-muted small">Type</div>
-            <div class="fw-semibold">{{ venue.get_venue_type_display }}</div>
-          </div>
-
-          <div class="mb-2">
-            <div class="text-uppercase text-muted small">Notes</div>
-            <div>
-              {% if venue.notes %}
-                {{ venue.notes|linebreaksbr }}
-              {% else %}
-                <span class="text-muted">—</span>
-              {% endif %}
-            </div>
-          </div>
+  <div class="row g-4">
+    <div class="col-xl-8">
+      {% with events=venue.events.all %}
+      <div class="card mb-4">
+        <div class="card-header">
+          <h2 class="section-title"><i class="bi bi-stars"></i>Events at this venue <span class="text-muted fw-normal">{{ events|length }}</span></h2>
         </div>
-
-        <div class="col-md-6">
-          <h6 class="text-uppercase text-muted small mb-2">Contact</h6>
-
-          <div class="mb-2">
-            <div class="text-uppercase text-muted small">Contact Person</div>
-            <div class="fw-semibold">{{ venue.contact_name|default:"—" }}</div>
+        {% if events %}
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead><tr><th>Event</th><th>Date</th><th>Status</th></tr></thead>
+              <tbody>
+                {% for event in events %}
+                  <tr data-href="{% url 'events:event_detail' event.pk %}" class="row-link">
+                    <td>
+                      <a href="{% url 'events:event_detail' event.pk %}" class="cell-title">{{ event.name }}</a>
+                      <span class="cell-sub">{{ event.get_event_type_display }}{% if event.client %} · {{ event.client }}{% endif %}</span>
+                    </td>
+                    <td class="text-nowrap">{{ event.date|date:"d M Y" }}</td>
+                    <td>{% status_pill event.status event.get_status_display %}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
           </div>
+        {% else %}
+          <div class="empty-state"><i class="bi bi-stars"></i>No events linked yet.</div>
+        {% endif %}
+      </div>
+      {% endwith %}
 
-          <div class="mb-2">
-            <div class="text-uppercase text-muted small">Phone</div>
-            <div class="fw-semibold">{{ venue.phone|default:"—" }}</div>
-          </div>
-
-          <div class="mb-2">
-            <div class="text-uppercase text-muted small">Email</div>
-            <div class="fw-semibold">
-              {% if venue.email %}
-                <a href="mailto:{{ venue.email }}">{{ venue.email }}</a>
-              {% else %}
-                —
-              {% endif %}
-            </div>
-          </div>
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-card-text"></i>Notes</h2></div>
+        <div class="card-body">
+          {% if venue.notes %}{{ venue.notes|linebreaks }}{% else %}<span class="text-muted">No notes.</span>{% endif %}
+          <div class="small text-muted mt-3">Created {{ venue.created_at|date:"d M Y, H:i" }} · Updated {{ venue.updated_at|date:"d M Y, H:i" }}</div>
         </div>
+      </div>
+    </div>
 
-        <div class="col-12">
-          <h6 class="text-uppercase text-muted small mb-2">Address</h6>
-          <div class="fw-semibold">
-            {% if venue.address_line1 or venue.address_line2 or venue.city or venue.district or venue.state or venue.country %}
+    <div class="col-xl-4">
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-person-vcard"></i>Contact</h2></div>
+        <div class="card-body">
+          <ul class="info-list">
+            <li><span class="k">Type</span><span class="v">{{ venue.get_venue_type_display }}</span></li>
+            <li><span class="k">Contact person</span><span class="v">{{ venue.contact_name|default:"—" }}</span></li>
+            <li><span class="k">Phone</span><span class="v">{% if venue.phone %}<a href="tel:{{ venue.phone }}">{{ venue.phone }}</a>{% else %}—{% endif %}</span></li>
+            <li><span class="k">Email</span><span class="v">{% if venue.email %}<a href="mailto:{{ venue.email }}">{{ venue.email }}</a>{% else %}—{% endif %}</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-geo-alt"></i>Address</h2></div>
+        <div class="card-body">
+          {% if venue.address_line1 or venue.address_line2 or venue.city or venue.district or venue.state or venue.country %}
+            <address class="mb-0">
               {% if venue.address_line1 %}{{ venue.address_line1 }}<br>{% endif %}
               {% if venue.address_line2 %}{{ venue.address_line2 }}<br>{% endif %}
-
-              {% if venue.city %}{{ venue.city }}{% endif %}
-              {% if venue.district %}{% if venue.city %}, {% endif %}{{ venue.district }}{% endif %}
-              {% if venue.state %}{% if venue.city or venue.district %}, {% endif %}{{ venue.state }}{% endif %}
-              {% if venue.country %}{% if venue.city or venue.district or venue.state %}, {% endif %}{{ venue.country }}{% endif %}
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
+              {% if venue.city %}{{ venue.city }}{% endif %}{% if venue.district %}{% if venue.city %}, {% endif %}{{ venue.district }}{% endif %}{% if venue.city or venue.district %}<br>{% endif %}
+              {% if venue.state %}{{ venue.state }}{% endif %}{% if venue.country %}{% if venue.state %}, {% endif %}{{ venue.country }}{% endif %}
+            </address>
+          {% else %}
+            <span class="text-muted">No address recorded.</span>
+          {% endif %}
         </div>
-
       </div>
-
     </div>
   </div>
-
-  <!-- Related Events -->
-  <div class="card mb-4">
-    <div class="card-header bg-white">
-      <span class="fw-semibold small text-uppercase text-muted">
-        Events at this Venue
-      </span>
-    </div>
-
-    <div class="card-body">
-      {% if venue.events.all %}
-        <ul class="list-group list-group-flush">
-          {% for event in venue.events.all %}
-            <li class="list-group-item px-0 d-flex justify-content-between">
-              <a href="{% url 'events:event_detail' event.pk %}">
-                {{ event.name }}
-              </a>
-              <span class="text-muted small">
-                {{ event.date }} · {{ event.get_status_display }}
-              </span>
-            </li>
-          {% endfor %}
-        </ul>
-      {% else %}
-        <p class="text-muted mb-0">No events linked yet.</p>
-      {% endif %}
-    </div>
-  </div>
-
-  <!-- Actions -->
-  <div class="d-flex justify-content-center gap-2">
-    <a href="{% url 'events:venue_list' %}" class="btn btn-outline-secondary">
-      <i class="bi bi-arrow-left"></i>Back to Venues
-    </a>
-
-    {% if can_manage_events %}
-      <a href="{% url 'events:venue_update' venue.pk %}" class="btn btn-primary">
-        <i class="bi bi-pencil"></i>Edit Venue
-      </a>
-    {% endif %}
-  </div>
-
 </div>
 {% endblock %}

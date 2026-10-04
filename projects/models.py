@@ -30,6 +30,16 @@ class ProjectStatus(models.TextChoices):
     CANCELLED = "cancelled", "Cancelled"
 
 
+# Projects whose tasks and deliverables are still being worked on. Work is
+# assigned while a project is still planned, so boards must not wait for
+# "active".
+OPEN_PROJECT_STATUSES = (
+    ProjectStatus.PLANNED,
+    ProjectStatus.ACTIVE,
+    ProjectStatus.ON_HOLD,
+)
+
+
 class Priority(models.TextChoices):
     LOW = "low", "Low"
     MEDIUM = "medium", "Medium"

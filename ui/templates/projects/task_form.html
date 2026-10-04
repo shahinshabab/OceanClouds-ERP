@@ -1,223 +1,46 @@
-{% extends "ui/base.html" %}
-{% load roles_tags %}
+{% extends "ui/form_page.html" %}
+{% load ui_tags %}
 
-{% block content %}
-<div class="container py-4">
+{% block title %}{% if object %}Edit task{% else %}New task{% endif %}{% endblock %}
 
-  {% is_admin request.user as is_admin %}
-  {% is_project_manager request.user as is_project_manager %}
+{% block form_eyebrow %}<i class="bi bi-list-task"></i> Production · Tasks{% endblock %}
+{% block form_title %}{% if object %}Edit {{ object.name }}{% else %}New task{% endif %}{% endblock %}
+{% block form_subtitle %}{% if object %}{{ object.project.name }}{% if object.project.client %} · {{ object.project.client }}{% endif %}{% elif project %}{{ project.name }}{% else %}Internal production work such as import, culling, editing, colour, export or QC.{% endif %}{% endblock %}
 
-  <!-- Header -->
-  <div class="d-flex justify-content-between align-items-start mb-3">
-    <div>
-      <h1 class="h3 mb-1">
-        {% if object %}Edit Task{% else %}New Task{% endif %}
-      </h1>
-
+{% block form_body %}
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-list-task"></i>Task</h2>
+    <div class="row g-3">
+      {% field form.name "col-md-6" %}
       {% if object %}
-        <div class="text-muted small">
-          Project:
-          <a href="{% url 'projects:project_detail' object.project.pk %}" class="text-decoration-none">
-            {{ object.project.name }}
-          </a>
-          · Client:
-          {% if object.project.client %}
-            {{ object.project.client }}
-          {% else %}
-            Not linked
-          {% endif %}
+        <div class="col-md-6">
+          <label class="form-label">Project</label>
+          <div class="form-control bg-light">{{ object.project.name }}</div>
+          <input type="hidden" name="project" value="{{ object.project.id }}">
         </div>
       {% else %}
-        <div class="text-muted small">
-          Create an internal production task such as import, culling, editing, colour, export, or QC.
-        </div>
+        {% field form.project "col-md-6" %}
       {% endif %}
+      {% field form.department "col-md-4" %}
+      {% field form.category "col-md-4" %}
+      {% field form.count "col-md-4" %}
+      {% field form.description "col-12" %}
     </div>
+  </section>
 
-    <div class="d-flex gap-2">
-      {% if object %}
-        <a href="{% url 'projects:task_detail' object.pk %}"
-           class="btn btn-sm btn-outline-secondary">
-          Task Detail
-        </a>
-
-        <a href="{% url 'projects:project_detail' object.project.pk %}"
-           class="btn btn-sm btn-outline-secondary">
-          Project
-        </a>
-      {% endif %}
-
-      <a href="{% url 'projects:task_list' %}"
-         class="btn btn-sm btn-outline-secondary">
-        All Tasks
-      </a>
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-person-check"></i>Assignment and schedule</h2>
+    <div class="row g-3">
+      {% field form.assigned_to "col-md-4" %}
+      {% field form.status "col-md-4" %}
+      {% field form.priority "col-md-4" %}
+      {% field form.start_date "col-md-4" %}
+      {% field form.due_date "col-md-4" %}
+      {% field form.estimated_minutes "col-md-4" suffix="min" %}
+      {% field form.directory "col-12" label="Folder on the server" %}
     </div>
-  </div>
-
-  <form method="post" novalidate>
-    {% csrf_token %}
-
-    {% if form.non_field_errors %}
-      <div class="alert alert-danger">
-        {{ form.non_field_errors }}
-      </div>
-    {% endif %}
-
-    <div class="card border-0 shadow-sm">
-      <div class="card-header bg-body border-bottom">
-        <strong>Task Information</strong>
-      </div>
-
-      <div class="card-body">
-        <div class="row g-3">
-
-          <div class="col-md-6">
-            <label class="form-label">
-              {{ form.name.label }}{% if form.name.field.required %} *{% endif %}
-            </label>
-            {{ form.name }}
-            <div class="text-danger small">{{ form.name.errors }}</div>
-          </div>
-
-          <div class="col-md-6">
-            <label class="form-label">
-              {{ form.project.label }}{% if form.project.field.required %} *{% endif %}
-            </label>
-
-            {% if object %}
-              <div class="form-control-plaintext border rounded px-2 bg-light">
-                {{ object.project.name }}
-              </div>
-
-              <input type="hidden" name="project" value="{{ object.project.id }}">
-            {% else %}
-              {{ form.project }}
-            {% endif %}
-
-            <div class="text-danger small">{{ form.project.errors }}</div>
-          </div>
-
-          <div class="col-md-4">
-            <label class="form-label">
-              {{ form.department.label }}{% if form.department.field.required %} *{% endif %}
-            </label>
-            {{ form.department }}
-            <div class="text-danger small">{{ form.department.errors }}</div>
-          </div>
-
-          <div class="col-md-4">
-            <label class="form-label">
-              {{ form.category.label }}{% if form.category.field.required %} *{% endif %}
-            </label>
-            {{ form.category }}
-            <div class="text-danger small">{{ form.category.errors }}</div>
-          </div>
-
-          <div class="col-md-4">
-            <label class="form-label">
-              {{ form.assigned_to.label }}{% if form.assigned_to.field.required %} *{% endif %}
-            </label>
-            {{ form.assigned_to }}
-            <div class="text-danger small">{{ form.assigned_to.errors }}</div>
-          </div>
-
-          <div class="col-md-6">
-            <label class="form-label">
-              {{ form.directory.label }}{% if form.directory.field.required %} *{% endif %}
-            </label>
-            {{ form.directory }}
-            {% if form.directory.help_text %}
-              <div class="form-text">{{ form.directory.help_text }}</div>
-            {% endif %}
-            <div class="text-danger small">{{ form.directory.errors }}</div>
-          </div>
-
-          <div class="col-md-6">
-            <label class="form-label">
-              {{ form.count.label }}{% if form.count.field.required %} *{% endif %}
-            </label>
-            {{ form.count }}
-            <div class="form-text">Example: 1500 RAW photos, 4 folders, 3 reels, etc.</div>
-            <div class="text-danger small">{{ form.count.errors }}</div>
-          </div>
-
-          <div class="col-md-3">
-            <label class="form-label">
-              {{ form.status.label }}{% if form.status.field.required %} *{% endif %}
-            </label>
-            {{ form.status }}
-            <div class="text-danger small">{{ form.status.errors }}</div>
-          </div>
-
-          <div class="col-md-3">
-            <label class="form-label">
-              {{ form.priority.label }}{% if form.priority.field.required %} *{% endif %}
-            </label>
-            {{ form.priority }}
-            <div class="text-danger small">{{ form.priority.errors }}</div>
-          </div>
-
-          <div class="col-md-3">
-            <label class="form-label">
-              {{ form.start_date.label }}{% if form.start_date.field.required %} *{% endif %}
-            </label>
-            {{ form.start_date }}
-            <div class="text-danger small">{{ form.start_date.errors }}</div>
-          </div>
-
-          <div class="col-md-3">
-            <label class="form-label">
-              {{ form.due_date.label }}{% if form.due_date.field.required %} *{% endif %}
-            </label>
-            {{ form.due_date }}
-            <div class="text-danger small">{{ form.due_date.errors }}</div>
-          </div>
-
-          <div class="col-md-3">
-            <label class="form-label">
-              {{ form.estimated_minutes.label }}{% if form.estimated_minutes.field.required %} *{% endif %}
-            </label>
-            {{ form.estimated_minutes }}
-            <div class="form-text">Optional estimate.</div>
-            <div class="text-danger small">{{ form.estimated_minutes.errors }}</div>
-          </div>
-
-
-          <div class="col-md-12">
-            <label class="form-label">
-              {{ form.description.label }}{% if form.description.field.required %} *{% endif %}
-            </label>
-            {{ form.description }}
-            {% if form.description.help_text %}
-              <div class="form-text">{{ form.description.help_text }}</div>
-            {% endif %}
-            <div class="text-danger small">{{ form.description.errors }}</div>
-          </div>
-
-        </div>
-      </div>
-    </div>
-
-    <div class="d-flex justify-content-center gap-2 mt-3">
-      {% if is_admin or is_project_manager %}
-        <button type="submit" class="btn btn-primary">
-          {% if object %}Save Changes{% else %}Create Task{% endif %}
-        </button>
-      {% endif %}
-
-      {% if object %}
-        <a href="{% url 'projects:task_detail' object.pk %}"
-           class="btn btn-secondary">
-          Cancel
-        </a>
-      {% else %}
-        <a href="{% url 'projects:task_list' %}"
-           class="btn btn-secondary">
-          Cancel
-        </a>
-      {% endif %}
-    </div>
-
-  </form>
-</div>
+  </section>
 {% endblock %}
+
+{% block cancel_url %}{% if object %}{% url 'projects:task_detail' object.pk %}{% elif project %}{% url 'projects:project_detail' project.pk %}{% else %}{% url 'projects:task_list' %}{% endif %}{% endblock %}
+{% block submit_label %}{% if object %}Save task{% else %}Create task{% endif %}{% endblock %}

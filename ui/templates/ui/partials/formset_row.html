@@ -1,0 +1,17 @@
+<tr class="formset-row">
+  {% for f in form.visible_fields %}{% if f.name != "DELETE" %}
+    <td class="fs-{{ f.name }}">
+      {% if forloop.first %}{% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}{% endif %}
+      {{ f }}
+      {% for error in f.errors %}<div class="field-error"><i class="bi bi-exclamation-circle"></i>{{ error }}</div>{% endfor %}
+      {% if forloop.first %}{% for error in form.non_field_errors %}<div class="field-error"><i class="bi bi-exclamation-circle"></i>{{ error }}</div>{% endfor %}{% endif %}
+    </td>
+  {% endif %}{% endfor %}
+  <td class="text-end">
+    {% if form.DELETE %}
+      <label class="formset-delete" title="Remove this row">{{ form.DELETE }}<i class="bi bi-trash"></i></label>
+    {% else %}
+      <button type="button" class="formset-delete js-formset-drop" title="Remove this row"><i class="bi bi-x-lg"></i></button>
+    {% endif %}
+  </td>
+</tr>

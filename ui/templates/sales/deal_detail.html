@@ -4,15 +4,15 @@
 {% block title %}{{ deal.name }}{% endblock %}
 
 {% block content %}
+{% has_sales_access request.user as is_sales %}
 {% is_admin request.user as is_admin %}
 {% is_crm_manager request.user as is_crm_manager %}
 
 <div class="container">
-  {% include "common/detail_messages.html" %}
 
   <div class="page-header">
     <div class="min-w-0">
-      <div class="page-eyebrow"><a href="{% url 'sales:deal_list' %}"><i class="bi bi-briefcase"></i> Deals</a></div>
+      <div class="page-eyebrow">{% if is_sales %}<a href="{% url 'sales:deal_list' %}"><i class="bi bi-briefcase"></i> Deals</a>{% else %}<i class="bi bi-briefcase"></i> Deal{% endif %}</div>
       <h1 class="page-title">{{ deal.name }}</h1>
       <div class="page-subtitle d-flex flex-wrap align-items-center gap-2">
         {% status_pill deal.stage deal.get_stage_display %}
@@ -46,6 +46,16 @@
 
   <div class="row g-4">
     <div class="col-xl-8">
+      {% if deal.next_action and deal.is_open %}
+        {% now "Y-m-d" as today_iso %}
+        <div class="alert {% if deal.next_action_date and deal.next_action_date|date:'Y-m-d' < today_iso %}alert-warning{% else %}alert-info{% endif %} d-flex mb-4">
+          <i class="bi bi-alarm"></i>
+          <div>
+            <strong>Next action: {{ deal.get_next_action_display }}{% if deal.next_action_date %} · {{ deal.next_action_date|date:"D, d M Y" }}{% endif %}</strong>
+            {% if deal.next_action_note %}<div>{{ deal.next_action_note }}</div>{% endif %}
+          </div>
+        </div>
+      {% endif %}
 
       <!-- Proposals -->
       <div class="card mb-4">
@@ -172,12 +182,13 @@
             </li>
             <li><span class="k">Lead</span>
               <span class="v">
-                {% if deal.lead %}<a href="{% url 'crm:lead_detail' deal.lead.pk %}">{{ deal.lead.name }}</a>{% else %}—{% endif %}
+                {% if deal.lead and is_sales %}<a href="{% url 'crm:lead_detail' deal.lead.pk %}">{{ deal.lead.name }}</a>{% elif deal.lead %}{{ deal.lead.name }}{% else %}—{% endif %}
               </span>
             </li>
             <li><span class="k">Amount</span><span class="v tabular">{{ deal.amount|inr }}</span></li>
             <li><span class="k">Advance received</span><span class="v tabular">{{ deal.advance_paid|inr }}</span></li>
             <li><span class="k">Expected close</span><span class="v">{{ deal.expected_close_date|date:"d M Y"|default:"—" }}</span></li>
+            <li><span class="k">Next action</span><span class="v">{% if deal.next_action %}{{ deal.get_next_action_display }}{% if deal.next_action_date %} · {{ deal.next_action_date|date:"d M" }}{% endif %}{% else %}—{% endif %}</span></li>
             <li><span class="k">Closed on</span><span class="v">{{ deal.closed_on|date:"d M Y"|default:"—" }}</span></li>
             <li><span class="k">Owner</span><span class="v">{% if deal.owner %}{{ deal.owner.get_full_name|default:deal.owner.username }}{% else %}—{% endif %}</span></li>
           </ul>

@@ -1,279 +1,92 @@
-{% extends "ui/base.html" %}
-{% load roles_tags %}
+{% extends "ui/form_page.html" %}
+{% load ui_tags %}
 
-{% block title %}
-  {% if form.instance.pk %}Edit Lead{% else %}New Lead{% endif %}
-{% endblock %}
+{% block title %}{% if form.instance.pk %}Edit lead{% elif is_conversion %}Convert inquiry to lead{% else %}New lead{% endif %}{% endblock %}
 
-{% block content %}
-{% is_admin request.user as is_admin %}
-{% is_crm_manager request.user as is_crm_manager %}
+{% block form_eyebrow %}<i class="bi bi-person-lines-fill"></i> Sales pipeline · Leads{% endblock %}
+{% block form_title %}{% if form.instance.pk %}Edit {{ form.instance.name }}{% elif is_conversion %}Convert inquiry to lead{% else %}New lead{% endif %}{% endblock %}
+{% block form_subtitle %}A lead is a qualified inquiry. Convert it to a deal when you are ready to send a proposal.{% endblock %}
 
-<div class="container py-3 max-w-2xl">
-
-  <h2 class="fw-semibold mb-4">
-    {% if form.instance.pk %}
-      Edit Lead
-    {% elif is_conversion %}
-      Convert Inquiry to Lead
-    {% else %}
-      New Lead
-    {% endif %}
-  </h2>
-
+{% block form_intro %}
   {% if source_inquiry %}
-    <div class="alert alert-info">
-      You are converting inquiry
-      <strong>{{ source_inquiry.name|default:source_inquiry.email|default:source_inquiry.phone|default:"(No name)" }}</strong>
-      into a lead. Please add the remaining lead details and save.
+    <div class="alert alert-light border d-flex gap-2">
+      <i class="bi bi-inbox"></i>
+      <div>Converting inquiry <strong>{{ source_inquiry.name|default:source_inquiry.email|default:source_inquiry.phone|default:"(No name)" }}</strong>. Its details are filled in below; add the rest and save.</div>
     </div>
   {% endif %}
+{% endblock %}
 
-  <form method="post" novalidate>
-    {% csrf_token %}
+{% block form_body %}
+  {% if form.inquiry %}{{ form.inquiry.as_hidden }}{% endif %}
 
-    {% if form.non_field_errors %}
-      <div class="alert alert-danger">
-        {{ form.non_field_errors }}
-      </div>
-    {% endif %}
-
-    <div class="card shadow-sm">
-      <div class="card-body">
-
-        {% if form.inquiry %}
-          {{ form.inquiry.as_hidden }}
-        {% endif %}
-
-        <!-- Row 1: Name + Status -->
-        <div class="row">
-          <div class="col-md-8 mb-3">
-            <label class="form-label">
-              {{ form.name.label }}{% if form.name.field.required %} *{% endif %}
-            </label>
-            {{ form.name }}
-            {% for error in form.name.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.status.label }}
-            </label>
-            {{ form.status }}
-            {% for error in form.status.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Row 2: Contact -->
-        <div class="row">
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.email.label }}
-            </label>
-            {{ form.email }}
-            {% for error in form.email.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.phone.label }}
-            </label>
-            {{ form.phone }}
-            {% for error in form.phone.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.whatsapp.label }}
-            </label>
-            {{ form.whatsapp }}
-            {% for error in form.whatsapp.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Row 3: Wedding date + city + district -->
-        <div class="row">
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.wedding_date.label }}
-            </label>
-            {{ form.wedding_date }}
-            {% for error in form.wedding_date.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.wedding_city.label }}
-            </label>
-            {{ form.wedding_city }}
-            {% for error in form.wedding_city.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.wedding_district.label }}
-            </label>
-            {{ form.wedding_district }}
-            {% for error in form.wedding_district.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Row 4: Wedding state + country + source -->
-        <div class="row">
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.wedding_state.label }}
-            </label>
-            {{ form.wedding_state }}
-            {% for error in form.wedding_state.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.wedding_country.label }}
-            </label>
-            {{ form.wedding_country }}
-            {% for error in form.wedding_country.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.source.label }}
-            </label>
-            {{ form.source }}
-            {% for error in form.source.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Row 5: Budget + Client -->
-        <div class="row">
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.budget_min.label }}
-            </label>
-            {{ form.budget_min }}
-            {% for error in form.budget_min.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.budget_max.label }}
-            </label>
-            {{ form.budget_max }}
-            {% for error in form.budget_max.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.client.label }}
-            </label>
-            {{ form.client }}
-            {% for error in form.client.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Row 6: Source detail -->
-        <div class="row">
-          <div class="col-12 mb-3">
-            <label class="form-label">
-              {{ form.source_detail.label }}
-            </label>
-            {{ form.source_detail }}
-            {% for error in form.source_detail.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Row 7: Next action -->
-        <div class="row">
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.next_action_date.label }}
-            </label>
-            {{ form.next_action_date }}
-            {% for error in form.next_action_date.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-8 mb-3">
-            <label class="form-label">
-              {{ form.next_action_note.label }}
-            </label>
-            {{ form.next_action_note }}
-            {% for error in form.next_action_note.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Row 8: Notes -->
-        <div class="row">
-          <div class="col-12 mb-3">
-            <label class="form-label">
-              {{ form.notes.label }}
-            </label>
-            {{ form.notes }}
-            {% for error in form.notes.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-      </div>
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-person"></i>Couple and contact</h2>
+    <div class="row g-3">
+      {% field form.name "col-md-8" %}
+      {% field form.status "col-md-4" %}
+      {% field form.country "col-md-6" %}
+      {% field form.state "col-md-6" %}
+      {% field form.phone "col-md-4" %}
+      {% field form.whatsapp "col-md-4" %}
+      {% field form.email "col-md-4" %}
     </div>
+  </section>
 
-    <!-- Buttons -->
-    <div class="row mt-3">
-      <div class="col-12 d-flex justify-content-center gap-2">
-        {% if is_admin or is_crm_manager %}
-          <button type="submit" class="btn btn-primary px-4">
-            Save
-          </button>
-        {% endif %}
-
-        {% if source_inquiry %}
-          <a href="{% url 'crm:inquiry_detail' source_inquiry.pk %}" class="btn btn-secondary">
-            Cancel
-          </a>
-        {% else %}
-          <a href="{% url 'crm:lead_list' %}" class="btn btn-secondary">
-            Cancel
-          </a>
-        {% endif %}
-      </div>
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-calendar-heart"></i>Wedding</h2>
+    <div class="row g-3">
+      {% field form.wedding_date "col-md-4" %}
+      {% field form.wedding_city "col-md-4" %}
+      {% field form.wedding_country "col-md-4" %}
+      {% field form.budget_min "col-md-6" prefix="₹" %}
+      {% field form.budget_max "col-md-6" prefix="₹" %}
     </div>
+  </section>
 
-  </form>
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-signpost"></i>Source and follow-up</h2>
+    <div class="row g-3">
+      {% field form.source "col-md-4" %}
+      {% field form.source_detail "col-md-8" %}
+      {% field form.next_action_date "col-md-4" %}
+      {% field form.next_action_note "col-md-8" %}
+      {% field form.client "col-md-6" label="Existing client" hint="Only for a returning customer." %}
+      {% field form.notes "col-12" %}
+    </div>
+  </section>
+{% endblock %}
 
-</div>
+{% block cancel_url %}{% if source_inquiry %}{% url 'crm:inquiry_detail' source_inquiry.pk %}{% elif form.instance.pk %}{% url 'crm:lead_detail' form.instance.pk %}{% else %}{% url 'crm:lead_list' %}{% endif %}{% endblock %}
+{% block submit_label %}{% if is_conversion %}Create lead{% else %}Save lead{% endif %}{% endblock %}
+
+{% block extra_js %}
+{% phone_rules as rules %}{{ rules|json_script:"phoneRules" }}
+<script>
+// The state list is India's; the phone hint follows the chosen country.
+(function () {
+  const country = document.getElementById("id_country");
+  const state = document.getElementById("id_state");
+  const rules = JSON.parse(document.getElementById("phoneRules").textContent || "{}");
+  if (!country) return;
+  function update() {
+    const isIndia = country.value === "India";
+    if (state) {
+      const wrap = state.closest("[class*='col-']") || state.parentElement;
+      wrap.style.display = isIndia ? "" : "none";
+      if (!isIndia) state.value = "";
+    }
+    const rule = rules[country.value];
+    ["id_phone", "id_whatsapp"].forEach(function (id) {
+      const input = document.getElementById(id);
+      if (!input || !rule) return;
+      const hint = input.closest("[class*='col-']").querySelector(".form-text");
+      const text = rule.lengths.join(" or ") + " digits, country code +" + rule.code + " is added for you.";
+      if (hint) hint.textContent = text;
+      input.placeholder = "+" + rule.code + " " + "9".repeat(rule.lengths[0]);
+    });
+  }
+  country.addEventListener("change", update);
+  update();
+})();
+</script>
 {% endblock %}

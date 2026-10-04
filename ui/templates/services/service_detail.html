@@ -1,201 +1,156 @@
 {% extends "ui/base.html" %}
-{% load roles_tags %}
+{% load roles_tags ui_tags %}
 
 {% block title %}Service – {{ service.name }}{% endblock %}
 
 {% block content %}
 {% has_services_manage_access request.user as can_manage_services %}
 
-<div class="container py-4">
+<div class="container">
 
-  <!-- Header -->
-  <div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
-      <h2 class="fw-semibold mb-1">{{ service.name }}</h2>
-
-      <span class="badge bg-light text-dark">
-        {{ service.get_category_display }}
-      </span>
-
-      {% if service.is_active %}
-        <span class="badge bg-success ms-1">Active</span>
-      {% else %}
-        <span class="badge bg-secondary ms-1">Inactive</span>
-      {% endif %}
+  <div class="page-header">
+    <div class="min-w-0">
+      <div class="page-eyebrow"><a href="{% url 'services:service_list' %}"><i class="bi bi-grid"></i> Services</a></div>
+      <h1 class="page-title">{{ service.name }}</h1>
+      <div class="page-subtitle d-flex flex-wrap align-items-center gap-2">
+        {% if service.is_active %}{% status_pill "active" "Active" %}{% else %}{% status_pill "inactive" "Inactive" %}{% endif %}
+        <span><i class="bi bi-tag"></i> {{ service.get_category_display }}</span>
+        {% if service.code %}<span class="tabular">{{ service.code }}</span>{% endif %}
+        {% if service.base_price %}<span class="tabular">{{ service.base_price|inr }} {{ service.get_price_unit_display }}</span>{% endif %}
+      </div>
     </div>
 
     {% if can_manage_services %}
-      <div class="d-flex gap-2">
-        <a href="{% url 'services:service_update' service.pk %}" class="btn btn-primary btn-sm">
-          <i class="bi bi-pencil"></i>Edit Service
-        </a>
-        <a href="{% url 'services:service_delete' service.pk %}" class="btn btn-outline-danger btn-sm">
-          <i class="bi bi-trash"></i>Delete
-        </a>
+      <div class="page-actions">
+        <a href="{% url 'services:service_update' service.pk %}" class="btn btn-outline-dark btn-sm"><i class="bi bi-pencil"></i>Edit</a>
+        <div class="dropdown">
+          <button class="btn btn-outline-secondary btn-sm btn-icon" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="More actions">
+            <i class="bi bi-three-dots"></i>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><a class="dropdown-item text-danger" href="{% url 'services:service_delete' service.pk %}"><i class="bi bi-trash"></i>Delete service</a></li>
+          </ul>
+        </div>
       </div>
     {% endif %}
   </div>
 
-  <!-- Detail Grid -->
-  <div class="card mb-3">
-    <div class="card-body">
-      <div class="row gy-3">
+  <div class="row g-4">
+    <div class="col-xl-8">
 
-        <div class="col-md-4">
-          <div class="text-uppercase text-muted small">Code</div>
-          <div class="fw-semibold">
-            {{ service.code|default:"—" }}
-          </div>
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-card-text"></i>Description</h2></div>
+        <div class="card-body">
+          {% if service.description %}{{ service.description|linebreaksbr }}{% else %}<span class="text-muted">No description.</span>{% endif %}
         </div>
-
-        <div class="col-md-4">
-          <div class="text-uppercase text-muted small">Base Price</div>
-          <div class="fw-semibold">
-            {% if service.base_price %}
-              {{ service.base_price }} <span class="small text-muted fw-normal">{{ service.get_price_unit_display }}</span>
-              {% if service.summary %}<div class="small text-muted fw-normal">{{ service.summary }}</div>{% endif %}
-            {% else %}
-              —
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="col-12">
-          <div class="text-uppercase text-muted small">Description</div>
-          <div>
-            {% if service.description %}
-              {{ service.description|linebreaksbr }}
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="col-12">
-          <div class="text-uppercase text-muted small">Notes</div>
-          <div>
-            {% if service.notes %}
-              {{ service.notes|linebreaksbr }}
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
-        </div>
-
       </div>
-    </div>
-  </div>
 
-  <!-- Preferred Vendors -->
-  <div class="card mb-3">
-    <div class="card-header">
-      <span class="fw-semibold small text-uppercase text-muted">Default Deliverables</span>
-    </div>
-
-    <div class="card-body p-0">
-      {% if service.deliverables.all %}
-        <div class="table-responsive">
-        <table class="table table-sm mb-0 align-middle">
-          <thead class="table-light">
-          <tr>
-            <th>Title</th>
-            <th>Description</th>
-            <th class="text-end">Qty</th>
-            <th>Unit</th>
-            <th>Status</th>
-          </tr>
-          </thead>
-          <tbody>
-          {% for deliverable in service.deliverables.all %}
-            <tr>
-              <td class="fw-semibold">{{ deliverable.title }}</td>
-              <td>{{ deliverable.description|default:"—" }}</td>
-              <td class="text-end">{{ deliverable.quantity }}</td>
-              <td>{{ deliverable.get_unit_display }}</td>
-              <td>
-                {% if deliverable.is_active %}
-                  <span class="badge bg-success">Active</span>
-                {% else %}
-                  <span class="badge bg-secondary">Inactive</span>
-                {% endif %}
-              </td>
-            </tr>
-          {% endfor %}
-          </tbody>
-        </table>
+      {% with deliverables=service.deliverables.all %}
+      <div class="card mb-4">
+        <div class="card-header">
+          <h2 class="section-title"><i class="bi bi-box-seam"></i>Default deliverables <span class="text-muted fw-normal">{{ deliverables|length }}</span></h2>
         </div>
-      {% else %}
-        <p class="text-muted mb-0 p-3">No default deliverables added.</p>
-      {% endif %}
+        {% if deliverables %}
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead>
+                <tr><th>Deliverable</th><th class="text-end">Qty</th><th>Unit</th><th>Status</th></tr>
+              </thead>
+              <tbody>
+                {% for deliverable in deliverables %}
+                  <tr>
+                    <td>
+                      <span class="cell-title">{{ deliverable.title }}</span>
+                      {% if deliverable.description %}<span class="cell-sub">{{ deliverable.description }}</span>{% endif %}
+                    </td>
+                    <td class="text-end tabular">{{ deliverable.quantity }}</td>
+                    <td>{{ deliverable.get_unit_display }}</td>
+                    <td>{% if deliverable.is_active %}{% status_pill "active" "Active" %}{% else %}{% status_pill "inactive" "Inactive" %}{% endif %}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="empty-state"><i class="bi bi-box-seam"></i>No default deliverables added.</div>
+        {% endif %}
+      </div>
+      {% endwith %}
+
+      {% with items=service.inventory_items.all %}
+      <div class="card mb-4">
+        <div class="card-header">
+          <h2 class="section-title"><i class="bi bi-boxes"></i>Inventory items <span class="text-muted fw-normal">{{ items|length }}</span></h2>
+        </div>
+        {% if items %}
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead>
+                <tr><th>Item</th><th class="text-end">Available / total</th></tr>
+              </thead>
+              <tbody>
+                {% for item in items %}
+                  <tr data-href="{% url 'services:inventory_detail' item.pk %}">
+                    <td><a href="{% url 'services:inventory_detail' item.pk %}" class="cell-title">{{ item.name }}</a></td>
+                    <td class="text-end tabular">{{ item.quantity_available }}/{{ item.quantity_total }} {{ item.unit }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="empty-state"><i class="bi bi-boxes"></i>No inventory items linked.</div>
+        {% endif %}
+      </div>
+      {% endwith %}
     </div>
-  </div>
 
-  <!-- Preferred Vendors -->
-  <div class="card mb-3">
-    <div class="card-header">
-      <span class="fw-semibold small text-uppercase text-muted">Preferred Vendors</span>
-    </div>
-
-    <div class="card-body">
-      {% if service.vendors.all %}
-        <ul class="list-group list-group-flush">
-          {% for vendor in service.vendors.all %}
-            <li class="list-group-item d-flex justify-content-between align-items-center">
-              <a href="{% url 'services:vendor_detail' vendor.pk %}">
-                {{ vendor.company_name|default:vendor.name }}
-              </a>
-
-              {% if vendor.city %}
-                <span class="text-muted small">{{ vendor.city }}</span>
-              {% endif %}
-            </li>
-          {% endfor %}
-        </ul>
-      {% else %}
-        <p class="text-muted mb-0">No vendors linked to this service.</p>
-      {% endif %}
-    </div>
-  </div>
-
-  <!-- Inventory Items -->
-  <div class="card mb-4">
-    <div class="card-header">
-      <span class="fw-semibold small text-uppercase text-muted">Inventory Items</span>
-    </div>
-
-    <div class="card-body">
-      {% if service.inventory_items.all %}
-        <ul class="list-group list-group-flush">
-          {% for item in service.inventory_items.all %}
-            <li class="list-group-item d-flex justify-content-between align-items-center">
-              <a href="{% url 'services:inventory_detail' item.pk %}">
-                {{ item.name }}
-              </a>
-
-              <span class="text-muted small">
-                {{ item.quantity_available }}/{{ item.quantity_total }} {{ item.unit }}
+    <div class="col-xl-4">
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-info-circle"></i>Details</h2></div>
+        <div class="card-body">
+          <ul class="info-list">
+            <li><span class="k">Code</span><span class="v">{{ service.code|default:"—" }}</span></li>
+            <li><span class="k">Category</span><span class="v">{{ service.get_category_display }}</span></li>
+            <li><span class="k">Base price</span>
+              <span class="v tabular">
+                {% if service.base_price %}{{ service.base_price|inr }} <span class="text-muted fw-normal small">{{ service.get_price_unit_display }}</span>{% else %}—{% endif %}
               </span>
             </li>
-          {% endfor %}
-        </ul>
-      {% else %}
-        <p class="text-muted mb-0">No inventory items linked.</p>
-      {% endif %}
+          </ul>
+          {% if service.summary %}<div class="small text-muted mt-3">{{ service.summary }}</div>{% endif %}
+        </div>
+      </div>
+
+      {% with vendors=service.vendors.all %}
+      <div class="card mb-4">
+        <div class="card-header">
+          <h2 class="section-title"><i class="bi bi-shop"></i>Preferred vendors <span class="text-muted fw-normal">{{ vendors|length }}</span></h2>
+        </div>
+        <div class="card-body">
+          {% if vendors %}
+            <ul class="info-list">
+              {% for vendor in vendors %}
+                <li>
+                  <span class="k"><a href="{% url 'services:vendor_detail' vendor.pk %}">{{ vendor.company_name|default:vendor.name }}</a></span>
+                  <span class="v fw-normal text-muted">{{ vendor.city|default:"" }}</span>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <span class="text-muted">No vendors linked to this service.</span>
+          {% endif %}
+        </div>
+      </div>
+      {% endwith %}
+
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-journal-text"></i>Notes</h2></div>
+        <div class="card-body">
+          {% if service.notes %}{{ service.notes|linebreaksbr }}{% else %}<span class="text-muted">No notes.</span>{% endif %}
+        </div>
+      </div>
     </div>
   </div>
-
-  <!-- Actions -->
-  <div class="text-center">
-    <a href="{% url 'services:service_list' %}" class="btn btn-outline-secondary me-2">
-      <i class="bi bi-arrow-left"></i>Back to Services
-    </a>
-
-    {% if can_manage_services %}
-      <a href="{% url 'services:service_update' service.pk %}" class="btn btn-primary">
-        <i class="bi bi-pencil"></i>Edit Service
-      </a>
-    {% endif %}
-  </div>
-
 </div>
 {% endblock %}

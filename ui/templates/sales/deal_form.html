@@ -1,184 +1,57 @@
-{% extends "ui/base.html" %}
-{% load roles_tags %}
+{% extends "ui/form_page.html" %}
+{% load ui_tags %}
 
-{% block title %}
-  {% if form.instance.pk %}Edit Deal{% else %}New Deal{% endif %}
-{% endblock %}
+{% block title %}{% if form.instance.pk %}Edit deal{% elif is_lead_conversion %}Convert lead to deal{% else %}New deal{% endif %}{% endblock %}
 
-{% block content %}
-{% is_admin request.user as is_admin %}
-{% is_crm_manager request.user as is_crm_manager %}
-{% is_project_manager request.user as is_project_manager %}
-{% is_employee request.user as is_employee %}
+{% block form_eyebrow %}<i class="bi bi-briefcase"></i> Sales pipeline · Deals{% endblock %}
+{% block form_title %}{% if form.instance.pk %}Edit {{ form.instance.name }}{% elif is_lead_conversion %}Convert lead to deal{% else %}New deal{% endif %}{% endblock %}
+{% block form_subtitle %}{% if form.instance.pk %}{% elif source_lead %}Next you will send a proposal against this deal.{% else %}For an existing client booking again. New customers start as an inquiry or lead.{% endif %}{% endblock %}
 
-<div class="container py-3 max-w-2xl">
-
-  <h2 class="fw-semibold mb-4">
-    {% if form.instance.pk %}
-      Edit Deal
-    {% elif is_lead_conversion %}
-      Convert Lead to Deal
-    {% else %}
-      New Deal
-    {% endif %}
-  </h2>
-
+{% block form_intro %}
   {% if source_lead %}
-    <div class="alert alert-info">
-      You are creating a deal from lead
-      <strong>{{ source_lead.name }}</strong>.
-      Please review the prefilled details and add the remaining deal information.
+    <div class="alert alert-light border d-flex gap-2">
+      <i class="bi bi-person-lines-fill"></i>
+      <div>Creating a deal from lead <strong>{{ source_lead.name }}</strong>. Check the details filled in from the lead.</div>
     </div>
   {% endif %}
-
-  <form method="post" novalidate>
-    {% csrf_token %}
-
-    {% if form.non_field_errors %}
-      <div class="alert alert-danger">
-        {{ form.non_field_errors }}
-      </div>
-    {% endif %}
-
-    {% if form.lead %}
-      {{ form.lead.as_hidden }}
-    {% endif %}
-
-    <div class="card shadow-sm">
-      <div class="card-body">
-
-        <!-- Row 1 -->
-        <div class="row">
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.name.label }}{% if form.name.field.required %} *{% endif %}
-            </label>
-            {{ form.name }}
-            {% for error in form.name.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.client.label }}{% if form.client.field.required %} *{% endif %}
-            </label>
-            {{ form.client }}
-            {% for error in form.client.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.stage.label }}{% if form.stage.field.required %} *{% endif %}
-            </label>
-            {{ form.stage }}
-            {% for error in form.stage.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Row 2 -->
-        <div class="row">
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.amount.label }}
-            </label>
-            {{ form.amount }}
-            {% for error in form.amount.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.expected_close_date.label }}
-            </label>
-            {{ form.expected_close_date }}
-            {% for error in form.expected_close_date.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.closed_on.label }}
-            </label>
-            {{ form.closed_on }}
-            {% for error in form.closed_on.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Row 3 -->
-        <div class="row">
-          <div class="col-12 mb-3">
-            <label class="form-label">
-              {{ form.description.label }}
-            </label>
-            {{ form.description }}
-            {% for error in form.description.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Row 4 -->
-        <div class="row">
-          <div class="col-md-4 mb-3 d-flex align-items-center">
-            <div>
-              <label class="form-label d-block">
-                {{ form.is_active.label }}
-              </label>
-
-              <div class="form-check">
-                {{ form.is_active }}
-                <label class="form-check-label ms-1">
-                  Active
-                </label>
-              </div>
-
-              {% for error in form.is_active.errors %}
-                <div class="text-danger small">{{ error }}</div>
-              {% endfor %}
-            </div>
-          </div>
-        </div>
-
-      </div>
-    </div>
-
-    <!-- Buttons -->
-    <div class="row mt-3">
-      <div class="col-12 d-flex justify-content-center flex-wrap gap-2">
-
-        {% if is_admin or is_crm_manager %}
-          <button type="submit" class="btn btn-primary px-4">
-            Save
-          </button>
-        {% endif %}
-
-        {% if source_lead %}
-          <a href="{% url 'crm:lead_detail' source_lead.pk %}" class="btn btn-secondary">
-            Cancel
-          </a>
-        {% elif form.instance.pk %}
-          <a href="{% url 'sales:deal_detail' form.instance.pk %}" class="btn btn-secondary">
-            Cancel
-          </a>
-        {% else %}
-          <a href="{% url 'sales:deal_list' %}" class="btn btn-secondary">
-            Cancel
-          </a>
-        {% endif %}
-
-      </div>
-    </div>
-
-  </form>
-
-</div>
 {% endblock %}
+
+{% block form_body %}
+  {% if form.lead %}{{ form.lead.as_hidden }}{% endif %}
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-briefcase"></i>Deal</h2>
+    <div class="row g-3">
+      {% field form.name "col-md-8" %}
+      {% field form.stage "col-md-4" %}
+      {% if source_lead %}
+        <div class="col-md-6"><label class="form-label">Lead</label><div class="form-control bg-light">{{ source_lead.name }}</div></div>
+        {% field form.client "col-md-6" label="Existing client" hint="Leave empty; the client is created after the contract is signed." %}
+      {% else %}
+        {% field form.client "col-md-6" %}
+      {% endif %}
+      {% field form.amount "col-md-6" prefix="₹" label="Expected value" %}
+      {% field form.description "col-12" %}
+    </div>
+  </section>
+
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-calendar-check"></i>Timeline</h2>
+    <div class="row g-3">
+      {% field form.expected_close_date "col-md-6" hint="You get a reminder and a to-do on this date." %}
+      {% field form.closed_on "col-md-6" %}
+      {% field form.is_active "col-12" %}
+    </div>
+  </section>
+
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-alarm"></i>Next action</h2>
+    <div class="row g-3">
+      {% field form.next_action "col-md-4" label="Action" %}
+      {% field form.next_action_date "col-md-4" label="On" hint="A to-do is added for this day." %}
+      {% field form.next_action_note "col-md-4" label="Note" %}
+    </div>
+  </section>
+{% endblock %}
+
+{% block cancel_url %}{% if source_lead %}{% url 'crm:lead_detail' source_lead.pk %}{% elif form.instance.pk %}{% url 'sales:deal_detail' form.instance.pk %}{% else %}{% url 'sales:deal_list' %}{% endif %}{% endblock %}
+{% block submit_label %}{% if is_lead_conversion %}Create deal{% else %}Save deal{% endif %}{% endblock %}

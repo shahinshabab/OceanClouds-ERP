@@ -130,6 +130,14 @@ class EventChecklistForm(BootstrapModelForm):
             "notes": forms.Textarea(attrs={"rows": 3}),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # An event has one checklist, so only offer events without one.
+        field = self.fields.get("event")
+        if field is not None:
+            taken = EventChecklist.objects.exclude(pk=self.instance.pk).values("event_id")
+            field.queryset = field.queryset.exclude(pk__in=taken)
+
 
 class ChecklistItemForm(BootstrapModelForm):
     class Meta:

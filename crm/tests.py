@@ -1,5 +1,6 @@
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
+from django.test import TestCase
 from django.urls import reverse
 
 from common.test_helpers import AuthenticatedViewTestMixin
@@ -105,3 +106,44 @@ class CrmTests(AuthenticatedViewTestMixin):
             reverse("crm:client_detail", args=[self.client_obj.pk]),
             f"/crm/clients/{self.client_obj.pk}/",
         )
+
+
+class PhoneRuleTests(TestCase):
+    def test_indian_numbers_need_ten_digits(self):
+        from common.geo import normalize_phone
+
+        self.assertEqual(normalize_phone("98470 12345"), "+91 9847012345")
+        self.assertEqual(normalize_phone("+91 98470-12345"), "+91 9847012345")
+        self.assertEqual(normalize_phone("09847012345"), "+91 9847012345")
+        with self.assertRaises(ValidationError):
+            normalize_phone("984701234")
+
+    def test_other_countries_use_their_own_length(self):
+        from common.geo import normalize_phone
+
+        self.assertEqual(normalize_phone("50 123 4567", "United Arab Emirates"), "+971 501234567")
+        # A number typed with another country's code is checked against it.
+        self.assertEqual(normalize_phone("+971 50 123 4567"), "+971 501234567")
+        with self.assertRaises(ValidationError):
+            normalize_phone("12345678", "United Arab Emirates")
+
+    def test_lead_form_saves_country_and_formatted_phone(self):
+        from .forms import LeadForm
+
+        form = LeadForm(data={
+            "name": "Anu & Rahul",
+            "status": "new",
+            "country": "India",
+            "state": "Kerala",
+            "phone": "9847012345",
+            "wedding_city": "Kochi",
+            "wedding_country": "India",
+        })
+        self.assertTrue(form.is_valid(), form.errors)
+        lead = form.save()
+        self.assertEqual(lead.phone, "+91 9847012345")
+        self.assertEqual(lead.state, "Kerala")
+
+        bad = LeadForm(data={"name": "X", "status": "new", "country": "India", "phone": "12345", "wedding_city": "Kochi", "wedding_country": "India"})
+        self.assertFalse(bad.is_valid())
+        self.assertIn("phone", bad.errors)

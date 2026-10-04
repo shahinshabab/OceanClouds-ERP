@@ -4,6 +4,15 @@
 {% block title %}{{ proposal.title }} – {{ client|default:"Ocean Clouds" }}{% endblock %}
 {% block running_label %}Proposal {{ reference }}{% endblock %}
 
+{% block extra_style %}
+    /* Proposals are printed on cream paper. */
+    :root { --paper: #f8f2e4; --card: #fffcf5; --line: #e4dccb; }
+    @page { background: #f8f2e4; }
+    @page letter { background: #f8f2e4 url("{% static 'sales/brand/waves.png' %}") no-repeat center bottom / 210mm auto; }
+    .cover .name { font-size: 34pt; font-weight: 400; }
+    .chip { background: #fffcf5; }
+{% endblock %}
+
 {% block screen_bar %}
   {% if screen %}
     <div class="screen-bar">
@@ -50,8 +59,8 @@
     <img class="swoosh" src="{% static 'sales/brand/swoosh.png' %}" alt="">
     <div class="eyebrow">Welcome</div>
     <h1 class="title">Dear {{ client|default:"friends" }},</h1>
-    {% if proposal.intro %}
-      {% for paragraph in proposal.intro|lines %}<p class="lede">{{ paragraph }}</p>{% endfor %}
+    {% if intro %}
+      {% for paragraph in intro|lines %}<p class="lede">{{ paragraph }}</p>{% endfor %}
     {% else %}
       <p class="lede">Thank you for inviting us to be part of your celebration. This proposal brings together the coverage we have planned for each of your events, everything you will receive afterwards, and the investment for it.</p>
     {% endif %}

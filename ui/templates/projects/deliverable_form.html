@@ -1,361 +1,107 @@
-{% extends "ui/base.html" %}
-{% load roles_tags %}
+{% extends "ui/form_page.html" %}
+{% load ui_tags %}
 
-{% block content %}
-<div class="container py-4">
+{% block title %}{% if object %}Edit deliverable{% else %}New deliverable{% endif %}{% endblock %}
 
-  {% is_admin request.user as is_admin %}
-  {% is_project_manager request.user as is_project_manager %}
+{% block form_eyebrow %}<i class="bi bi-box-seam"></i> Production · Deliverables{% endblock %}
+{% block form_title %}{% if object %}Edit {{ object.name }}{% else %}New deliverable{% endif %}{% endblock %}
+{% block form_subtitle %}{% if object %}{{ object.project.name }}{% if object.project.client %} · {{ object.project.client }}{% endif %}{% elif project %}{{ project.name }}{% else %}A final output for the client, such as an album, reel, promo or film.{% endif %}{% endblock %}
 
-  <!-- Header -->
-  <div class="d-flex justify-content-between align-items-start mb-3">
-    <div>
-      <h1 class="h3 mb-1">
-        {% if object %}Edit Deliverable{% else %}New Deliverable{% endif %}
-      </h1>
+{% block form_attrs %}enctype="multipart/form-data" novalidate{% endblock %}
 
+{% block form_body %}
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-box-seam"></i>Deliverable</h2>
+    <div class="row g-3">
+      {% field form.name "col-md-6" %}
       {% if object %}
-        <div class="text-muted small">
-          Project:
-          <a href="{% url 'projects:project_detail' object.project.pk %}" class="text-decoration-none">
-            {{ object.project.name }}
-          </a>
-          · Client:
-          {% if object.project.client %}
-            {{ object.project.client }}
-          {% else %}
-            Not linked
-          {% endif %}
+        <div class="col-md-6">
+          <label class="form-label">Project</label>
+          <div class="form-control bg-light">{{ object.project.name }}</div>
+          <input type="hidden" name="project" value="{{ object.project.id }}">
         </div>
       {% else %}
-        <div class="text-muted small">
-          Create a final client-facing output such as album, reel, promo, poster, or final film.
-        </div>
+        {% field form.project "col-md-6" %}
       {% endif %}
+      {% field form.category "col-md-4" %}
+      {% field form.type "col-md-4" %}
+      {% field form.department "col-md-4" %}
+      {% field form.description "col-12" %}
     </div>
+  </section>
 
-    <div class="d-flex gap-2">
-      {% if object %}
-        <a href="{% url 'projects:deliverable_detail' object.pk %}"
-           class="btn btn-sm btn-outline-secondary">
-          Deliverable Detail
-        </a>
-
-        <a href="{% url 'projects:project_detail' object.project.pk %}"
-           class="btn btn-sm btn-outline-secondary">
-          Project
-        </a>
-      {% endif %}
-
-      <a href="{% url 'projects:deliverable_list' %}"
-         class="btn btn-sm btn-outline-secondary">
-        All Deliverables
-      </a>
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-person-check"></i>Assignment and schedule</h2>
+    <div class="row g-3">
+      {% field form.assigned_to "col-md-4" %}
+      {% field form.status "col-md-4" %}
+      {% field form.priority "col-md-4" %}
+      {% field form.start_date "col-md-4" %}
+      {% field form.due_date "col-md-4" %}
+      {% field form.version "col-md-4" %}
+      {% field form.tasks "col-12" label="Tasks that must finish first" hint="Hold Ctrl or Cmd to pick more than one." %}
     </div>
-  </div>
+  </section>
 
-  <form method="post" enctype="multipart/form-data" novalidate>
-    {% csrf_token %}
-
-    {% if form.non_field_errors %}
-      <div class="alert alert-danger">
-        {{ form.non_field_errors }}
-      </div>
-    {% endif %}
-
-    <!-- Main Info -->
-    <div class="card border-0 shadow-sm mb-3">
-      <div class="card-header bg-body border-bottom">
-        <strong>Deliverable Information</strong>
-      </div>
-
-      <div class="card-body">
-        <div class="row g-3">
-
-          <div class="col-md-6">
-            <label class="form-label">
-              {{ form.name.label }}{% if form.name.field.required %} *{% endif %}
-            </label>
-            {{ form.name }}
-            <div class="text-danger small">{{ form.name.errors }}</div>
-          </div>
-
-          <div class="col-md-6">
-            <label class="form-label">
-              {{ form.project.label }}{% if form.project.field.required %} *{% endif %}
-            </label>
-
-            {% if object %}
-              <div class="form-control-plaintext border rounded px-2 bg-light">
-                {{ object.project.name }}
-              </div>
-
-              <input type="hidden" name="project" value="{{ object.project.id }}">
-            {% else %}
-              {{ form.project }}
-            {% endif %}
-
-            <div class="text-danger small">{{ form.project.errors }}</div>
-          </div>
-
-          <div class="col-md-4">
-            <label class="form-label">
-              {{ form.category.label }}{% if form.category.field.required %} *{% endif %}
-            </label>
-            {{ form.category }}
-            <div class="text-danger small">{{ form.category.errors }}</div>
-          </div>
-
-          <div class="col-md-4">
-            <label class="form-label">
-              {{ form.type.label }}{% if form.type.field.required %} *{% endif %}
-            </label>
-            {{ form.type }}
-            <div class="text-danger small">{{ form.type.errors }}</div>
-          </div>
-
-          <div class="col-md-4">
-            <label class="form-label">
-              {{ form.department.label }}{% if form.department.field.required %} *{% endif %}
-            </label>
-            {{ form.department }}
-            <div class="text-danger small">{{ form.department.errors }}</div>
-          </div>
-
-          <div class="col-md-3">
-            <label class="form-label">
-              {{ form.assigned_to.label }}{% if form.assigned_to.field.required %} *{% endif %}
-            </label>
-            {{ form.assigned_to }}
-            <div class="text-danger small">{{ form.assigned_to.errors }}</div>
-          </div>
-
-          <div class="col-md-3">
-            <label class="form-label">
-              {{ form.status.label }}{% if form.status.field.required %} *{% endif %}
-            </label>
-            {{ form.status }}
-            <div class="text-danger small">{{ form.status.errors }}</div>
-          </div>
-
-          <div class="col-md-3">
-            <label class="form-label">
-              {{ form.priority.label }}{% if form.priority.field.required %} *{% endif %}
-            </label>
-            {{ form.priority }}
-            <div class="text-danger small">{{ form.priority.errors }}</div>
-          </div>
-
-          <div class="col-md-3">
-            <label class="form-label">
-              {{ form.start_date.label }}{% if form.start_date.field.required %} *{% endif %}
-            </label>
-            {{ form.start_date }}
-            <div class="text-danger small">{{ form.start_date.errors }}</div>
-          </div>
-
-          <div class="col-md-3">
-            <label class="form-label">
-              {{ form.due_date.label }}{% if form.due_date.field.required %} *{% endif %}
-            </label>
-            {{ form.due_date }}
-            <div class="text-danger small">{{ form.due_date.errors }}</div>
-          </div>
-
-          <div class="col-md-6">
-            <label class="form-label">
-              {{ form.directory.label }}{% if form.directory.field.required %} *{% endif %}
-            </label>
-            {{ form.directory }}
-            <div class="form-text">Final output folder/path.</div>
-            <div class="text-danger small">{{ form.directory.errors }}</div>
-          </div>
-
-          <div class="col-md-3">
-            <label class="form-label">
-              {{ form.version.label }}{% if form.version.field.required %} *{% endif %}
-            </label>
-            {{ form.version }}
-            <div class="text-danger small">{{ form.version.errors }}</div>
-          </div>
-
-          <div class="col-md-3">
-            <label class="form-label">
-              {{ form.revision_count.label }}{% if form.revision_count.field.required %} *{% endif %}
-            </label>
-            {{ form.revision_count }}
-            <div class="text-danger small">{{ form.revision_count.errors }}</div>
-          </div>
-
-          <div class="col-12">
-            <label class="form-label">
-              {{ form.description.label }}{% if form.description.field.required %} *{% endif %}
-            </label>
-            {{ form.description }}
-            {% if form.description.help_text %}
-              <div class="form-text">{{ form.description.help_text }}</div>
-            {% endif %}
-            <div class="text-danger small">{{ form.description.errors }}</div>
-          </div>
-
-        </div>
-      </div>
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-cloud-arrow-up"></i>Files</h2>
+    <div class="row g-3">
+      {% field form.preview_link "col-md-6" %}
+      {% field form.file_link "col-md-6" %}
+      {% field form.directory "col-md-6" label="Folder on the server" %}
+      {% field form.file "col-md-6" %}
     </div>
+  </section>
 
-    <!-- Linked Tasks -->
-    <div class="card border-0 shadow-sm mb-3">
-      <div class="card-header bg-body border-bottom">
-        <strong>Linked Tasks</strong>
-      </div>
-
-      <div class="card-body">
-        <label class="form-label">
-          {{ form.tasks.label }}{% if form.tasks.field.required %} *{% endif %}
-        </label>
-        {{ form.tasks }}
-        <div class="form-text">
-          Select the internal tasks required before this deliverable can move forward.
-        </div>
-        <div class="text-danger small">{{ form.tasks.errors }}</div>
-      </div>
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-truck"></i>Handover</h2>
+    <div class="row g-3">
+      {% field form.delivery_medium "col-md-4" %}
+      {% field form.quantity "col-md-4" %}
+      {% field form.handed_over_to "col-md-4" %}
     </div>
+  </section>
+{% endblock %}
 
-    <!-- Digital Delivery -->
-    <div class="card border-0 shadow-sm mb-3">
-      <div class="card-header bg-body border-bottom">
-        <strong>Digital Files</strong>
-      </div>
+{% block cancel_url %}{% if object %}{% url 'projects:deliverable_detail' object.pk %}{% elif project %}{% url 'projects:project_detail' project.pk %}{% else %}{% url 'projects:deliverable_list' %}{% endif %}{% endblock %}
+{% block submit_label %}{% if object %}Save deliverable{% else %}Create deliverable{% endif %}{% endblock %}
 
-      <div class="card-body">
-        <div class="row g-3">
-
-          <div class="col-md-4">
-            <label class="form-label">
-              {{ form.preview_link.label }}
-            </label>
-            {{ form.preview_link }}
-            <div class="form-text">Preview link for review.</div>
-            <div class="text-danger small">{{ form.preview_link.errors }}</div>
-          </div>
-
-          <div class="col-md-4">
-            <label class="form-label">
-              {{ form.file_link.label }}
-            </label>
-            {{ form.file_link }}
-            <div class="form-text">Final Google Drive / cloud link.</div>
-            <div class="text-danger small">{{ form.file_link.errors }}</div>
-          </div>
-
-          <div class="col-md-4">
-            <label class="form-label">
-              {{ form.file.label }}
-            </label>
-            {{ form.file }}
-            <div class="text-danger small">{{ form.file.errors }}</div>
-          </div>
-
-        </div>
-      </div>
-    </div>
-
-    <!-- Physical Delivery -->
-    <div class="card border-0 shadow-sm">
-      <div class="card-header bg-body border-bottom">
-        <strong>Physical / Handover Details</strong>
-      </div>
-
-      <div class="card-body">
-        <div class="row g-3">
-
-          <div class="col-md-4">
-            <label class="form-label">
-              {{ form.delivery_medium.label }}
-            </label>
-            {{ form.delivery_medium }}
-            <div class="form-text">Example: WhatsApp, Drive, Pendrive, Printed Album.</div>
-            <div class="text-danger small">{{ form.delivery_medium.errors }}</div>
-          </div>
-
-          <div class="col-md-4">
-            <label class="form-label">
-              {{ form.quantity.label }}
-            </label>
-            {{ form.quantity }}
-            <div class="text-danger small">{{ form.quantity.errors }}</div>
-          </div>
-
-          <div class="col-md-4">
-            <label class="form-label">
-              {{ form.handed_over_to.label }}
-            </label>
-            {{ form.handed_over_to }}
-            <div class="text-danger small">{{ form.handed_over_to.errors }}</div>
-          </div>
-
-        </div>
-      </div>
-    </div>
-
-    <!-- Buttons -->
-    <div class="d-flex justify-content-center gap-2 mt-3">
-      {% if is_admin or is_project_manager %}
-        <button type="submit" class="btn btn-primary">
-          {% if object %}Save Changes{% else %}Create Deliverable{% endif %}
-        </button>
-      {% endif %}
-
-      {% if object %}
-        <a href="{% url 'projects:deliverable_detail' object.pk %}"
-           class="btn btn-secondary">
-          Cancel
-        </a>
-      {% else %}
-        <a href="{% url 'projects:deliverable_list' %}"
-           class="btn btn-secondary">
-          Cancel
-        </a>
-      {% endif %}
-    </div>
-
-  </form>
-
+{% block extra_js %}
   <script>
-    document.addEventListener("DOMContentLoaded", function () {
-      const projectSelect = document.getElementById("id_project");
-      const tasksSelect = document.getElementById("id_tasks");
+  document.addEventListener("DOMContentLoaded", function () {
+    const projectSelect = document.getElementById("id_project");
+    const tasksSelect = document.getElementById("id_tasks");
 
-      if (!projectSelect || !tasksSelect) return;
+    if (!projectSelect || !tasksSelect) return;
 
-      function loadTasksForProject(projectId) {
-        tasksSelect.innerHTML = "";
+    function loadTasksForProject(projectId) {
+      // Keep any ticks that still apply to the newly loaded list.
+      const chosen = new Set(Array.from(tasksSelect.selectedOptions).map((o) => o.value));
+      tasksSelect.innerHTML = "";
 
-        if (!projectId) return;
+      if (!projectId) return;
 
-        fetch("{% url 'projects:ajax_load_tasks' %}?project=" + projectId)
-          .then((response) => response.json())
-          .then((data) => {
-            data.forEach((task) => {
-              const option = document.createElement("option");
-              option.value = task.id;
-              option.textContent = task.name + " (" + task.status_display + " - " + task.assignee + ")";
-              tasksSelect.appendChild(option);
-            });
-          })
-          .catch((error) => {
-            console.error("Error loading tasks:", error);
+      fetch("{% url 'projects:ajax_load_tasks' %}?project=" + encodeURIComponent(projectId))
+        .then((response) => response.json())
+        .then((data) => {
+          data.forEach((task) => {
+            const option = document.createElement("option");
+            option.value = task.id;
+            option.textContent = task.name + " (" + task.status_display + " - " + task.assignee + ")";
+            option.selected = chosen.has(String(task.id));
+            tasksSelect.appendChild(option);
           });
-      }
+        })
+        .catch((error) => {
+          console.error("Error loading tasks:", error);
+        });
+    }
 
-      projectSelect.addEventListener("change", function () {
-        loadTasksForProject(this.value);
-      });
-
-      if (projectSelect.value) {
-        loadTasksForProject(projectSelect.value);
-      }
+    // The server already lists the current project's tasks; reload only when
+    // the project changes.
+    projectSelect.addEventListener("change", function () {
+      loadTasksForProject(this.value);
     });
-  </script>
-
-</div>
+  });
+</script>
 {% endblock %}

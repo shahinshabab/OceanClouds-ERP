@@ -110,7 +110,7 @@ class CommonModelTests(AuthenticatedViewTestMixin):
         self.assertFalse(session.is_active)
         self.assertEqual(session.end_reason, "logout")
 
-    def test_login_receives_fixed_sixteen_hour_deadline(self):
+    def test_login_receives_fixed_twelve_hour_deadline(self):
         user = make_user(username="fixed-deadline-user")
         browser = Client()
 
@@ -119,7 +119,7 @@ class CommonModelTests(AuthenticatedViewTestMixin):
 
         self.assertEqual(
             login_session.expires_at - login_session.login_at,
-            timedelta(hours=16),
+            timedelta(hours=12),
         )
 
     def test_absolute_expiry_pauses_work_at_session_deadline(self):

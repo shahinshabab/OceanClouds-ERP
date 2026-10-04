@@ -1,245 +1,49 @@
-{% extends "ui/base.html" %}
-{% load roles_tags %}
+{% extends "ui/form_page.html" %}
+{% load ui_tags %}
 
-{% block title %}
-  {% if form.instance.pk %}Edit Vendor{% else %}New Vendor{% endif %}
-{% endblock %}
+{% block title %}{% if form.instance.pk %}Edit vendor{% else %}New vendor{% endif %}{% endblock %}
 
-{% block content %}
-{% has_services_manage_access request.user as can_manage_services %}
+{% block form_eyebrow %}<i class="bi bi-shop"></i> Catalog · Vendors{% endblock %}
+{% block form_title %}{% if form.instance.pk %}Edit {{ form.instance.name }}{% else %}New vendor{% endif %}{% endblock %}
+{% block form_subtitle %}Freelancers and suppliers you book for events.{% endblock %}
 
-<div class="container py-3 max-w-2xl">
-
-  <!-- Header -->
-  <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2 class="fw-semibold mb-0">
-      {% if form.instance.pk %}Edit Vendor{% else %}New Vendor{% endif %}
-    </h2>
-
-    <a href="{% url 'services:vendor_list' %}" class="btn btn-outline-secondary btn-sm">
-      <i class="bi bi-arrow-left"></i>Back to Vendors
-    </a>
-  </div>
-
-  <form method="post" novalidate>
-    {% csrf_token %}
-
-    {% if form.non_field_errors %}
-      <div class="alert alert-danger">
-        {{ form.non_field_errors }}
-      </div>
-    {% endif %}
-
-    <div class="card shadow-sm">
-      <div class="card-body">
-
-        <!-- Row 1: Name / Company / Type -->
-        <div class="row">
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.name.label }}{% if form.name.field.required %} *{% endif %}
-            </label>
-            {{ form.name }}
-            {% for error in form.name.errors %}
-              <div class="small text-danger">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.company_name.label }}{% if form.company_name.field.required %} *{% endif %}
-            </label>
-            {{ form.company_name }}
-            {% for error in form.company_name.errors %}
-              <div class="small text-danger">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.vendor_type.label }}{% if form.vendor_type.field.required %} *{% endif %}
-            </label>
-            {{ form.vendor_type }}
-            {% for error in form.vendor_type.errors %}
-              <div class="small text-danger">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Row 2: Email / Phone / Alt Phone -->
-        <div class="row">
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.email.label }}{% if form.email.field.required %} *{% endif %}
-            </label>
-            {{ form.email }}
-            {% for error in form.email.errors %}
-              <div class="small text-danger">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.phone.label }}{% if form.phone.field.required %} *{% endif %}
-            </label>
-            {{ form.phone }}
-            {% for error in form.phone.errors %}
-              <div class="small text-danger">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.alt_phone.label }}{% if form.alt_phone.field.required %} *{% endif %}
-            </label>
-            {{ form.alt_phone }}
-            {% for error in form.alt_phone.errors %}
-              <div class="small text-danger">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Row 3: WhatsApp / Preferred / Active -->
-        <div class="row">
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.whatsapp.label }}{% if form.whatsapp.field.required %} *{% endif %}
-            </label>
-            {{ form.whatsapp }}
-            {% for error in form.whatsapp.errors %}
-              <div class="small text-danger">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3 d-flex align-items-center">
-            <div class="form-check mt-3">
-              {{ form.is_preferred }}
-              <label class="form-check-label ms-1">
-                {{ form.is_preferred.label }}
-              </label>
-              {% for error in form.is_preferred.errors %}
-                <div class="small text-danger d-block">{{ error }}</div>
-              {% endfor %}
-            </div>
-          </div>
-
-          <div class="col-md-4 mb-3 d-flex align-items-center">
-            <div class="form-check mt-3">
-              {{ form.is_active }}
-              <label class="form-check-label ms-1">
-                {{ form.is_active.label }}
-              </label>
-              {% for error in form.is_active.errors %}
-                <div class="small text-danger d-block">{{ error }}</div>
-              {% endfor %}
-            </div>
-          </div>
-        </div>
-
-        <!-- Row 4: Address Lines -->
-        <div class="row">
-          <div class="col-md-6 mb-3">
-            <label class="form-label">
-              {{ form.address_line1.label }}{% if form.address_line1.field.required %} *{% endif %}
-            </label>
-            {{ form.address_line1 }}
-            {% for error in form.address_line1.errors %}
-              <div class="small text-danger">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-6 mb-3">
-            <label class="form-label">
-              {{ form.address_line2.label }}{% if form.address_line2.field.required %} *{% endif %}
-            </label>
-            {{ form.address_line2 }}
-            {% for error in form.address_line2.errors %}
-              <div class="small text-danger">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Row 5: City / District / State -->
-        <div class="row">
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.city.label }}{% if form.city.field.required %} *{% endif %}
-            </label>
-            {{ form.city }}
-            {% for error in form.city.errors %}
-              <div class="small text-danger">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.district.label }}{% if form.district.field.required %} *{% endif %}
-            </label>
-            {{ form.district }}
-            {% for error in form.district.errors %}
-              <div class="small text-danger">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.state.label }}{% if form.state.field.required %} *{% endif %}
-            </label>
-            {{ form.state }}
-            {% for error in form.state.errors %}
-              <div class="small text-danger">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Row 6: Country -->
-        <div class="row">
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.country.label }}{% if form.country.field.required %} *{% endif %}
-            </label>
-            {{ form.country }}
-            {% for error in form.country.errors %}
-              <div class="small text-danger">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Row 7: Notes -->
-        <div class="row">
-          <div class="col-12 mb-3">
-            <label class="form-label">
-              {{ form.notes.label }}{% if form.notes.field.required %} *{% endif %}
-            </label>
-            {{ form.notes }}
-            {% if form.notes.help_text %}
-              <div class="form-text">{{ form.notes.help_text }}</div>
-            {% endif %}
-            {% for error in form.notes.errors %}
-              <div class="small text-danger">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
+{% block form_body %}
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-shop"></i>Vendor</h2>
+    <div class="row g-3">
+      {% field form.name "col-md-6" %}
+      {% field form.company_name "col-md-6" %}
+      {% field form.vendor_type "col-md-6" %}
+      <div class="col-md-6 d-flex flex-wrap gap-4 align-items-end">
+        {% field form.is_preferred "" %}
+        {% field form.is_active "" %}
       </div>
     </div>
+  </section>
 
-    <!-- Buttons -->
-    <div class="row mt-3">
-      <div class="col-12 d-flex justify-content-center gap-2">
-        {% if can_manage_services %}
-          <button type="submit" class="btn btn-primary px-4">
-            Save
-          </button>
-        {% endif %}
-
-        <a href="{% url 'services:vendor_list' %}" class="btn btn-secondary">
-          Cancel
-        </a>
-      </div>
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-telephone"></i>Contact</h2>
+    <div class="row g-3">
+      {% field form.phone "col-md-6" %}
+      {% field form.alt_phone "col-md-6" %}
+      {% field form.whatsapp "col-md-6" %}
+      {% field form.email "col-md-6" %}
     </div>
+  </section>
 
-  </form>
-
-</div>
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-geo-alt"></i>Address</h2>
+    <div class="row g-3">
+      {% field form.address_line1 "col-md-6" %}
+      {% field form.address_line2 "col-md-6" %}
+      {% field form.city "col-md-3" %}
+      {% field form.district "col-md-3" %}
+      {% field form.state "col-md-3" %}
+      {% field form.country "col-md-3" %}
+      {% field form.notes "col-12" %}
+    </div>
+  </section>
 {% endblock %}
+
+{% block cancel_url %}{% if form.instance.pk %}{% url 'services:vendor_detail' form.instance.pk %}{% else %}{% url 'services:vendor_list' %}{% endif %}{% endblock %}
+{% block submit_label %}Save vendor{% endblock %}

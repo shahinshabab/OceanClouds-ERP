@@ -37,7 +37,10 @@ def copy_lead_data_to_client_if_empty(client, lead):
         ("phone", "phone"),
         ("wedding_city", "city"),
         ("wedding_district", "district"),
+        # The couple's own state and country first, the wedding's for older leads.
+        ("state", "state"),
         ("wedding_state", "state"),
+        ("country", "country"),
         ("wedding_country", "country"),
     ]
 
@@ -77,8 +80,8 @@ def get_or_create_client_from_lead(lead, user):
             phone=lead.phone or lead.whatsapp,
             city=lead.wedding_city,
             district=lead.wedding_district,
-            state=lead.wedding_state or "Kerala",
-            country=lead.wedding_country or "India",
+            state=lead.state or lead.wedding_state or "",
+            country=lead.country or lead.wedding_country or "India",
             notes=f"Created from lead #{lead.pk}",
         )
     else:
@@ -163,41 +166,32 @@ def get_amount_in_words(value):
 
 
 # Payment split used everywhere (proposal terms, contract schedule, signing
-# page, advance default). Change it here only.
-ADVANCE_PERCENT = 10
-EVENT_PERCENT = 30
-DELIVERY_PERCENT = 60
+# page, advance default). It is edited on the proposal & contract template.
 
 
-def payment_split_term():
+def document_template():
+    from .models import SalesDocumentTemplate
+
+    return SalesDocumentTemplate.load()
+
+
+def payment_split(template=None):
+    template = template or document_template()
+    return template.advance_percent, template.event_percent, template.delivery_percent
+
+
+def payment_split_term(template=None):
+    advance, event, delivery = payment_split(template)
     return (
-        f"{ADVANCE_PERCENT}% of the quoted amount should be paid in advance, "
-        f"{EVENT_PERCENT}% on or the day after the function, "
-        f"and the balance {DELIVERY_PERCENT}% upon delivery."
+        f"{advance}% of the quoted amount should be paid in advance, "
+        f"{event}% on or the day after the function, "
+        f"and the balance {delivery}% upon delivery."
     )
 
 
 def get_proposal_terms():
-    return [
-        payment_split_term(),
-        "Additional charges for travel expense & accommodation if required.",
-        "All prices are exclusive of taxes.",
-        "Booking will be confirmed only after receiving the advance payment.",
-        "The advance amount cannot be reimbursed in case of cancellation.",
-        "Capture during the entire event can be accessed through a website or mobile link as a digital album.",
-        "Photos for the signature albums, if included in the package, will be selected by the editors. Any add-ons should be mentioned prior to the post-production team.",
-        "The soft copies for the signature albums will be shared with the clients and one set of corrections will be appreciable.",
-        "The albums will be sent for printing on completion of final payment and delivery will be completed in 5-7 days from the date of payment.",
-        "Any delay from the client's end will affect the workflow of the team and the promised delivery timeline.",
-        "Ocean Clouds Wedding Company does not commit any client to post photos or videos of the event on its website or social networks. However, Ocean Clouds may upload the same for marketing purposes unless instructed otherwise.",
-        "Any request to post photos or videos online will not be entertained at any cost.",
-        "During the event, the client is responsible for local travel, food and accommodation. The room must be standard AC and fuel charges will be an additional cost.",
-        "For every additional hour, there will be an extra charge of Rs. 1500 per camera.",
-        "Any additional events not quoted will be charged extra.",
-        "Any changes to the agreement must be made through a revised quote rather than a verbal agreement.",
-        "All images and films are under the copyright of Ocean Clouds, which we may use for advertising and brand promotion.",
-        "We are not liable for any losses caused by circumstances beyond our control, including natural disasters, power outages, technical difficulties, fire, or any other unforeseen occurrence that disrupts our service, including post-production.",
-    ]
+    template = document_template()
+    return [payment_split_term(template)] + _clean_lines(template.proposal_terms)
 
 
 def percentage_amount(amount, percent):
@@ -304,52 +298,21 @@ def get_payment_plan_deliverable_rows():
 
 
 def get_payment_plan_client_notes():
-    return [
-        "We need a one hour section for bride/groom solo shoots.",
-        "We need a one hour section for couple shoots.",
-        "Photos of every function will be provided through Ocean Clouds photo gallery link.",
-        "The photo gallery will be valid for up to 6 months.",
-        "Wedding film is more like a short cinematic love story. It captures the essence of your main day, the key emotions, moments, rituals, and your bond as a couple.",
-        "Highlight film is a more detailed edit. It includes candid moments, important parts of the function, rituals, and emotions, but not like a full documentary.",
-        "If your package includes only wedding film and highlight film, full length documentary style coverage must be added separately.",
-        "After the wedding/event, we will deliver the pen drive or drive link with your photos and films.",
-        "The album design process will begin only after you provide selected photos for the album.",
-        "For the safety of our equipment, we do not photograph or film events that use laser lights or trending laser effects.",
-    ]
+    return _clean_lines(document_template().good_to_know)
 
 
 def get_payment_plan_terms():
-    return [
-        "All prices are exclusive of taxes.",
-        "Booking will be confirmed only after receiving the advance payment.",
-        "The advance amount cannot be reimbursed in case of cancellation.",
-        payment_split_term(),
-        "Additional charges for travel expense and accommodation will be applicable if required based on the distance and number of times we travel.",
-        "Our charges are for the reserved time and crew availability, not solely for the number of photos or videos delivered.",
-        "If, for any reason, the shoot cannot be carried out as scheduled due to delays, cancellations, or circumstances beyond our control, the agreed payment remains payable in full.",
-        "The post production work will begin only after completion of the second payment and any delay in payment will affect the promised date of submission of outputs.",
-        "The raw files will only be delivered after completion of final payment.",
-        "The album will be sent for printing only after completion of final payment and the delivery will be completed within 7 to 10 working days from the date of payment.",
-        "Two sets of correction for highlight film will be appreciable, unless it is a miss out from the team and the same applies for documentary videos.",
-        "The events will be captured according to the plan that we have already discussed. Any changes in concept should be informed before the event.",
-        "The edited photos will be selected completely under our direction.",
-        "Photos for the signature album, if included in the package, will be selected by the editors. Any add-ons should be mentioned prior to the post production team.",
-        "The soft copies for the signature album will be shared with the clients and one set of corrections will be appreciable.",
-        "Any delay from the client's end will affect the entire workflow of the team and the timelines we promise to deliver the output.",
-        "We do not commit any client to post photos or videos of the event on our website or social networks. However, we may upload the same for marketing purposes unless instructed otherwise.",
-        "Any request to post the photos or videos online will not be entertained at any cost.",
-        "Lighting requirements that we have from our end depend on the location and time of day.",
-        "Any additional events not quoted will be charged extra.",
-        "Any changes to the agreement must be made through a revised quote rather than a verbal agreement.",
-        "We are not liable for any losses caused by circumstances beyond our control, including natural disasters, power outages, technical difficulties, fire, or any other unforeseen occurrence that disrupts our service.",
-    ]
+    template = document_template()
+    return [payment_split_term(template)] + _clean_lines(template.contract_terms)
 
 
 def get_payment_plan_important_terms():
-    return [
-        "While we acknowledge that events can be both enjoyable and hectic, everyone should adhere to the designated timelines. Sufficient time is required for comprehensive coverage and creative work.",
-        "The company cannot be held responsible for restrictions imposed by the venue, including flash, photography, drones, laser areas, or other restrictions. The client should communicate such things to the company beforehand or negotiate with the venue coordinators.",
-    ]
+    # Kept for older callers; these lines are part of the contract terms now.
+    return []
+
+
+def get_payment_terms():
+    return _clean_lines(document_template().payment_terms)
 
 
 def email_enabled():
@@ -489,8 +452,8 @@ def _event_date_for_day(contract, day=None):
 
     return (
         (day.event_date if day else None)
-        or contract.start_date
         or (lead.wedding_date if lead else None)
+        or contract.start_date
         or (deal.expected_close_date if deal else None)
     )
 
@@ -684,15 +647,18 @@ def build_proposal_document_context(proposal):
         "last_date": last_date,
         "reference": proposal_reference(proposal),
         "amount_words": get_amount_in_words(plan.total if plan else proposal.total),
+        "intro": proposal.intro or document_template().proposal_note,
         "terms": _clean_lines(proposal.terms) or get_proposal_terms(),
     }
 
 
-PAYMENT_SCHEDULE = (
-    ("Booking advance", ADVANCE_PERCENT, "To reserve your dates"),
-    ("On the event day", EVENT_PERCENT, "On or the day after the function"),
-    ("On delivery", DELIVERY_PERCENT, "When the final outputs are delivered"),
-)
+def payment_schedule(template=None):
+    advance, event, delivery = payment_split(template)
+    return (
+        ("Booking advance", advance, "To reserve your dates"),
+        ("On the event day", event, "On or the day after the function"),
+        ("On delivery", delivery, "When the final outputs are delivered"),
+    )
 
 
 def build_contract_document_context(contract):
@@ -704,19 +670,25 @@ def build_contract_document_context(contract):
     first_date, last_date = _date_span(days)
     total = get_contract_pdf_total(contract)
 
+    template = document_template()
+    schedule = payment_schedule(template)
     payments = []
     remaining = total
-    for index, (label, percent, note) in enumerate(PAYMENT_SCHEDULE):
-        amount = remaining if index == len(PAYMENT_SCHEDULE) - 1 else percentage_amount(total, percent)
+    for index, (label, percent, note) in enumerate(schedule):
+        amount = remaining if index == len(schedule) - 1 else percentage_amount(total, percent)
         remaining -= amount
         payments.append({"label": label, "percent": percent, "note": note, "amount": amount})
 
     terms = _clean_lines(contract.terms) or get_payment_plan_terms()
-    client_notes = get_payment_plan_client_notes()
-    important_terms = get_payment_plan_important_terms()
+    if not any("%" in term and "advance" in term for term in terms):
+        terms = [payment_split_term(template)] + terms
+    client_notes = _clean_lines(template.good_to_know)
+    important_terms = []
 
     return {
         "contract": contract,
+        # Views showing the contract to production staff turn this off.
+        "show_money": True,
         "client": get_contract_client(contract),
         "event_days": days,
         "deliverables": _deliverable_rows(days),
@@ -732,4 +704,6 @@ def build_contract_document_context(contract):
         "terms": terms,
         "important_terms": important_terms,
         "all_terms": terms + client_notes[4:] + important_terms,
+        "contract_note": template.contract_note,
+        "payment_terms": _clean_lines(template.payment_terms),
     }

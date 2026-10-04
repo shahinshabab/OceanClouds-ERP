@@ -4,18 +4,31 @@
   {% endfor %}
   {% for week in cal_weeks %}
     {% for day in week %}
-      <div class="cal-day{% if not day.in_month %} out{% endif %}{% if day.is_today %} today{% endif %}{% if day.is_past %} past{% endif %}{% if day.is_weekend %} weekend{% endif %}" role="gridcell">
+      <div class="cal-day{% if not day.in_month %} out{% endif %}{% if day.is_today %} today{% endif %}{% if day.is_past %} past{% endif %}{% if day.is_weekend %} weekend{% endif %}{% if day.count %} has-items{% endif %}" role="gridcell">
         <div class="cal-date-row">
-          <a class="cal-date" href="{{ day.week_url }}" title="{{ day.date|date:'l, d F Y' }}">{{ day.date|date:"j" }}</a>
-          {% if day.count %}<span class="cal-count d-md-none">{{ day.count }}</span>{% endif %}
+          <a class="cal-date" href="{{ day.week_url }}" title="Open the week of {{ day.date|date:'d F Y' }}">{{ day.date|date:"j" }}</a>
+          {% if day.count > 3 %}<span class="cal-count d-none d-md-inline">{{ day.count }}</span>{% endif %}
         </div>
-        {% for item in day.items %}
-          {% include "ui/calendar/item.html" %}
-        {% endfor %}
-        {% if day.more %}
-          <a class="cal-more" href="{{ day.agenda_url }}">+{{ day.more }} more</a>
+
+        {# Desktop: every entry; a busy day scrolls inside the cell. #}
+        {% if day.items %}
+          <div class="cal-day-items d-none d-md-flex">
+            {% for item in day.items %}{% include "ui/calendar/item.html" %}{% endfor %}
+          </div>
         {% endif %}
-        {% if cal_add_url %}<a class="cal-add" href="{{ cal_add_url }}date={{ day.date|date:'Y-m-d' }}" title="Add on {{ day.date|date:'d M' }}" aria-label="Add on {{ day.date|date:'d M' }}"><i class="bi bi-plus"></i></a>{% endif %}
+
+        {# Phone: one line per kind; the whole day opens its week. #}
+        {% if day.groups %}
+          <a class="cal-day-summary d-md-none" href="{{ day.week_url }}" aria-label="{{ day.date|date:'d M' }}: {% for g in day.groups %}{{ g.label }}{% if not forloop.last %}, {% endif %}{% endfor %}. Open the week.">
+            {% for g in day.groups %}
+              <span class="cal-sum is-{{ g.first.tone }}">
+                <i class="bi {{ g.icon }}" aria-hidden="true"></i><span class="cal-title">{{ g.first.title }}</span><b>{{ g.count }}</b>
+              </span>
+            {% endfor %}
+          </a>
+        {% endif %}
+
+        {% if cal_add_url %}<a class="cal-add" href="{{ cal_add_url }}date={{ day.date|date:'Y-m-d' }}" title="Add an event on {{ day.date|date:'d M' }}" aria-label="Add an event on {{ day.date|date:'d M' }}"><i class="bi bi-plus"></i></a>{% endif %}
       </div>
     {% endfor %}
   {% endfor %}

@@ -18,6 +18,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         self.today = timezone.localdate()
         self.created_count = 0
+        self.notified_count = 0
 
         self.generate_lead_next_action_todos()
         self.generate_deal_followup_todos()
@@ -36,13 +37,19 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.SUCCESS(
-                f"Daily due todo generation completed. Created {self.created_count} new todos."
+                f"Daily due todo generation completed. Created {self.created_count} new todos, "
+                f"sent {self.notified_count} reminders."
             )
         )
 
     # ------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------
+
+    def create_todo(self, **kwargs):
+        # The scheduler may run this more than once a day (e.g. after a
+        # restart); a to-do already made today is not made again.
+        return create_todo_once(done_since=self.today, **kwargs)
 
     def add_count(self, created):
         if created:
@@ -83,7 +90,7 @@ class Command(BaseCommand):
 
             note = lead.next_action_note or "Please follow up this lead."
 
-            _, created = create_todo_once(
+            _, created = self.create_todo(
                 title=f"Lead next action: {lead.name}",
                 description=note,
                 owner=assigned_user,
@@ -101,12 +108,22 @@ class Command(BaseCommand):
     # ------------------------------------------------------------
 
     def generate_deal_followup_todos(self):
+        """
+        Deals closing today or with a next action today: the owner gets a
+        notification, and the deal's reminder to-dos are brought up to date
+        (sales.signals keeps them in step whenever the deal is saved).
+        """
+        from django.db.models import Q
+
+        from common.models import Notification
+        from common.notifications import notify_user
         from sales.models import Deal, DealStage
+        from sales.signals import sync_deal_todos
 
         deals = (
             Deal.objects
-            .select_related("owner", "client", "lead")
-            .filter(expected_close_date=self.today)
+            .select_related("owner", "client", "lead", "lead__owner")
+            .filter(Q(expected_close_date=self.today) | Q(next_action_date=self.today))
             .exclude(stage__in=[
                 DealStage.WON,
                 DealStage.LOST,
@@ -114,30 +131,32 @@ class Command(BaseCommand):
         )
 
         for deal in deals:
-            assigned_user = deal.owner
-
-            if not assigned_user and deal.lead_id:
-                assigned_user = deal.lead.owner
-
+            assigned_user = deal.owner or (deal.lead.owner if deal.lead_id else None)
             if not assigned_user:
                 continue
 
-            _, created = create_todo_once(
-                title=f"Deal follow-up: {deal.name}",
-                description=(
-                    "Today is the expected closing date for this deal. "
-                    "Please follow up with the client."
-                ),
-                owner=assigned_user,
-                assigned_to=assigned_user,
-                priority=TodoPriority.HIGH,
-                due_date=self.today,
-                client=deal.client,
-                lead=deal.lead,
-                deal=deal,
-            )
+            sync_deal_todos(deal)
 
-            self.add_count(created)
+            if deal.expected_close_date == self.today:
+                sent = notify_user(
+                    recipient=assigned_user,
+                    notif_type=Notification.Type.DEAL_EXPECTED_CLOSE,
+                    target=deal,
+                    message=f"Deal expected to close today: {deal.name}",
+                    extra_key=f"close:{self.today.isoformat()}",
+                )
+                self.notified_count += 1 if sent else 0
+
+            if deal.next_action and deal.next_action_date == self.today:
+                note = f" ({deal.next_action_note})" if deal.next_action_note else ""
+                sent = notify_user(
+                    recipient=assigned_user,
+                    notif_type=Notification.Type.DEAL_EXPECTED_CLOSE,
+                    target=deal,
+                    message=f"{deal.get_next_action_display()} today for {deal.name}{note}",
+                    extra_key=f"action:{self.today.isoformat()}",
+                )
+                self.notified_count += 1 if sent else 0
 
     # ------------------------------------------------------------
     # Sales: Proposal valid until date
@@ -167,7 +186,7 @@ class Command(BaseCommand):
             if not assigned_user:
                 continue
 
-            _, created = create_todo_once(
+            _, created = self.create_todo(
                 title=f"Proposal validity ends today: {proposal}",
                 description=(
                     "This proposal validity ends today. "
@@ -209,7 +228,7 @@ class Command(BaseCommand):
             if not assigned_user:
                 continue
 
-            _, created = create_todo_once(
+            _, created = self.create_todo(
                 title=f"Contract starts today: {contract}",
                 description=(
                     "This contract starts today. "
@@ -252,7 +271,7 @@ class Command(BaseCommand):
             if not assigned_user:
                 continue
 
-            _, created = create_todo_once(
+            _, created = self.create_todo(
                 title=f"Contract ends today: {contract}",
                 description=(
                     "This contract ends today. "
@@ -298,7 +317,7 @@ class Command(BaseCommand):
             if not assigned_user:
                 continue
 
-            _, created = create_todo_once(
+            _, created = self.create_todo(
                 title=f"Invoice due today: {invoice}",
                 description="Invoice is due today. Please follow up payment with the client.",
                 owner=assigned_user,
@@ -336,7 +355,7 @@ class Command(BaseCommand):
 
         for project in projects:
             for admin in admins:
-                _, created = create_todo_once(
+                _, created = self.create_todo(
                     title=f"Project due today: {project.name}",
                     description=(
                         "This project is due today. "
@@ -382,7 +401,7 @@ class Command(BaseCommand):
                 users_to_notify.extend(admins)
 
             for user in users_to_notify:
-                _, created = create_todo_once(
+                _, created = self.create_todo(
                     title=f"Collect client review: {project.name}",
                     description=(
                         "This project is completed, but the client review has not been collected yet. "
@@ -429,7 +448,7 @@ class Command(BaseCommand):
                 users_to_notify.extend(admins)
 
             for user in users_to_notify:
-                _, created = create_todo_once(
+                _, created = self.create_todo(
                     title=f"Close completed project: {project.name}",
                     description=(
                         "The project is completed and client review is collected. "
@@ -468,7 +487,7 @@ class Command(BaseCommand):
             if not assigned_user:
                 continue
 
-            _, created = create_todo_once(
+            _, created = self.create_todo(
                 title=f"Task due today: {task.name}",
                 description="This task is due today. Please complete it or update the task status.",
                 owner=task.project.manager or task.owner or assigned_user,
@@ -504,7 +523,7 @@ class Command(BaseCommand):
             if not assigned_user:
                 continue
 
-            _, created = create_todo_once(
+            _, created = self.create_todo(
                 title=f"Deliverable due today: {deliverable.name}",
                 description="This deliverable is due today. Please complete it or update its status.",
                 owner=deliverable.project.manager or deliverable.owner or assigned_user,
@@ -550,7 +569,7 @@ class Command(BaseCommand):
             if not pending_items.exists():
                 continue
 
-            _, created = create_todo_once(
+            _, created = self.create_todo(
                 title=f"Check event checklist: {event.name}",
                 description=(
                     f"Event is scheduled today. "
@@ -571,7 +590,7 @@ class Command(BaseCommand):
             for item in pending_items:
                 item_assigned_user = item.assigned_to or assigned_user
 
-                _, created = create_todo_once(
+                _, created = self.create_todo(
                     title=f"Event checklist item due: {item.title}",
                     description=item.notes or "Please complete this event checklist item.",
                     owner=item.owner or event.owner or assigned_user,

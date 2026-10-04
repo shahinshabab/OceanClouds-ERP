@@ -4,19 +4,19 @@
 {% block title %}{{ client }} · Client{% endblock %}
 
 {% block content %}
+{% has_crm_access request.user as can_crm %}
 {% is_admin request.user as is_admin %}
 {% is_crm_manager request.user as is_crm_manager %}
 {% has_event_manage_access request.user as can_events %}
 {% has_project_access request.user as can_projects %}
 
 <div class="container">
-  {% include "common/detail_messages.html" %}
 
   <div class="page-header">
     <div class="d-flex align-items-center gap-3 min-w-0">
       <span class="avatar-circle lg">{{ client|initials }}</span>
       <div class="min-w-0">
-        <div class="page-eyebrow"><a href="{% url 'crm:client_list' %}"><i class="bi bi-people"></i> Clients</a></div>
+        <div class="page-eyebrow">{% if can_crm %}<a href="{% url 'crm:client_list' %}"><i class="bi bi-people"></i> Clients</a>{% else %}<i class="bi bi-people"></i> Client{% endif %}</div>
         <h1 class="page-title">{{ client }}</h1>
         <div class="page-subtitle d-flex flex-wrap align-items-center gap-2">
           {% if client.is_active %}<span class="status status-solid">Active</span>{% else %}<span class="status status-muted">Inactive</span>{% endif %}
@@ -285,7 +285,7 @@
                 {% if leads %}
                   <ul class="mini-list">
                     {% for lead in leads %}
-                      <li><div class="grow"><div class="t"><a href="{% url 'crm:lead_detail' lead.pk %}">{{ lead.name }}</a></div><div class="m">{{ lead.created_at|date:"d M Y" }}</div></div>{% status_pill lead.status lead.get_status_display %}</li>
+                      <li><div class="grow"><div class="t">{% if can_crm %}<a href="{% url 'crm:lead_detail' lead.pk %}">{{ lead.name }}</a>{% else %}{{ lead.name }}{% endif %}</div><div class="m">{{ lead.created_at|date:"d M Y" }}</div></div>{% status_pill lead.status lead.get_status_display %}</li>
                     {% endfor %}
                   </ul>
                 {% else %}<div class="px-3 py-3 small text-muted">No leads.</div>{% endif %}

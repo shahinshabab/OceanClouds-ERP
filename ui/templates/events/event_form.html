@@ -1,250 +1,61 @@
-{% extends "ui/base.html" %}
-{% load roles_tags %}
+{% extends "ui/form_page.html" %}
+{% load ui_tags %}
 
-{% block title %}
-  {% if form.instance.pk %}Edit Event{% else %}New Event{% endif %}
-{% endblock %}
+{% block title %}{% if form.instance.pk %}Edit event{% else %}New event{% endif %}{% endblock %}
 
-{% block content %}
-{% has_event_manage_access request.user as can_manage_events %}
+{% block form_eyebrow %}<i class="bi bi-stars"></i> Clients &amp; events · Events{% endblock %}
+{% block form_title %}{% if form.instance.pk %}Edit {{ form.instance.name }}{% else %}New event{% endif %}{% endblock %}
+{% block form_subtitle %}{% if not form.instance.pk %}Events are usually created from a signed contract. The project is created from the event afterwards.{% endif %}{% endblock %}
 
-<div class="container py-3 max-w-2xl">
+{% block form_body %}
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-stars"></i>Event</h2>
+    <div class="row g-3">
+      {% field form.name "col-md-8" %}
+      {% field form.client "col-md-4" %}
+      {% field form.event_type "col-md-6" %}
+      {% field form.status "col-md-6" %}
+    </div>
+  </section>
 
-  <!-- Header -->
-  <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2 class="fw-semibold mb-0">
-      {% if form.instance.pk %}Edit Event{% else %}New Event{% endif %}
-    </h2>
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-clock"></i>When and where</h2>
+    <div class="row g-3">
+      {% field form.date "col-md-4" %}
+      {% field form.start_time "col-6 col-md-4" %}
+      {% field form.end_time "col-6 col-md-4" %}
+      {% field form.venue "col-12" %}
+    </div>
+  </section>
 
-    <a href="{% url 'events:event_list' %}" class="btn btn-outline-secondary btn-sm">
-      <i class="bi bi-arrow-left"></i>Back to Events
-    </a>
-  </div>
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-camera"></i>Services and packages</h2>
+    <div class="row g-3">
+      {% field form.services "col-lg-6" %}
+      {% field form.packages "col-lg-6" %}
+    </div>
+  </section>
 
-  <form method="post" novalidate>
-    {% csrf_token %}
-
-    {% if form.non_field_errors %}
-      <div class="alert alert-danger">
-        {{ form.non_field_errors }}
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-shop"></i>Vendors and equipment</h2>
+    {% if form.instance.pk %}
+      <div class="row g-3">
+        {% field form.vendors "col-lg-6" %}
+        {% field form.inventory_items "col-lg-6" label="Equipment" %}
       </div>
+    {% else %}
+      <p class="text-muted small mb-0">You can assign vendors and equipment once the event is saved.</p>
     {% endif %}
+  </section>
 
-    <div class="card shadow-sm">
-      <div class="card-body">
-
-        <!-- Row 1: Client -->
-        <div class="row">
-          <div class="col-12 mb-3">
-            <label class="form-label">
-              {{ form.client.label }}{% if form.client.field.required %} *{% endif %}
-            </label>
-            {{ form.client }}
-            <div class="form-text">The contact person is taken from the client. The project is created later from the event page.</div>
-            {% for error in form.client.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Row 2: Name -->
-        <div class="row">
-          <div class="col-12 mb-3">
-            <label class="form-label">
-              {{ form.name.label }}{% if form.name.field.required %} *{% endif %}
-            </label>
-            {{ form.name }}
-            {% if form.name.help_text %}
-              <div class="form-text">{{ form.name.help_text }}</div>
-            {% endif %}
-            {% for error in form.name.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Row 3: Type / Status / Date -->
-        <div class="row">
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.event_type.label }}{% if form.event_type.field.required %} *{% endif %}
-            </label>
-            {{ form.event_type }}
-            {% for error in form.event_type.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.status.label }}{% if form.status.field.required %} *{% endif %}
-            </label>
-            {{ form.status }}
-            {% for error in form.status.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.date.label }}{% if form.date.field.required %} *{% endif %}
-            </label>
-            {{ form.date }}
-            {% for error in form.date.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Row 4: Time / Venue -->
-        <div class="row">
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.start_time.label }}{% if form.start_time.field.required %} *{% endif %}
-            </label>
-            {{ form.start_time }}
-            {% for error in form.start_time.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.end_time.label }}{% if form.end_time.field.required %} *{% endif %}
-            </label>
-            {{ form.end_time }}
-            {% for error in form.end_time.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.venue.label }}{% if form.venue.field.required %} *{% endif %}
-            </label>
-            {{ form.venue }}
-            {% for error in form.venue.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Row 5: Services / Packages -->
-        <div class="row">
-          <div class="col-md-6 mb-3">
-            <label class="form-label">
-              {{ form.services.label }}
-            </label>
-
-            <div class="border rounded-3 p-2 overflow-auto">
-              {{ form.services }}
-            </div>
-
-            {% for error in form.services.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-6 mb-3">
-            <label class="form-label">
-              {{ form.packages.label }}
-            </label>
-
-            <div class="border rounded-3 p-2 overflow-auto">
-              {{ form.packages }}
-            </div>
-
-            {% for error in form.packages.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-        {% if form.instance.pk %}
-        <div class="row">
-          <div class="col-md-6 mb-3">
-            <label class="form-label">
-              {{ form.vendors.label }}
-            </label>
-
-            <div class="border rounded-3 p-2 overflow-auto">
-              {{ form.vendors }}
-            </div>
-
-            {% for error in form.vendors.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-6 mb-3">
-            <label class="form-label">
-              {{ form.inventory_items.label }}
-            </label>
-
-            <div class="border rounded-3 p-2 overflow-auto">
-              {{ form.inventory_items }}
-            </div>
-
-            {% for error in form.inventory_items.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-        {% else %}
-        <p class="text-muted small mb-3">Vendors and inventory can be assigned after the event is created.</p>
-        {% endif %}
-
-        <!-- Row 7: Notes -->
-        <div class="row">
-          <div class="col-12 mb-3">
-            <label class="form-label">
-              {{ form.notes.label }}{% if form.notes.field.required %} *{% endif %}
-            </label>
-            {{ form.notes }}
-            {% if form.notes.help_text %}
-              <div class="form-text">{{ form.notes.help_text }}</div>
-            {% endif %}
-            {% for error in form.notes.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Row 8: Internal Notes -->
-        <div class="row">
-          <div class="col-12 mb-3">
-            <label class="form-label">
-              {{ form.internal_notes.label }}{% if form.internal_notes.field.required %} *{% endif %}
-            </label>
-            {{ form.internal_notes }}
-            {% if form.internal_notes.help_text %}
-              <div class="form-text">{{ form.internal_notes.help_text }}</div>
-            {% endif %}
-            {% for error in form.internal_notes.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-      </div>
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-journal-text"></i>Notes</h2>
+    <div class="row g-3">
+      {% field form.notes "col-md-6" %}
+      {% field form.internal_notes "col-md-6" %}
     </div>
-
-    <!-- Buttons -->
-    <div class="row mt-3">
-      <div class="col-12 d-flex justify-content-center gap-2">
-        {% if can_manage_events %}
-          <button type="submit" class="btn btn-primary px-4">
-            Save
-          </button>
-        {% endif %}
-
-        <a href="{% url 'events:event_list' %}" class="btn btn-secondary">
-          Cancel
-        </a>
-      </div>
-    </div>
-
-  </form>
-
-</div>
+  </section>
 {% endblock %}
+
+{% block cancel_url %}{% if form.instance.pk %}{% url 'events:event_detail' form.instance.pk %}{% else %}{% url 'events:event_list' %}{% endif %}{% endblock %}
+{% block submit_label %}Save event{% endblock %}

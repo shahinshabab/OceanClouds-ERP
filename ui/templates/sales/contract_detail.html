@@ -11,7 +11,6 @@
 {% has_event_manage_access request.user as can_open_events %}
 
 <div class="container">
-  {% include "common/detail_messages.html" %}
 
   <div class="page-header">
     <div class="min-w-0">
@@ -23,7 +22,7 @@
       <div class="page-subtitle d-flex flex-wrap align-items-center gap-2">
         {% status_pill contract.status contract.get_status_display %}
         {% if contract.deal.customer %}<span><i class="bi bi-person"></i> {{ contract.deal.customer }}</span>{% endif %}
-        {% if contract.total %}<span class="tabular">{{ contract.total|inr }}</span>{% endif %}
+        {% if contract.total and show_money %}<span class="tabular">{{ contract.total|inr }}</span>{% endif %}
         {% if contract.signed_at %}<span><i class="bi bi-pen"></i> Signed by {{ contract.signed_by_name|default:"customer" }} on {{ contract.signed_at|date:"d M Y" }}</span>{% endif %}
       </div>
     </div>
@@ -42,7 +41,9 @@
         <a href="{% url 'sales:contract_update' contract.pk %}" class="btn btn-outline-dark btn-sm"><i class="bi bi-pencil"></i>Edit</a>
 
         {% if contract.status == "signed" %}
-          {% if not invoice %}
+          {% if needs_approval %}
+            <a href="#approve" class="btn btn-dark btn-sm"><i class="bi bi-check2-circle"></i>Review and approve</a>
+          {% elif not invoice %}
             <a href="{% url 'sales:contract_generate_invoice' contract.pk %}" class="btn btn-dark btn-sm"><i class="bi bi-receipt"></i>Generate invoice</a>
           {% elif not contract.events.exists %}
             <form method="post" action="{% url 'sales:contract_create_client_event' contract.pk %}" class="m-0">
@@ -72,6 +73,31 @@
   </div>
 
   {% if is_sales and contract.deal %}{% sales_flow deal=contract.deal here="contract" %}{% endif %}
+
+  {% if approval_form %}
+    <div class="card mb-4 border-dark" id="approve">
+      <div class="card-body">
+        <div class="d-flex gap-3 align-items-start">
+          <i class="bi bi-check2-circle fs-4"></i>
+          <div class="flex-grow-1 min-w-0">
+            <div class="fw-semibold">Signed by {{ contract.signed_by_name|default:"the customer" }}{% if contract.signed_date %} on {{ contract.signed_date|date:"d M Y" }}{% endif %}. Approve to finish the sale.</div>
+            <div class="small text-muted mb-3">Approving creates the invoice from this contract{% if contract.deal.advance_paid %} with the advance of {{ contract.deal.advance_paid|inr }} deducted{% endif %}, the client, and one event per contract day.</div>
+            <form method="post" action="{% url 'sales:contract_approve' contract.pk %}" class="row g-2 align-items-end">
+              {% csrf_token %}
+              <div class="col-md-7">
+                <label class="form-label" for="{{ approval_form.client.id_for_label }}">Client for the events</label>
+                {{ approval_form.client }}
+                <div class="form-text">Pick an existing client for a returning customer. A client with the same phone or email is reused automatically.</div>
+              </div>
+              <div class="col-md-5">
+                <button type="submit" class="btn btn-dark w-100"><i class="bi bi-check2"></i>Approve and create invoice &amp; client</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  {% endif %}
 
   {% if is_sales and contract.signing_token and contract.status != "signed" and contract.status != "cancelled" %}
     <div class="card mb-4">
@@ -108,7 +134,7 @@
               <div class="table-responsive">
                 <table class="table align-middle">
                   <thead>
-                    <tr><th>Item</th><th>Deliverables</th><th class="text-end">Qty</th><th class="text-end">Rate</th><th class="text-end">Amount</th></tr>
+                    <tr><th>Item</th><th>Deliverables</th><th class="text-end">Qty</th>{% if show_money %}<th class="text-end">Rate</th><th class="text-end">Amount</th>{% endif %}</tr>
                   </thead>
                   <tbody>
                     {% for item in event_day.items.all %}
@@ -125,8 +151,10 @@
                           {% empty %}<span class="text-muted">—</span>{% endfor %}
                         </td>
                         <td class="text-end tabular">{{ item.quantity }}</td>
+                        {% if show_money %}
                         <td class="text-end tabular">{{ item.unit_price|inr }}</td>
                         <td class="text-end tabular fw-semibold">{{ item.line_total|inr }}</td>
+                        {% endif %}
                       </tr>
                     {% empty %}
                       <tr><td colspan="5" class="text-muted small">No items for this day.</td></tr>
@@ -141,11 +169,11 @@
         {% endif %}
       </div>
 
-      {% if is_sales or is_project_manager %}
+      {% if show_money %}
         <div class="card mb-4">
           <div class="card-header">
             <h2 class="section-title"><i class="bi bi-receipt"></i>Invoices</h2>
-            {% if is_admin or is_crm_manager %}{% if not invoice and contract.status == "signed" %}
+            {% if is_admin or is_crm_manager %}{% if not invoice and contract.status == "signed" and not needs_approval %}
               <a href="{% url 'sales:contract_generate_invoice' contract.pk %}" class="btn btn-light btn-sm"><i class="bi bi-plus-lg"></i>Generate invoice</a>
             {% endif %}{% endif %}
           </div>
@@ -169,7 +197,7 @@
           {% else %}
             <div class="empty-state">
               <i class="bi bi-receipt"></i>
-              {% if contract.status == "signed" %}No invoice generated from this contract yet.{% else %}The invoice can be generated once the contract is signed.{% endif %}
+              {% if needs_approval %}The invoice is created when the contract is approved.{% elif contract.status == "signed" %}No invoice generated from this contract yet.{% else %}The invoice can be generated once the contract is signed.{% endif %}
             </div>
           {% endif %}
         </div>
@@ -184,6 +212,7 @@
     </div>
 
     <div class="col-xl-4 order-1 order-xl-2">
+      {% if show_money %}
       <div class="card mb-4">
         <div class="card-header"><h2 class="section-title"><i class="bi bi-calculator"></i>Summary</h2></div>
         <div class="card-body">
@@ -198,6 +227,7 @@
           </div>
         </div>
       </div>
+      {% endif %}
 
       <div class="card mb-4">
         <div class="card-header"><h2 class="section-title"><i class="bi bi-info-circle"></i>Details</h2></div>
@@ -237,7 +267,7 @@
               <li>
                 <div class="date-chip"><b>{{ event.date|date:"j" }}</b><small>{{ event.date|date:"M" }}</small></div>
                 <div class="grow">
-                  <div class="t">{% if can_open_events %}<a href="{% url 'events:event_detail' event.pk %}">{{ event.name }}</a>{% else %}{{ event.name }}{% endif %}</div>
+                  <div class="t"><a href="{% url 'events:event_detail' event.pk %}">{{ event.name }}</a></div>
                   <div class="m">{{ event.get_event_type_display }}{% if event.venue %} · {{ event.venue.name }}{% endif %}</div>
                 </div>
                 {% status_pill event.status event.get_status_display %}

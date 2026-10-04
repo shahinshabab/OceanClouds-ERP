@@ -1,262 +1,98 @@
 {% extends "ui/base.html" %}
+{% load ui_tags %}
 
 {% block title %}Support Tickets{% endblock %}
 
 {% block content %}
-
-<div class="container py-3">
-
-  <!-- Header -->
-  <div class="card border-0 shadow-sm mb-3">
-    <div class="card-body">
-      <div class="row g-3 align-items-center">
-        <div class="col-md">
-          <h1 class="h4 mb-1">Support Tickets</h1>
-
-          {% if is_admin %}
-            <div class="text-muted small">
-              View and track all support requests raised by users.
-            </div>
-          {% else %}
-            <div class="text-muted small">
-              View and track your support requests.
-            </div>
-          {% endif %}
-        </div>
-
-        <div class="col-md-auto">
-          <a href="{% url 'messaging:ticket_create' %}" class="btn btn-success btn-sm">
-            <i class="bi bi-plus-circle me-1"></i>
-            New Ticket
-          </a>
-        </div>
+<div class="container">
+  <div class="page-header">
+    <div>
+      <div class="page-eyebrow"><i class="bi bi-life-preserver"></i> Support</div>
+      <h1 class="page-title">Support tickets</h1>
+      <div class="page-subtitle">
+        {% if is_admin %}Every support request raised by users.{% else %}Your support requests and their replies.{% endif %}
       </div>
     </div>
-  </div>
-
-  <!-- Search and Filters -->
-  <div class="card border-0 shadow-sm mb-3">
-    <div class="card-body">
-      <form method="get" class="row g-2 align-items-end">
-
-        <div class="col-md-4">
-          <label class="form-label small text-muted">Search</label>
-          <input
-            type="text"
-            name="q"
-            value="{{ q }}"
-            class="form-control"
-            placeholder="Search ticket, subject, description"
-          >
-        </div>
-
-        <div class="col-md-3">
-          <label class="form-label small text-muted">Status</label>
-          <select name="status" class="form-select">
-            <option value="">All Statuses</option>
-            {% for value, label in ticket_status_choices %}
-              <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>
-                {{ label }}
-              </option>
-            {% endfor %}
-          </select>
-        </div>
-
-        <div class="col-md-3">
-          <label class="form-label small text-muted">Priority</label>
-          <select name="priority" class="form-select">
-            <option value="">All Priorities</option>
-            {% for value, label in ticket_priority_choices %}
-              <option value="{{ value }}" {% if priority_filter == value %}selected{% endif %}>
-                {{ label }}
-              </option>
-            {% endfor %}
-          </select>
-        </div>
-
-        <div class="col-md-2 d-grid">
-          <button type="submit" class="btn btn-outline-secondary">
-            <i class="bi bi-funnel me-1"></i>
-            Apply
-          </button>
-        </div>
-
-      </form>
+    <div class="page-actions">
+      <a href="{% url 'messaging:ticket_create' %}" class="btn btn-dark btn-sm"><i class="bi bi-plus-lg"></i>New ticket</a>
     </div>
   </div>
 
-  <!-- Tickets Table -->
-  <div class="card border-0 shadow-sm">
-    {% if tickets %}
-      <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-          <thead class="table-light">
-            <tr>
-              <th>Ticket #</th>
-              <th>Subject</th>
-              <th>Category</th>
+  <div class="card">
+    <div class="list-tabs">
+      <a href="?q={{ q|urlencode }}&amp;priority={{ priority_filter }}" class="{% if not status_filter %}active{% endif %}">All</a>
+      {% for value, label in ticket_status_choices %}
+        <a href="?q={{ q|urlencode }}&amp;priority={{ priority_filter }}&amp;status={{ value }}" class="{% if status_filter == value %}active{% endif %}">{{ label }}</a>
+      {% endfor %}
+    </div>
+    <form method="get" class="filter-bar">
+      <input type="hidden" name="status" value="{{ status_filter }}">
+      <div class="search-input" style="flex-basis: 280px">
+        <i class="bi bi-search"></i>
+        <input type="search" name="q" value="{{ q }}" placeholder="Ticket number, subject or description" class="form-control form-control-sm" aria-label="Search">
+      </div>
+      <select name="priority" class="form-select form-select-sm" aria-label="Priority" onchange="this.form.submit()">
+        <option value="">All priorities</option>
+        {% for value, label in ticket_priority_choices %}
+          <option value="{{ value }}" {% if priority_filter == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <div class="filter-actions">
+        <button type="submit" class="btn btn-dark btn-sm"><i class="bi bi-funnel"></i>Filter</button>
+        {% if q or status_filter or priority_filter %}<a href="{% url 'messaging:ticket_list' %}" class="btn btn-light btn-sm">Clear</a>{% endif %}
+      </div>
+    </form>
+
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Ticket</th>
+            <th class="d-none d-lg-table-cell">Category</th>
+            {% if is_admin %}<th class="d-none d-md-table-cell">Raised by</th>{% endif %}
+            <th>Priority</th>
+            <th>Status</th>
+            <th class="d-none d-md-table-cell">Created</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for ticket in tickets %}
+            <tr data-href="{% url 'messaging:ticket_detail' ticket.pk %}">
+              <td>
+                <a href="{% url 'messaging:ticket_detail' ticket.pk %}" class="cell-title">{{ ticket.subject }}</a>
+                <span class="cell-sub tabular">#{{ ticket.ticket_number }} · {{ ticket.get_subject_type_display }}{% if ticket.admin_response %} · <i class="bi bi-reply"></i> Replied{% endif %}</span>
+              </td>
+              <td class="d-none d-lg-table-cell">{{ ticket.get_category_display }}</td>
               {% if is_admin %}
-                <th>Created By</th>
+                <td class="d-none d-md-table-cell">
+                  {% if ticket.created_by %}{{ ticket.created_by.get_full_name|default:ticket.created_by.username }}{% else %}<span class="text-muted">—</span>{% endif %}
+                </td>
               {% endif %}
-              <th>Priority</th>
-              <th>Status</th>
-              <th>Created</th>
-              <th class="text-end">Actions</th>
+              <td>{% status_pill ticket.priority ticket.get_priority_display %}</td>
+              <td>{% status_pill ticket.status ticket.get_status_display %}</td>
+              <td class="d-none d-md-table-cell text-nowrap">{{ ticket.created_at|date:"d M Y, H:i" }}</td>
+              <td class="row-actions">
+                <a href="{% url 'messaging:ticket_detail' ticket.pk %}" class="btn btn-light btn-sm" title="Open" aria-label="Open"><i class="bi bi-arrow-right"></i></a>
+              </td>
             </tr>
-          </thead>
-
-          <tbody>
-            {% for ticket in tickets %}
-              <tr>
-                <td class="fw-semibold">
-                  {{ ticket.ticket_number }}
-                </td>
-
-                <td>
-                  <div class="fw-semibold">{{ ticket.subject }}</div>
-                  <div class="text-muted small">
-                    {{ ticket.get_subject_type_display }}
-                  </div>
-                </td>
-
-                <td>
-                  {{ ticket.get_category_display }}
-                </td>
-
-                {% if is_admin %}
-                  <td>
-                    {% if ticket.created_by %}
-                      {{ ticket.created_by.get_full_name|default:ticket.created_by.username }}
-                    {% else %}
-                      <span class="text-muted">—</span>
-                    {% endif %}
-                  </td>
+          {% empty %}
+            <tr><td colspan="{% if is_admin %}7{% else %}6{% endif %}">
+              <div class="empty-state">
+                <i class="bi bi-ticket-perforated"></i>
+                {% if q or status_filter or priority_filter %}
+                  No tickets match these filters.
+                {% else %}
+                  You have not raised any support tickets yet.
+                  <div><a href="{% url 'messaging:ticket_create' %}" class="btn btn-dark btn-sm"><i class="bi bi-plus-lg"></i>Raise your first ticket</a></div>
                 {% endif %}
-
-                <td>
-                  {% if ticket.priority == "high" %}
-                    <span class="badge text-bg-danger">
-                      {{ ticket.get_priority_display }}
-                    </span>
-                  {% elif ticket.priority == "medium" %}
-                    <span class="badge text-bg-warning">
-                      {{ ticket.get_priority_display }}
-                    </span>
-                  {% else %}
-                    <span class="badge text-bg-secondary">
-                      {{ ticket.get_priority_display }}
-                    </span>
-                  {% endif %}
-                </td>
-
-                <td>
-                  {% if ticket.status == "open" %}
-                    <span class="badge text-bg-primary">
-                      {{ ticket.get_status_display }}
-                    </span>
-                  {% elif ticket.status == "in_progress" %}
-                    <span class="badge text-bg-warning">
-                      {{ ticket.get_status_display }}
-                    </span>
-                  {% elif ticket.status == "closed" %}
-                    <span class="badge text-bg-success">
-                      {{ ticket.get_status_display }}
-                    </span>
-                  {% else %}
-                    <span class="badge text-bg-secondary">
-                      {{ ticket.get_status_display }}
-                    </span>
-                  {% endif %}
-                </td>
-
-                <td>
-                  {{ ticket.created_at|date:"d M Y, h:i A" }}
-                </td>
-
-                <td class="text-end">
-                  <a href="{% url 'messaging:ticket_detail' ticket.pk %}"
-                     class="btn btn-outline-secondary btn-sm">
-                    <i class="bi bi-eye me-1"></i>
-                    View
-                  </a>
-                </td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-
-      {% if is_paginated %}
-        <div class="card-footer bg-white">
-          <nav aria-label="Ticket pagination">
-            <ul class="pagination pagination-sm justify-content-end mb-0">
-
-              {% if page_obj.has_previous %}
-                <li class="page-item">
-                  <a class="page-link"
-                     href="?page={{ page_obj.previous_page_number }}&q={{ q }}&status={{ status_filter }}&priority={{ priority_filter }}">
-                    Previous
-                  </a>
-                </li>
-              {% else %}
-                <li class="page-item disabled">
-                  <span class="page-link">Previous</span>
-                </li>
-              {% endif %}
-
-              <li class="page-item disabled">
-                <span class="page-link">
-                  Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
-                </span>
-              </li>
-
-              {% if page_obj.has_next %}
-                <li class="page-item">
-                  <a class="page-link"
-                     href="?page={{ page_obj.next_page_number }}&q={{ q }}&status={{ status_filter }}&priority={{ priority_filter }}">
-                    Next
-                  </a>
-                </li>
-              {% else %}
-                <li class="page-item disabled">
-                  <span class="page-link">Next</span>
-                </li>
-              {% endif %}
-
-            </ul>
-          </nav>
-        </div>
-      {% endif %}
-
-    {% else %}
-      <div class="card-body text-center py-5">
-        <div class="mb-3">
-          <i class="bi bi-ticket-perforated display-5 text-muted"></i>
-        </div>
-
-        <h2 class="h5 mb-1">No tickets found</h2>
-
-        {% if q or status_filter or priority_filter %}
-          <p class="text-muted mb-3">
-            No tickets match your current filters.
-          </p>
-
-          <a href="{% url 'messaging:ticket_list' %}" class="btn btn-outline-secondary btn-sm">
-            Clear Filters
-          </a>
-        {% else %}
-          <p class="text-muted mb-3">
-            You have not raised any support tickets yet.
-          </p>
-
-          <a href="{% url 'messaging:ticket_create' %}" class="btn btn-success btn-sm">
-            Raise Your First Ticket
-          </a>
-        {% endif %}
-      </div>
-    {% endif %}
+              </div>
+            </td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% include "ui/partials/pagination.html" %}
   </div>
-
 </div>
-
 {% endblock %}

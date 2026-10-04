@@ -320,7 +320,12 @@ class EventListView(EventManageMixin, ListView):
         return context
 
 
-class EventDetailView(EventManageMixin, DetailView):
+class EventDetailView(EventCalendarAccessMixin, DetailView):
+    """
+    Everyone who works the event can open it from the calendar: managers
+    get the edit actions, the crew a read-only page with the contract.
+    """
+
     model = Event
     template_name = "events/event_detail.html"
     context_object_name = "event"

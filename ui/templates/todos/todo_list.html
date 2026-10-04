@@ -58,7 +58,7 @@
 
   <div class="card">
     <div class="list-tabs">
-      <a href="?q={{ q|urlencode }}&amp;priority={{ selected_priority }}&amp;assigned={{ selected_assigned }}&amp;due={{ selected_due }}" class="{% if not selected_status %}active{% endif %}">All</a>
+      <a href="?q={{ q|urlencode }}&amp;priority={{ selected_priority }}&amp;assigned={{ selected_assigned }}&amp;due={{ selected_due }}&amp;status=all" class="{% if selected_status == "all" %}active{% endif %}">All</a>
       {% for value, label in status_choices %}
         <a href="?q={{ q|urlencode }}&amp;priority={{ selected_priority }}&amp;assigned={{ selected_assigned }}&amp;due={{ selected_due }}&amp;status={{ value }}" class="{% if selected_status == value %}active{% endif %}">{{ label }}</a>
       {% endfor %}
@@ -87,7 +87,7 @@
       </select>
       <div class="filter-actions">
         <button type="submit" class="btn btn-dark btn-sm"><i class="bi bi-funnel"></i>Filter</button>
-        {% if q or selected_status or selected_priority or selected_assigned or selected_due %}<a href="?" class="btn btn-light btn-sm">Clear</a>{% endif %}
+        {% if q or selected_status != "pending" or selected_priority or selected_assigned or selected_due %}<a href="?" class="btn btn-light btn-sm">Clear</a>{% endif %}
       </div>
     </form>
 
@@ -153,7 +153,7 @@
             <tr><td colspan="6">
               <div class="empty-state">
                 <i class="bi bi-check2-square"></i>No to-dos found.
-                {% if not q and not selected_status and not selected_priority and not selected_assigned and not selected_due %}
+                {% if not q and selected_status == "pending" and not selected_priority and not selected_assigned and not selected_due %}
                   <div><a href="{% url 'todos:todo_create' %}" class="btn btn-dark btn-sm"><i class="bi bi-plus-lg"></i>Add a to-do</a></div>
                 {% endif %}
               </div>

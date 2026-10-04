@@ -717,6 +717,8 @@ def build_contract_document_context(contract):
 
     return {
         "contract": contract,
+        # Views showing the contract to production staff turn this off.
+        "show_money": True,
         "client": get_contract_client(contract),
         "event_days": days,
         "deliverables": _deliverable_rows(days),

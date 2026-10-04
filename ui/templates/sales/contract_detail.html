@@ -23,7 +23,7 @@
       <div class="page-subtitle d-flex flex-wrap align-items-center gap-2">
         {% status_pill contract.status contract.get_status_display %}
         {% if contract.deal.customer %}<span><i class="bi bi-person"></i> {{ contract.deal.customer }}</span>{% endif %}
-        {% if contract.total %}<span class="tabular">{{ contract.total|inr }}</span>{% endif %}
+        {% if contract.total and show_money %}<span class="tabular">{{ contract.total|inr }}</span>{% endif %}
         {% if contract.signed_at %}<span><i class="bi bi-pen"></i> Signed by {{ contract.signed_by_name|default:"customer" }} on {{ contract.signed_at|date:"d M Y" }}</span>{% endif %}
       </div>
     </div>
@@ -108,7 +108,7 @@
               <div class="table-responsive">
                 <table class="table align-middle">
                   <thead>
-                    <tr><th>Item</th><th>Deliverables</th><th class="text-end">Qty</th><th class="text-end">Rate</th><th class="text-end">Amount</th></tr>
+                    <tr><th>Item</th><th>Deliverables</th><th class="text-end">Qty</th>{% if show_money %}<th class="text-end">Rate</th><th class="text-end">Amount</th>{% endif %}</tr>
                   </thead>
                   <tbody>
                     {% for item in event_day.items.all %}
@@ -125,8 +125,10 @@
                           {% empty %}<span class="text-muted">—</span>{% endfor %}
                         </td>
                         <td class="text-end tabular">{{ item.quantity }}</td>
+                        {% if show_money %}
                         <td class="text-end tabular">{{ item.unit_price|inr }}</td>
                         <td class="text-end tabular fw-semibold">{{ item.line_total|inr }}</td>
+                        {% endif %}
                       </tr>
                     {% empty %}
                       <tr><td colspan="5" class="text-muted small">No items for this day.</td></tr>
@@ -141,7 +143,7 @@
         {% endif %}
       </div>
 
-      {% if is_sales or is_project_manager %}
+      {% if show_money %}
         <div class="card mb-4">
           <div class="card-header">
             <h2 class="section-title"><i class="bi bi-receipt"></i>Invoices</h2>
@@ -184,6 +186,7 @@
     </div>
 
     <div class="col-xl-4 order-1 order-xl-2">
+      {% if show_money %}
       <div class="card mb-4">
         <div class="card-header"><h2 class="section-title"><i class="bi bi-calculator"></i>Summary</h2></div>
         <div class="card-body">
@@ -198,6 +201,7 @@
           </div>
         </div>
       </div>
+      {% endif %}
 
       <div class="card mb-4">
         <div class="card-header"><h2 class="section-title"><i class="bi bi-info-circle"></i>Details</h2></div>
@@ -237,7 +241,7 @@
               <li>
                 <div class="date-chip"><b>{{ event.date|date:"j" }}</b><small>{{ event.date|date:"M" }}</small></div>
                 <div class="grow">
-                  <div class="t">{% if can_open_events %}<a href="{% url 'events:event_detail' event.pk %}">{{ event.name }}</a>{% else %}{{ event.name }}{% endif %}</div>
+                  <div class="t"><a href="{% url 'events:event_detail' event.pk %}">{{ event.name }}</a></div>
                   <div class="m">{{ event.get_event_type_display }}{% if event.venue %} · {{ event.venue.name }}{% endif %}</div>
                 </div>
                 {% status_pill event.status event.get_status_display %}

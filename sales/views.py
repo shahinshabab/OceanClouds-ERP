@@ -1662,6 +1662,7 @@ class ContractDetailView(ContractViewAccessMixin, DetailMessageScopeMixin, Detai
         context = super().get_context_data(**kwargs)
 
         context["pdf_download_url"] = reverse("sales:contract_download", args=[self.object.pk])
+        context["show_money"] = can_access_sales(self.request.user)
         context["has_invoice"] = _contract_has_invoice(self.object)
         context["invoice"] = self.object.invoices.order_by("-issue_date", "-created_at").first()
 
@@ -1698,9 +1699,11 @@ class ContractPDFDownloadView(ContractViewAccessMixin, DetailView):
 
         contract = self.get_object()
 
+        context = build_contract_document_context(contract)
+        context["show_money"] = can_access_sales(request.user)
         pdf_file = render_pdf(
             "sales/contract_pdf.html",
-            build_contract_document_context(contract),
+            context,
             request=request,
         )
 
@@ -1722,6 +1725,8 @@ class ContractDocumentView(ContractPDFDownloadView):
         contract = self.get_object()
         context = build_contract_document_context(contract)
         context["screen"] = True
+        # Prices and payments are for sales; the crew sees the services only.
+        context["show_money"] = can_access_sales(request.user)
         return render(request, "sales/contract_pdf.html", context)
 
 

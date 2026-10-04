@@ -9,7 +9,7 @@
     <div class="screen-bar">
       <span>Digital contract <b>{{ contract.number }}</b> · {{ contract.get_status_display }}</span>
       <span>
-        <a href="{% url 'sales:contract_detail' contract.pk %}">Back</a>
+        {% if show_money %}<a href="{% url 'sales:contract_detail' contract.pk %}">Back</a>{% endif %}
         <a href="{% url 'sales:contract_download' contract.pk %}">Download PDF</a>
       </span>
     </div>
@@ -66,7 +66,7 @@
   <section class="section">
     <div class="eyebrow">Schedule &amp; services</div>
     <h2 class="title">What we will cover</h2>
-    {% include "sales/pdf/_days.html" with days=event_days show_prices=True %}
+    {% include "sales/pdf/_days.html" with days=event_days show_prices=show_money %}
   </section>
 
   {% if deliverables %}
@@ -77,8 +77,9 @@
   {% endif %}
 </div>
 
-<!-- Payment -->
+<!-- Payment (sales only; the crew gets the output specifications) -->
 <div class="sheet page-break">
+  {% if show_money %}
   <section class="section">
     <div class="eyebrow">Payment</div>
     <h2 class="title">Fees &amp; payment schedule</h2>
@@ -95,8 +96,16 @@
       </table>
     </div>
   </section>
+  {% if payment_terms %}
+  <section class="section" style="break-inside: avoid">
+    <div class="eyebrow">Payment terms</div>
+    <ul class="plain small">{% for term in payment_terms %}<li>{{ term }}</li>{% endfor %}</ul>
+  </section>
+  {% endif %}
+  {% endif %}
 
   <section class="section two">
+    {% if show_money %}
     <div class="card">
       <div class="label">Bank transfer</div>
       <div class="small">
@@ -105,6 +114,7 @@
         IFSC <b>{{ bank_details.ifsc_code }}</b>
       </div>
     </div>
+    {% endif %}
     <div class="card">
       <div class="label">Good to know</div>
       <ul class="plain small">

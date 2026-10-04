@@ -75,17 +75,20 @@
     if (!projectSelect || !tasksSelect) return;
 
     function loadTasksForProject(projectId) {
+      // Keep any ticks that still apply to the newly loaded list.
+      const chosen = new Set(Array.from(tasksSelect.selectedOptions).map((o) => o.value));
       tasksSelect.innerHTML = "";
 
       if (!projectId) return;
 
-      fetch("{% url 'projects:ajax_load_tasks' %}?project=" + projectId)
+      fetch("{% url 'projects:ajax_load_tasks' %}?project=" + encodeURIComponent(projectId))
         .then((response) => response.json())
         .then((data) => {
           data.forEach((task) => {
             const option = document.createElement("option");
             option.value = task.id;
             option.textContent = task.name + " (" + task.status_display + " - " + task.assignee + ")";
+            option.selected = chosen.has(String(task.id));
             tasksSelect.appendChild(option);
           });
         })
@@ -94,13 +97,11 @@
         });
     }
 
+    // The server already lists the current project's tasks; reload only when
+    // the project changes.
     projectSelect.addEventListener("change", function () {
       loadTasksForProject(this.value);
     });
-
-    if (projectSelect.value) {
-      loadTasksForProject(projectSelect.value);
-    }
   });
 </script>
 {% endblock %}

@@ -34,6 +34,7 @@ from events.models import Event
 
 from .forms import ProjectForm, TaskForm, DeliverableForm
 from .models import (
+    OPEN_PROJECT_STATUSES,
     Project,
     Task,
     Deliverable,
@@ -507,7 +508,7 @@ class TaskListView(ProjectWorkAccessMixin, ListView):
 
     def get_queryset(self):
         qs = visible_tasks_for(self.request.user).filter(
-            project__status=ProjectStatus.ACTIVE
+            project__status__in=OPEN_PROJECT_STATUSES
         )
 
         q = self.request.GET.get("q")
@@ -577,8 +578,8 @@ class TaskListView(ProjectWorkAccessMixin, ListView):
         if is_admin_or_project_manager(self.request.user):
             context["employee_choices"] = User.objects.filter(
                 is_active=True,
-                groups__name=ROLE_EMPLOYEE,
-            ).order_by("first_name", "last_name", "username")
+                groups__name__in=[ROLE_EMPLOYEE, ROLE_PROJECT_MANAGER],
+            ).distinct().order_by("first_name", "last_name", "username")
         else:
             context["employee_choices"] = User.objects.none()
 
@@ -751,7 +752,7 @@ class TaskKanbanView(ProjectWorkAccessMixin, TemplateView):
     def get_queryset(self):
         return (
             visible_tasks_for(self.request.user)
-            .filter(project__status=ProjectStatus.ACTIVE)
+            .filter(project__status__in=OPEN_PROJECT_STATUSES)
             .select_related("project", "assigned_to")
             .prefetch_related("deliverables")
         )
@@ -935,7 +936,7 @@ class DeliverableListView(ProjectWorkAccessMixin, ListView):
 
     def get_queryset(self):
         qs = visible_deliverables_for(self.request.user).filter(
-            project__status=ProjectStatus.ACTIVE
+            project__status__in=OPEN_PROJECT_STATUSES
         )
 
         q = self.request.GET.get("q")
@@ -993,8 +994,8 @@ class DeliverableListView(ProjectWorkAccessMixin, ListView):
         if is_admin_or_project_manager(self.request.user):
             context["employee_choices"] = User.objects.filter(
                 is_active=True,
-                groups__name=ROLE_EMPLOYEE,
-            ).order_by("first_name", "last_name", "username")
+                groups__name__in=[ROLE_EMPLOYEE, ROLE_PROJECT_MANAGER],
+            ).distinct().order_by("first_name", "last_name", "username")
         else:
             context["employee_choices"] = User.objects.none()
 
@@ -1165,7 +1166,7 @@ class DeliverableKanbanView(ProjectWorkAccessMixin, TemplateView):
     def get_queryset(self):
         return (
             visible_deliverables_for(self.request.user)
-            .filter(project__status=ProjectStatus.ACTIVE)
+            .filter(project__status__in=OPEN_PROJECT_STATUSES)
             .select_related("project", "assigned_to")
             .prefetch_related("tasks")
         )

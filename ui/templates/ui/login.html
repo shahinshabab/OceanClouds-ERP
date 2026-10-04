@@ -43,11 +43,12 @@
 
             {% if messages %}
                 {% for message in messages %}
-                    {% if "scope:auth" in message.tags %}
+                    {# The sign-out page and the closed live socket can both report the same sign-out. #}
+                    {% ifchanged message.message %}{% if "scope:auth" in message.tags %}
                         <div class="alert {% if message.level_tag == 'error' %}alert-danger{% elif message.level_tag == 'success' %}alert-success{% else %}alert-{{ message.level_tag }}{% endif %} py-2 small" role="alert">
                             {{ message }}
                         </div>
-                    {% endif %}
+                    {% endif %}{% endifchanged %}
                 {% endfor %}
             {% endif %}
 

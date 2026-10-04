@@ -4,16 +4,17 @@
 {% block title %}{{ proposal.title }}{% endblock %}
 
 {% block content %}
+{% has_sales_access request.user as is_sales %}
+{% has_services_manage_access request.user as can_manage_services %}
 {% is_admin request.user as is_admin %}
 {% is_crm_manager request.user as is_crm_manager %}
 
 <div class="container">
-  {% include "common/detail_messages.html" %}
 
   <div class="page-header">
     <div class="min-w-0">
       <div class="page-eyebrow">
-        <a href="{% url 'sales:proposal_list' %}"><i class="bi bi-file-earmark-richtext"></i> Proposals</a>
+        {% if is_sales %}<a href="{% url 'sales:proposal_list' %}"><i class="bi bi-file-earmark-richtext"></i> Proposals</a>{% else %}<span><i class="bi bi-file-earmark-richtext"></i> Proposal</span>{% endif %}
         {% if proposal.deal %}<i class="bi bi-chevron-right"></i><a href="{% url 'sales:deal_detail' proposal.deal.pk %}">{{ proposal.deal.name }}</a>{% endif %}
       </div>
       <h1 class="page-title">{{ proposal.title }}</h1>
@@ -117,9 +118,9 @@
                           <td>
                             <div class="fw-semibold">{{ item.description }}</div>
                             {% if item.service %}
-                              <a href="{% url 'services:service_detail' item.service.pk %}" class="small fw-normal text-muted">{{ item.service.name }}</a>
+                              {% if can_manage_services %}<a href="{% url 'services:service_detail' item.service.pk %}" class="small fw-normal text-muted">{{ item.service.name }}</a>{% else %}<span class="small text-muted">{{ item.service.name }}</span>{% endif %}
                             {% elif item.package %}
-                              <a href="{% url 'services:package_detail' item.package.pk %}" class="small fw-normal text-muted">{{ item.package.name }}</a>
+                              {% if can_manage_services %}<a href="{% url 'services:package_detail' item.package.pk %}" class="small fw-normal text-muted">{{ item.package.name }}</a>{% else %}<span class="small text-muted">{{ item.package.name }}</span>{% endif %}
                             {% endif %}
                           </td>
                           <td class="small">

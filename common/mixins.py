@@ -27,8 +27,9 @@ from .roles import (
 )
 
 class RolesRequiredMixin(LoginRequiredMixin, UserPassesTestMixin):
+    # Signed-out visitors go to the login page; signed-in users without the
+    # role get 403.
     allowed_roles = []
-    raise_exception = True
 
     def test_func(self):
         return user_has_role(self.request.user, *self.allowed_roles)

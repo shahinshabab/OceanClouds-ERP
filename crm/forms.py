@@ -127,6 +127,9 @@ class LeadForm(BootstrapModelForm):
 
     def _clean_phone(self, name):
         value = self.cleaned_data.get(name, "")
+        if self.instance.pk and name not in self.changed_data and "country" not in self.changed_data:
+            # Older leads keep the number they were saved with until it is edited.
+            return value
         country = self.cleaned_data.get("country") or DEFAULT_COUNTRY
         try:
             return normalize_phone(value, country)

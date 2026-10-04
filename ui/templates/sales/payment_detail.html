@@ -4,6 +4,7 @@
 {% block title %}Payment · {{ payment.invoice.number }}{% endblock %}
 
 {% block content %}
+{% has_sales_access request.user as is_sales %}
 {% is_admin request.user as is_admin %}
 {% is_crm_manager request.user as is_crm_manager %}
 {% is_project_manager request.user as is_project_manager %}
@@ -11,14 +12,13 @@
 
 {% with invoice=payment.invoice client=payment.invoice.deal.client %}
 <div class="container">
-  {% include "common/detail_messages.html" %}
 
   <div class="page-header">
     <div class="min-w-0">
       <div class="page-eyebrow">
         {% if request.GET.next|local_url %}
           <a href="{{ request.GET.next|local_url }}"><i class="bi bi-arrow-left"></i> Back</a>
-        {% else %}
+        {% elif is_sales %}
           <a href="{% url 'sales:payment_list' %}"><i class="bi bi-cash-coin"></i> Payments</a>
         {% endif %}
       </div>

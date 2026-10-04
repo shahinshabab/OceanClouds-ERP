@@ -64,33 +64,6 @@ User = get_user_model()
 
 
 # ============================================================
-# Scoped message helpers
-# ============================================================
-
-class DetailMessageScopeMixin:
-    """
-    Adds one message scope to detail/form pages.
-
-    Example:
-        detail_message_scope = "scope:project"
-
-    Template can show only:
-    - scope:project
-    - scope:task
-    - scope:deliverable
-    - scope:email
-    - scope:global
-    """
-
-    detail_message_scope = ""
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["detail_message_scope"] = self.detail_message_scope
-        return context
-
-
-# ============================================================
 # Projects
 # ============================================================
 
@@ -143,11 +116,10 @@ class ProjectListView(ProjectAccessMixin, ListView):
         return context
 
 
-class ProjectDetailView(ProjectAccessMixin, DetailMessageScopeMixin, DetailView):
+class ProjectDetailView(ProjectAccessMixin, DetailView):
     model = Project
     template_name = "projects/project_detail.html"
     context_object_name = "project"
-    detail_message_scope = "scope:project"
 
     def get_queryset(self):
         return visible_projects_for(self.request.user).prefetch_related(
@@ -185,11 +157,10 @@ class ProjectDetailView(ProjectAccessMixin, DetailMessageScopeMixin, DetailView)
         return context
 
 
-class ProjectOverviewView(ProjectAccessMixin, DetailMessageScopeMixin, DetailView):
+class ProjectOverviewView(ProjectAccessMixin, DetailView):
     model = Project
     template_name = "projects/project_overview.html"
     context_object_name = "project"
-    detail_message_scope = "scope:project"
 
     def get_queryset(self):
         return visible_projects_for(self.request.user)
@@ -263,11 +234,10 @@ class ProjectOverviewView(ProjectAccessMixin, DetailMessageScopeMixin, DetailVie
         return context
 
 
-class ProjectCreateView(ProjectAccessMixin, DetailMessageScopeMixin, CreateView):
+class ProjectCreateView(ProjectAccessMixin, CreateView):
     model = Project
     form_class = ProjectForm
     template_name = "projects/project_form.html"
-    detail_message_scope = "scope:project"
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -338,11 +308,10 @@ class ProjectCreateView(ProjectAccessMixin, DetailMessageScopeMixin, CreateView)
         return reverse("projects:project_detail", args=[self.object.pk])
 
 
-class ProjectUpdateView(ProjectAccessMixin, DetailMessageScopeMixin, UpdateView):
+class ProjectUpdateView(ProjectAccessMixin, UpdateView):
     model = Project
     form_class = ProjectForm
     template_name = "projects/project_form.html"
-    detail_message_scope = "scope:project"
 
     def get_queryset(self):
         return Project.objects.all()
@@ -585,11 +554,10 @@ class TaskListView(ProjectWorkAccessMixin, ListView):
         return context
 
 
-class TaskCreateView(ProjectAccessMixin, DetailMessageScopeMixin, CreateView):
+class TaskCreateView(ProjectAccessMixin, CreateView):
     model = Task
     form_class = TaskForm
     template_name = "projects/task_form.html"
-    detail_message_scope = "scope:task"
 
     def dispatch(self, request, *args, **kwargs):
         self.project = None
@@ -655,11 +623,10 @@ class TaskCreateView(ProjectAccessMixin, DetailMessageScopeMixin, CreateView):
         return super().form_invalid(form)
 
 
-class TaskUpdateView(ProjectAccessMixin, DetailMessageScopeMixin, UpdateView):
+class TaskUpdateView(ProjectAccessMixin, UpdateView):
     model = Task
     form_class = TaskForm
     template_name = "projects/task_form.html"
-    detail_message_scope = "scope:task"
 
     def get_queryset(self):
         user = self.request.user
@@ -720,11 +687,10 @@ class TaskUpdateView(ProjectAccessMixin, DetailMessageScopeMixin, UpdateView):
         return super().form_invalid(form)
 
 
-class TaskDetailView(ProjectWorkAccessMixin, DetailMessageScopeMixin, DetailView):
+class TaskDetailView(ProjectWorkAccessMixin, DetailView):
     model = Task
     template_name = "projects/task_detail.html"
     context_object_name = "task"
-    detail_message_scope = "scope:task"
 
     def get_queryset(self):
         return visible_tasks_for(self.request.user).prefetch_related("deliverables")
@@ -1001,11 +967,10 @@ class DeliverableListView(ProjectWorkAccessMixin, ListView):
         return context
 
 
-class DeliverableCreateView(ProjectAccessMixin, DetailMessageScopeMixin, CreateView):
+class DeliverableCreateView(ProjectAccessMixin, CreateView):
     model = Deliverable
     form_class = DeliverableForm
     template_name = "projects/deliverable_form.html"
-    detail_message_scope = "scope:deliverable"
 
     def dispatch(self, request, *args, **kwargs):
         self.project = None
@@ -1066,11 +1031,10 @@ class DeliverableCreateView(ProjectAccessMixin, DetailMessageScopeMixin, CreateV
         return super().form_invalid(form)
 
 
-class DeliverableUpdateView(ProjectAccessMixin, DetailMessageScopeMixin, UpdateView):
+class DeliverableUpdateView(ProjectAccessMixin, UpdateView):
     model = Deliverable
     form_class = DeliverableForm
     template_name = "projects/deliverable_form.html"
-    detail_message_scope = "scope:deliverable"
 
     def get_queryset(self):
         user = self.request.user
@@ -1134,11 +1098,10 @@ class DeliverableUpdateView(ProjectAccessMixin, DetailMessageScopeMixin, UpdateV
         return super().form_invalid(form)
 
 
-class DeliverableDetailView(ProjectWorkAccessMixin, DetailMessageScopeMixin, DetailView):
+class DeliverableDetailView(ProjectWorkAccessMixin, DetailView):
     model = Deliverable
     template_name = "projects/deliverable_detail.html"
     context_object_name = "deliverable"
-    detail_message_scope = "scope:deliverable"
 
     def get_queryset(self):
         return visible_deliverables_for(self.request.user)

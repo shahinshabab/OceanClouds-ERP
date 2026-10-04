@@ -4,6 +4,7 @@
 {% block title %}Invoice {{ invoice.number }}{% endblock %}
 
 {% block content %}
+{% has_sales_access request.user as is_sales %}
 {% is_admin request.user as is_admin %}
 {% is_crm_manager request.user as is_crm_manager %}
 {% is_project_manager request.user as is_project_manager %}
@@ -13,12 +14,11 @@
 
 <div class="container">
 
-  {% include "common/detail_messages.html" %}
 
   <div class="page-header">
     <div class="min-w-0">
       <div class="page-eyebrow">
-        <a href="{% url 'sales:invoice_list' %}"><i class="bi bi-receipt"></i> Invoices</a>
+        {% if is_sales %}<a href="{% url 'sales:invoice_list' %}"><i class="bi bi-receipt"></i> Invoices</a>{% else %}<span><i class="bi bi-receipt"></i> Invoice</span>{% endif %}
         {% if invoice.deal %}<i class="bi bi-chevron-right"></i><a href="{% url 'sales:deal_detail' invoice.deal.pk %}">{{ invoice.deal.name }}</a>{% endif %}
       </div>
       <h1 class="page-title">Invoice {{ invoice.number|default:"Draft" }}</h1>

@@ -31,26 +31,6 @@ class OwnerAssignMixin:
         return super().form_valid(form)
 
 
-class DetailMessageScopeMixin:
-    """
-    Adds one message scope to every detail page.
-
-    Example:
-        detail_message_scope = "scope:client"
-
-    Then the reusable template can show only messages that match:
-    - scope:client
-    - scope:global
-    """
-
-    detail_message_scope = ""
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["detail_message_scope"] = self.detail_message_scope
-        return context
-
-
 def _scope_tags(*scopes):
     """
     Usage:
@@ -172,11 +152,10 @@ class ReviewListView(AdminCRMManagerMixin, ListView):
         return qs
 
 
-class ReviewDetailView(AdminCRMManagerMixin, DetailMessageScopeMixin, DetailView):
+class ReviewDetailView(AdminCRMManagerMixin, DetailView):
     model = Review
     template_name = "crm/review_detail.html"
     context_object_name = "review"
-    detail_message_scope = "scope:review"
 
     def get_queryset(self):
         return super().get_queryset().select_related("client", "owner")
@@ -286,11 +265,10 @@ class ContactListView(AdminCRMManagerMixin, ListView):
         return qs
 
 
-class ContactDetailView(AdminCRMManagerMixin, DetailMessageScopeMixin, DetailView):
+class ContactDetailView(AdminCRMManagerMixin, DetailView):
     model = Contact
     template_name = "crm/contact_detail.html"
     context_object_name = "contact"
-    detail_message_scope = "scope:contact"
 
     def get_queryset(self):
         return super().get_queryset().select_related("client", "owner")
@@ -410,11 +388,10 @@ class ClientListView(AdminCRMManagerMixin, ListView):
         return qs
 
 
-class ClientDetailView(SalesReadOnlyAccessMixin, DetailMessageScopeMixin, DetailView):
+class ClientDetailView(SalesReadOnlyAccessMixin, DetailView):
     model = Client
     template_name = "crm/client_detail.html"
     context_object_name = "client"
-    detail_message_scope = "scope:client"
 
     def get_queryset(self):
         return (
@@ -558,11 +535,10 @@ class LeadListView(AdminCRMManagerMixin, ListView):
         return context
 
 
-class LeadDetailView(AdminCRMManagerMixin, DetailMessageScopeMixin, DetailView):
+class LeadDetailView(AdminCRMManagerMixin, DetailView):
     model = Lead
     template_name = "crm/lead_detail.html"
     context_object_name = "lead"
-    detail_message_scope = "scope:lead"
 
     def get_queryset(self):
         return super().get_queryset().select_related(
@@ -715,11 +691,10 @@ class InquiryListView(StaffAllMixin, ListView):
         return context
 
 
-class InquiryDetailView(StaffAllMixin, DetailMessageScopeMixin, DetailView):
+class InquiryDetailView(StaffAllMixin, DetailView):
     model = Inquiry
     template_name = "crm/inquiry_detail.html"
     context_object_name = "inquiry"
-    detail_message_scope = "scope:inquiry"
 
     def get_queryset(self):
         return super().get_queryset().select_related("lead", "client", "handled_by", "owner")

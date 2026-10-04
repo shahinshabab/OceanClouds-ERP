@@ -544,6 +544,21 @@ class ContractApprovalTests(TestCase):
         self.assertNotContains(page, reverse("sales:contract_approve", args=[self.contract.pk]))
         self.assertContains(page, "Complete")
 
+    def test_second_approval_does_nothing_and_message_is_shown(self):
+        self._sign()
+        url = reverse("sales:contract_approve", args=[self.contract.pk])
+        self.client.post(url, {"client": ""})
+        response = self.client.post(url, {"client": ""}, follow=True)
+        self.assertEqual(Invoice.objects.filter(contract=self.contract).count(), 1)
+        self.assertEqual(Event.objects.filter(contract=self.contract).count(), 1)
+        self.assertContains(response, "This contract is already approved.")
+
+    def test_contract_from_proposal_starts_on_the_first_event_date(self):
+        proposal = self.deal.proposals.get()
+        self.contract.delete()
+        page = self.client.get(reverse("sales:proposal_convert_to_contract", args=[proposal.pk]))
+        self.assertEqual(page.context["form"].initial["start_date"], date(2026, 12, 20))
+
     def test_manager_can_pick_an_existing_client(self):
         existing = Client.objects.create(name="Returning couple")
         self._sign()

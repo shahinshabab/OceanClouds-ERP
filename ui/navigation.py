@@ -132,6 +132,7 @@ NAVIGATION = [
     {
         "title": "Messaging",
         "items": [
+            _item("Proposal & contract template", "sales:document_template", "bi-file-earmark-text", SALES, match=("/sales/templates/",)),
             _item("Email templates", "messaging:template_list", "bi-envelope", SALES, match=("/messaging/templates/",)),
             _item("Email campaigns", "messaging:campaign_list", "bi-megaphone", SALES, match=("/messaging/campaigns/",)),
             _item(

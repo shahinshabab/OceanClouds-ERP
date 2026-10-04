@@ -5,6 +5,9 @@ from . import views
 app_name = "sales"
 
 urlpatterns = [
+    # Proposal & contract template
+    path("templates/documents/", views.SalesDocumentTemplateView.as_view(), name="document_template"),
+
     # Deals
     path("deals/", views.DealListView.as_view(), name="deal_list"),
     path("deals/new/", views.DealCreateView.as_view(), name="deal_create"),

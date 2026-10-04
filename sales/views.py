@@ -39,6 +39,7 @@ from services.models import Service, Package
 from .forms import (
     AdvancePaymentForm,
     DealForm,
+    SalesDocumentTemplateForm,
     ProposalForm,
     ProposalPlanForm,
     ProposalEventDayForm,
@@ -51,6 +52,7 @@ from .forms import (
 )
 from .models import (
     Deal,
+    SalesDocumentTemplate,
     Proposal,
     ProposalEventDay,
     Contract,
@@ -65,9 +67,6 @@ from .models import (
     InvoiceStatus,
 )
 from .utils import (
-    ADVANCE_PERCENT,
-    DELIVERY_PERCENT,
-    EVENT_PERCENT,
     build_common_email_context,
     build_contract_document_context,
     build_proposal_document_context,
@@ -78,6 +77,8 @@ from .utils import (
     get_payment_plan_client_notes,
     get_payment_plan_important_terms,
     get_payment_plan_terms,
+    get_payment_terms,
+    payment_split,
     lead_status,
     percentage_amount,
     resolve_client_email,
@@ -1450,7 +1451,7 @@ class DealRecordAdvanceView(SalesAccessMixin, View):
 
         total = self.proposal.total if self.proposal else self.deal.amount
         if total:
-            initial["amount"] = percentage_amount(total, ADVANCE_PERCENT)
+            initial["amount"] = percentage_amount(total, payment_split()[0])
 
         return self._render(request, AdvancePaymentForm(initial=initial))
 
@@ -2671,8 +2672,9 @@ class ContractPublicSignView(View):
 
         total_amount = get_contract_public_sign_total(contract)
 
-        booking_advance = percentage_amount(total_amount, ADVANCE_PERCENT)
-        on_event_amount = percentage_amount(total_amount, EVENT_PERCENT)
+        advance_percent, event_percent, delivery_percent = payment_split()
+        booking_advance = percentage_amount(total_amount, advance_percent)
+        on_event_amount = percentage_amount(total_amount, event_percent)
         after_delivery_amount = total_amount - booking_advance - on_event_amount
         balance_amount = total_amount - booking_advance
 
@@ -2688,12 +2690,13 @@ class ContractPublicSignView(View):
             "on_event_amount": on_event_amount,
             "after_delivery_amount": after_delivery_amount,
 
-            "advance_percent": ADVANCE_PERCENT,
-            "event_percent": EVENT_PERCENT,
-            "delivery_percent": DELIVERY_PERCENT,
+            "advance_percent": advance_percent,
+            "event_percent": event_percent,
+            "delivery_percent": delivery_percent,
 
             "client_notes": get_payment_plan_client_notes(),
             "terms": get_payment_plan_terms(),
+            "payment_terms": get_payment_terms(),
             "important_terms": get_payment_plan_important_terms(),
         }
 
@@ -2792,3 +2795,21 @@ class ContractPublicSignView(View):
         )
 
         mark_deal_won(contract.deal)
+
+
+# ============================================================
+# Proposal & contract template
+# ============================================================
+
+class SalesDocumentTemplateView(SalesAccessMixin, UpdateView):
+    form_class = SalesDocumentTemplateForm
+    template_name = "sales/document_template_form.html"
+    success_url = reverse_lazy("sales:document_template")
+
+    def get_object(self, queryset=None):
+        return SalesDocumentTemplate.load()
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        messages.success(self.request, "Template saved. New proposals and contracts use it from now on.")
+        return response

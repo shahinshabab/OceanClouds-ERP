@@ -56,9 +56,9 @@
     </div>
   </section>
 
-  <p class="muted small">This agreement confirms the services below, as accepted in proposal
+  <p class="muted small">Services as accepted in proposal
     {% if contract.proposal %}“{{ contract.proposal.title }}” (version {{ contract.proposal.version }}){% else %}shared with the client{% endif %}.
-    Later changes to services or prices only apply through a revised agreement.</p>
+    {% for line in contract_note|lines %}{{ line }} {% endfor %}</p>
 </div>
 
 <!-- Services -->

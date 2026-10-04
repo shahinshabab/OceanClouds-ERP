@@ -1391,3 +1391,82 @@ class Payment(TimeStamped, Owned):
         result = super().delete(*args, **kwargs)
         invoice.refresh_payment_status()
         return result
+
+
+# -------------------------------------------------------------------
+# Proposal & contract template
+# -------------------------------------------------------------------
+
+class SalesDocumentTemplate(TimeStamped):
+    """
+    The wording every proposal and contract starts from: the personal note,
+    terms, payment terms and payment split. One row, edited by admins and
+    CRM managers. A proposal or contract with its own note or terms keeps
+    those; otherwise the template is used when the document is generated.
+    """
+
+    proposal_note = models.TextField(
+        _("proposal personal note"),
+        blank=True,
+        help_text=_("Opening letter of every proposal. A proposal's own note replaces it."),
+    )
+    proposal_terms = models.TextField(
+        _("proposal terms"),
+        blank=True,
+        help_text=_("One condition per line. The payment split line is added for you."),
+    )
+    contract_note = models.TextField(
+        _("contract note"),
+        blank=True,
+        help_text=_("Short paragraph under the parties on the first page."),
+    )
+    contract_terms = models.TextField(
+        _("contract terms"),
+        blank=True,
+        help_text=_("One condition per line. A contract's own terms replace these."),
+    )
+    good_to_know = models.TextField(
+        _("good to know"),
+        blank=True,
+        help_text=_("Practical notes for the couple, one per line."),
+    )
+    payment_terms = models.TextField(
+        _("payment terms"),
+        blank=True,
+        help_text=_("One per line, shown with the payment schedule."),
+    )
+    advance_percent = models.PositiveSmallIntegerField(_("booking advance %"), default=10)
+    event_percent = models.PositiveSmallIntegerField(_("on the event day %"), default=30)
+    delivery_percent = models.PositiveSmallIntegerField(_("on delivery %"), default=60)
+
+    class Meta:
+        verbose_name = _("proposal & contract template")
+        verbose_name_plural = _("proposal & contract template")
+
+    def __str__(self):
+        return "Proposal & contract template"
+
+    def clean(self):
+        total = (self.advance_percent or 0) + (self.event_percent or 0) + (self.delivery_percent or 0)
+        if total != 100:
+            raise ValidationError(_("The three payment percentages must add up to 100 (now %(total)s).") % {"total": total})
+
+    @classmethod
+    def load(cls):
+        template = cls.objects.order_by("pk").first()
+        if template:
+            return template
+
+        from . import document_defaults as d
+
+        return cls.objects.create(
+            proposal_note=d.PROPOSAL_NOTE,
+            proposal_terms="\n".join(d.PROPOSAL_TERMS),
+            contract_note=d.CONTRACT_NOTE,
+            contract_terms="\n".join(d.CONTRACT_TERMS),
+            good_to_know="\n".join(d.GOOD_TO_KNOW),
+            payment_terms="\n".join(d.PAYMENT_TERMS),
+            advance_percent=d.ADVANCE_PERCENT,
+            event_percent=d.EVENT_PERCENT,
+            delivery_percent=d.DELIVERY_PERCENT,
+        )

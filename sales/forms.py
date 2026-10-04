@@ -16,6 +16,7 @@ from .models import (
     Invoice,
     Payment,
     PaymentMethod,
+    SalesDocumentTemplate,
 )
 
 
@@ -103,8 +104,8 @@ class ProposalForm(BootstrapModelForm):
 
         widgets = {
             "valid_until": DateInput(),
-            "intro": forms.Textarea(attrs={"rows": 3, "placeholder": "Dear Anjali & Rahul, thank you for ..."}),
-            "terms": forms.Textarea(attrs={"rows": 4, "placeholder": "Leave blank to use the standard terms."}),
+            "intro": forms.Textarea(attrs={"rows": 3, "placeholder": "Leave blank to use the note from the proposal and contract template."}),
+            "terms": forms.Textarea(attrs={"rows": 4, "placeholder": "Leave blank to use the terms from the proposal and contract template."}),
             "notes": forms.Textarea(attrs={"rows": 3}),
         }
         labels = {
@@ -493,3 +494,27 @@ class PaymentForm(BootstrapModelForm):
             remaining = invoice_obj.balance
             self.fields["amount"].widget.attrs["max"] = remaining
             self.fields["amount"].help_text = f"Remaining balance: {remaining}"
+
+
+class SalesDocumentTemplateForm(BootstrapModelForm):
+    class Meta:
+        model = SalesDocumentTemplate
+        fields = [
+            "proposal_note",
+            "proposal_terms",
+            "contract_note",
+            "contract_terms",
+            "good_to_know",
+            "payment_terms",
+            "advance_percent",
+            "event_percent",
+            "delivery_percent",
+        ]
+        widgets = {
+            "proposal_note": forms.Textarea(attrs={"rows": 4}),
+            "proposal_terms": forms.Textarea(attrs={"rows": 10}),
+            "contract_note": forms.Textarea(attrs={"rows": 3}),
+            "contract_terms": forms.Textarea(attrs={"rows": 10}),
+            "good_to_know": forms.Textarea(attrs={"rows": 6}),
+            "payment_terms": forms.Textarea(attrs={"rows": 5}),
+        }

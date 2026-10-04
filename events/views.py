@@ -4,6 +4,7 @@ from django.contrib import messages
 from django.db.models import Q
 from django.shortcuts import redirect
 from django.urls import reverse, reverse_lazy
+from django.utils import timezone
 from django.views.generic import (
     ListView,
     DetailView,
@@ -104,7 +105,7 @@ class EventCalendarView(EventCalendarAccessMixin, TemplateView):
         event_type = (request.GET.get("event_type") or "").strip()
         status = (request.GET.get("status") or "").strip()
 
-        today = date.today()
+        today = timezone.localdate()
 
         days_map = {
             "1m": 30,
@@ -415,7 +416,6 @@ class EventUpdateView(EventManageMixin, UpdateView):
 
     def form_valid(self, form):
         self.object = form.save()
-        form.save_m2m()
 
         self.object.sync_auto_checklist(owner=self.request.user)
 

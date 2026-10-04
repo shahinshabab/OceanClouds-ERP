@@ -119,3 +119,11 @@ def has_project_report_access(user):
 @register.simple_tag
 def has_employee_report_access(user):
     return can_access_employee_report(user)
+
+
+@register.simple_tag
+def can_delete_todo(user, todo):
+    """Managers may delete any visible to-do; others only their own."""
+    if user_has_role(user, ROLE_ADMIN, ROLE_CRM_MANAGER, ROLE_PROJECT_MANAGER):
+        return True
+    return todo.owner_id == user.id

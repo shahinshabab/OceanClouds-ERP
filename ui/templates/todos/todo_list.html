@@ -1,4 +1,5 @@
 {% extends "ui/base.html" %}
+{% load roles_tags %}
 
 {% block title %}To-Dos{% endblock %}
 {% block live_topics %}todo{% endblock %}
@@ -257,9 +258,12 @@
                     Edit
                   </a>
 
+                  {% can_delete_todo request.user todo as todo_deletable %}
+                  {% if todo_deletable %}
                   <a href="{% url 'todos:todo_delete' todo.pk %}" class="btn btn-outline-danger">
                     Delete
                   </a>
+                  {% endif %}
                 </div>
               </td>
             </tr>

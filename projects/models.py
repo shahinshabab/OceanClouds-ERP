@@ -358,6 +358,10 @@ class Project(TimeStamped, Owned):
             else:
                 old_status = None
 
+            # Already closed: later edits (description, folder, ...) are fine.
+            if old_status == ProjectStatus.CLOSED:
+                return
+
             if old_status != ProjectStatus.COMPLETED:
                 raise ValidationError({
                     "status": "Project must be completed before it can be closed."

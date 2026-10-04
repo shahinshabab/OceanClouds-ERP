@@ -49,14 +49,16 @@
     </div>
 
     <div class="card-body bg-white">
+      {% comment %}
+        Shown in a sandboxed frame: template HTML is user-written and must
+        not run scripts inside the app.
+      {% endcomment %}
       {% if preview_html %}
-        <div class="border rounded p-3">
-          {{ preview_html|safe }}
-        </div>
+        <iframe class="border rounded w-100" style="min-height: 600px;" sandbox title="Email preview"
+                srcdoc="{{ preview_html }}"></iframe>
       {% elif template.body_html %}
-        <div class="border rounded p-3">
-          {{ template.body_html|safe }}
-        </div>
+        <iframe class="border rounded w-100" style="min-height: 600px;" sandbox title="Email preview"
+                srcdoc="{{ template.body_html }}"></iframe>
       {% else %}
         <p class="text-muted mb-0">
           No HTML body defined for this template.

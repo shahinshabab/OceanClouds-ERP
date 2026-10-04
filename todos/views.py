@@ -2,7 +2,7 @@
 
 from django.contrib import messages
 from django.db.models import Q
-from django.shortcuts import redirect
+from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.utils import timezone
 from django.views import View
@@ -14,6 +14,7 @@ from django.views.generic import (
     DeleteView,
 )
 
+from common.http import safe_next_url
 from common.mixins import RolesRequiredMixin
 from common.roles import (
     ROLE_ADMIN,
@@ -247,30 +248,45 @@ class TodoDeleteView(TodoAccessMixin, TodoQuerysetMixin, DeleteView):
     context_object_name = "todo"
     success_url = reverse_lazy("todos:todo_list")
 
-    def delete(self, request, *args, **kwargs):
-        messages.success(request, "To-do deleted successfully.")
-        return super().delete(request, *args, **kwargs)
+    def get_queryset(self):
+        qs = super().get_queryset()
+        # Employees may delete only the to-dos they created themselves, not
+        # ones a manager or the system assigned to them.
+        if not user_has_role(self.request.user, ROLE_ADMIN, ROLE_CRM_MANAGER, ROLE_PROJECT_MANAGER):
+            qs = qs.filter(owner=self.request.user)
+        return qs
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        messages.success(self.request, "To-do deleted successfully.")
+        return response
 
 
 class TodoCompleteView(TodoAccessMixin, TodoQuerysetMixin, View):
     def post(self, request, *args, **kwargs):
-        todo = self.get_queryset().get(pk=kwargs["pk"])
+        todo = get_object_or_404(self.get_queryset(), pk=kwargs["pk"])
         todo.mark_completed()
         messages.success(request, "To-do marked as completed.")
-        return redirect(request.META.get("HTTP_REFERER") or todo.get_absolute_url())
+        return redirect(
+            safe_next_url(request, request.META.get("HTTP_REFERER"), todo.get_absolute_url())
+        )
 
 
 class TodoReopenView(TodoAccessMixin, TodoQuerysetMixin, View):
     def post(self, request, *args, **kwargs):
-        todo = self.get_queryset().get(pk=kwargs["pk"])
+        todo = get_object_or_404(self.get_queryset(), pk=kwargs["pk"])
         todo.reopen()
         messages.success(request, "To-do reopened.")
-        return redirect(request.META.get("HTTP_REFERER") or todo.get_absolute_url())
+        return redirect(
+            safe_next_url(request, request.META.get("HTTP_REFERER"), todo.get_absolute_url())
+        )
 
 
 class TodoCancelView(TodoAccessMixin, TodoQuerysetMixin, View):
     def post(self, request, *args, **kwargs):
-        todo = self.get_queryset().get(pk=kwargs["pk"])
+        todo = get_object_or_404(self.get_queryset(), pk=kwargs["pk"])
         todo.cancel()
         messages.success(request, "To-do cancelled.")
-        return redirect(request.META.get("HTTP_REFERER") or todo.get_absolute_url())
+        return redirect(
+            safe_next_url(request, request.META.get("HTTP_REFERER"), todo.get_absolute_url())
+        )

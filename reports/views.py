@@ -43,6 +43,7 @@ from sales.models import (
     ProposalStatus,
     ContractStatus,
     InvoiceStatus,
+    net_paid_amount,
 )
 
 from projects.models import (
@@ -555,9 +556,7 @@ class SalesReportView(SalesReportAccessMixin, ReportPDFMixin, TemplateView):
             invoices_in_period.aggregate(total=Sum("amount_paid"))["total"]
         )
 
-        payment_received_total = _money(
-            payments_in_period.aggregate(total=Sum("amount"))["total"]
-        )
+        payment_received_total = _money(net_paid_amount(payments_in_period))
 
         outstanding_total = invoice_total - amount_paid_total
 

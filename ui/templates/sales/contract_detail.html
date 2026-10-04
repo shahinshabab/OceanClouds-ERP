@@ -1,4 +1,5 @@
 {% extends "ui/base.html" %}
+{% load url_tags %}
 {% load roles_tags %}
 
 {% block title %}Contract – {{ contract.number }}{% endblock %}
@@ -113,8 +114,8 @@
            class="btn btn-outline-secondary btn-sm">
           Download PDF
         </a>
-        {% if request.GET.next %}
-          <a href="{{ request.GET.next }}" class="btn btn-secondary btn-sm">
+        {% if request.GET.next|local_url %}
+          <a href="{{ request.GET.next|local_url }}" class="btn btn-secondary btn-sm">
             Back to Project Overview
           </a>
         {% else %}

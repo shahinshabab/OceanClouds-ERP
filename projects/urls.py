@@ -42,7 +42,6 @@ urlpatterns = [
     path("work/<int:pk>/pause/", views.PauseWorkSessionView.as_view(), name="pause_work"),
     path("work/<int:pk>/resume/", views.ResumeWorkSessionView.as_view(), name="resume_work"),
     path("work/<int:pk>/end/", views.EndWorkSessionView.as_view(), name="end_work"),
-    path("work/in-progress/", views.WorkInProgressView.as_view(), name="work_in_progress"),
 
     # AJAX
     path("ajax/load-tasks/", views.ajax_load_tasks, name="ajax_load_tasks"),

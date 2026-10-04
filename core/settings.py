@@ -293,8 +293,13 @@ CRONJOBS = [
     ("0 0 * * *", "django.core.management.call_command", ["generate_due_todos"]),
 ]
 
-# Authentication has a fixed maximum lifetime from the moment of login.
-LOGIN_SESSION_MAX_SECONDS = 16 * 60 * 60
+# Authentication has a fixed maximum lifetime from the moment of login. A
+# login still open at the limit is closed with a missing logout, which the
+# user corrects through a request their project manager approves.
+LOGIN_SESSION_MAX_SECONDS = 12 * 60 * 60
+
+# A day counts as attended once the day's login time adds up to this much.
+ATTENDANCE_REQUIRED_SECONDS = 7 * 60 * 60
 SESSION_COOKIE_AGE = LOGIN_SESSION_MAX_SECONDS
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 SESSION_SAVE_EVERY_REQUEST = False

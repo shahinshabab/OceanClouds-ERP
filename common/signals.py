@@ -51,7 +51,7 @@ def record_user_login(sender, request, user, **kwargs):
         active_session.user_agent = request.META.get("HTTP_USER_AGENT", "")
         active_session.last_activity_at = now
         active_session.expires_at = active_session.login_at + timedelta(
-            seconds=int(getattr(settings, "LOGIN_SESSION_MAX_SECONDS", 16 * 60 * 60))
+            seconds=int(getattr(settings, "LOGIN_SESSION_MAX_SECONDS", 12 * 60 * 60))
         )
         active_session.save(
             update_fields=["ip_address", "user_agent", "last_activity_at", "expires_at"]
@@ -64,7 +64,7 @@ def record_user_login(sender, request, user, **kwargs):
         login_at=now,
         last_activity_at=now,
         expires_at=now + timedelta(
-            seconds=int(getattr(settings, "LOGIN_SESSION_MAX_SECONDS", 16 * 60 * 60))
+            seconds=int(getattr(settings, "LOGIN_SESSION_MAX_SECONDS", 12 * 60 * 60))
         ),
         ip_address=get_client_ip(request),
         user_agent=request.META.get("HTTP_USER_AGENT", ""),

@@ -71,6 +71,7 @@ from .utils import (
     _users_in_role,
 )
 from .forms import CheckoutCorrectionForm, LeaveRequestForm
+from .notifications import notify_checkout_requested, notify_checkout_reviewed
 
 try:
     from weasyprint import HTML
@@ -221,6 +222,7 @@ class AttendanceDashboardView(AttendanceAccessMixin, TemplateView):
                         "checkout_review_status",
                     ]
                 )
+                notify_checkout_requested(login_session)
                 messages.success(request, "Missing checkout submitted for approval.")
             else:
                 messages.error(request, "Please provide a valid checkout time and reason.")
@@ -254,6 +256,7 @@ class AttendanceDashboardView(AttendanceAccessMixin, TemplateView):
                     "review_note",
                 ]
             )
+            notify_checkout_reviewed(login_session)
             messages.success(request, "Attendance correction reviewed.")
 
         elif action == "submit_leave":
@@ -402,6 +405,7 @@ class AttendanceDashboardView(AttendanceAccessMixin, TemplateView):
             "can_review_attendance": self.request.user.has_perm("common.review_attendance"),
             "summary": {
                 "attendance_days": attendance_summary["attendance_days"],
+                "required_hm": attendance_summary["required_hm"],
                 "pending_checkouts": sessions.filter(
                     checkout_review_status=CheckoutReviewStatus.PENDING,
                 ).count(),

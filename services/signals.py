@@ -14,6 +14,7 @@ from services.models import (
     PackageItem,
     PackageDeliverable,
     DeliverableUnit,
+    PriceUnit,
 )
 
 
@@ -32,6 +33,8 @@ def create_basic_wedding_services(sender, **kwargs):
     service_data = [
         {
             "name": "Wedding Photography",
+            "summary": "Candid and traditional coverage by our lead photographers.",
+            "price_unit": PriceUnit.EVENT,
             "category": ServiceCategory.PHOTOGRAPHY,
             "base_price": Decimal("25000.00"),
             "description": "Professional photography coverage for wedding events.",
@@ -43,6 +46,8 @@ def create_basic_wedding_services(sender, **kwargs):
         },
         {
             "name": "Wedding Videography",
+            "summary": "Cinematic coverage on Sony Cinema Line cameras.",
+            "price_unit": PriceUnit.EVENT,
             "category": ServiceCategory.VIDEOGRAPHY,
             "base_price": Decimal("35000.00"),
             "description": "Professional wedding video coverage.",
@@ -54,6 +59,8 @@ def create_basic_wedding_services(sender, **kwargs):
         },
         {
             "name": "Drone Coverage",
+            "summary": "Aerial stills and film, subject to venue permission.",
+            "price_unit": PriceUnit.EVENT,
             "category": ServiceCategory.DRONE,
             "base_price": Decimal("15000.00"),
             "description": "Drone video/photo coverage for outdoor wedding visuals.",
@@ -64,6 +71,8 @@ def create_basic_wedding_services(sender, **kwargs):
         },
         {
             "name": "Premium Wedding Album",
+            "summary": "Handcrafted lay-flat album with a custom design.",
+            "price_unit": PriceUnit.ALBUM,
             "category": ServiceCategory.ALBUM,
             "base_price": Decimal("18000.00"),
             "description": "Premium printed wedding album.",
@@ -83,6 +92,8 @@ def create_basic_wedding_services(sender, **kwargs):
                 "category": item["category"],
                 "base_price": item["base_price"],
                 "description": item["description"],
+                "summary": item["summary"],
+                "price_unit": item["price_unit"],
                 "is_active": True,
             },
         )
@@ -108,6 +119,7 @@ def create_basic_wedding_services(sender, **kwargs):
         name="Standard Wedding Coverage Package",
         defaults={
             "description": "Standard wedding package including photography and videography.",
+            "tagline": "Photography and film for your main day.",
             "is_active": True,
         },
     )

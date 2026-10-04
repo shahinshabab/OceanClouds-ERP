@@ -85,12 +85,20 @@ class ProposalForm(BootstrapModelForm):
             "version",
             "status",
             "valid_until",
+            "intro",
+            "terms",
             "notes",
         ]
 
         widgets = {
             "valid_until": DateInput(),
+            "intro": forms.Textarea(attrs={"rows": 3, "placeholder": "Dear Anjali & Rahul, thank you for ..."}),
+            "terms": forms.Textarea(attrs={"rows": 4, "placeholder": "Leave blank to use the standard terms."}),
             "notes": forms.Textarea(attrs={"rows": 3}),
+        }
+        labels = {
+            "intro": "Personal note",
+            "notes": "Internal notes",
         }
 
 

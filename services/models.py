@@ -55,6 +55,16 @@ class InventoryCategory(models.TextChoices):
     OTHER = "other", _("Other")
 
 
+class PriceUnit(models.TextChoices):
+    EVENT = "event", _("per event")
+    DAY = "day", _("per day")
+    HOUR = "hour", _("per hour")
+    ITEM = "item", _("per item")
+    ALBUM = "album", _("per album")
+    PERSON = "person", _("per person")
+    FIXED = "fixed", _("fixed")
+
+
 class DeliverableUnit(models.TextChoices):
     ITEM = "item", _("Item")
     HOUR = "hour", _("Hour")
@@ -144,6 +154,12 @@ class Service(TimeStamped, Owned):
         default=ServiceCategory.OTHER,
     )
 
+    summary = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text=_("One line printed under this service in proposals and contracts."),
+    )
+
     description = models.TextField(blank=True)
 
     base_price = models.DecimalField(
@@ -152,6 +168,15 @@ class Service(TimeStamped, Owned):
         default=Decimal("0.00"),
         help_text=_("Base selling price."),
     )
+
+    price_unit = models.CharField(
+        max_length=16,
+        choices=PriceUnit.choices,
+        default=PriceUnit.EVENT,
+        help_text=_("How the price is charged, e.g. per event or per album."),
+    )
+
+    sort_order = models.PositiveIntegerField(default=0)
 
     vendors = models.ManyToManyField(
         Vendor,
@@ -164,13 +189,17 @@ class Service(TimeStamped, Owned):
     notes = models.TextField(blank=True)
 
     class Meta:
-        ordering = ("name",)
+        ordering = ("sort_order", "name")
 
     def __str__(self):
         return f"{self.name} ({self.code})" if self.code else self.name
 
     def get_absolute_url(self):
         return reverse("services:service_detail", args=[self.pk])
+
+    @property
+    def active_deliverables(self):
+        return [d for d in self.deliverables.all() if d.is_active]
 
     @classmethod
     def _generate_next_code(cls):
@@ -278,6 +307,12 @@ class Package(TimeStamped, Owned):
         help_text=_("Internal package code. Auto-generated if left blank, e.g., PAC001."),
     )
 
+    tagline = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text=_("Short line printed under the package name in proposals."),
+    )
+
     description = models.TextField(blank=True)
 
     total_price = models.DecimalField(
@@ -287,17 +322,57 @@ class Package(TimeStamped, Owned):
         help_text=_("Auto-calculated from package items."),
     )
 
+    price = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text=_("Bundle price. Leave blank to charge the sum of its services."),
+    )
+
+    sort_order = models.PositiveIntegerField(default=0)
+
     is_active = models.BooleanField(default=True)
     notes = models.TextField(blank=True)
 
     class Meta:
-        ordering = ("name",)
+        ordering = ("sort_order", "name")
 
     def __str__(self):
         return f"{self.name} ({self.code})" if self.code else self.name
 
     def get_absolute_url(self):
         return reverse("services:package_detail", args=[self.pk])
+
+    @property
+    def selling_price(self):
+        """
+        What a proposal charges for this package: the bundle price if set,
+        otherwise the sum of its services.
+        """
+        if self.price is not None:
+            return self.price
+        return self.total_price or Decimal("0.00")
+
+    @property
+    def savings(self):
+        if self.price is None or not self.total_price:
+            return Decimal("0.00")
+        return max(self.total_price - self.price, Decimal("0.00"))
+
+    def included_deliverables(self):
+        """
+        Package promises, or the deliverables of its services when the
+        package has none of its own.
+        """
+        own = [d for d in self.deliverables.all() if d.is_active]
+        if own:
+            return own
+        rows = []
+        for item in self.items.select_related("service").prefetch_related("service__deliverables"):
+            if item.service_id:
+                rows.extend(d for d in item.service.deliverables.all() if d.is_active)
+        return rows
 
     def recalculate_total(self, save=True):
         total = (

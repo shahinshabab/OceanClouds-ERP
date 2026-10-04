@@ -676,3 +676,126 @@ def create_client_and_events_from_contract(contract, user):
             skipped_days.append("Wedding")
 
     return client, created_events, skipped_days
+
+
+# ============================================================
+# Proposal / contract documents (HTML -> PDF)
+# ============================================================
+
+def _clean_lines(text):
+    return [line.strip(" -•\t") for line in str(text or "").splitlines() if line.strip(" -•\t")]
+
+
+def _deliverable_rows(days):
+    """
+    One row per deliverable across all event days, quantities added up.
+    "1 item" is left out because it says nothing.
+    """
+    grouped = {}
+
+    for day in days:
+        for item in day.items.all():
+            for deliverable in item.deliverables.all():
+                if not getattr(deliverable, "is_included", True):
+                    continue
+                title = (deliverable.title or "").strip()
+                if not title:
+                    continue
+                unit = deliverable.unit or ""
+                row = grouped.setdefault(
+                    (title.lower(), unit),
+                    {"title": title, "quantity": Decimal("0"), "unit_code": unit,
+                     "unit": deliverable.get_unit_display() if unit else ""},
+                )
+                row["quantity"] += Decimal(deliverable.quantity or 0)
+
+    rows = []
+    for row in grouped.values():
+        if row["unit_code"] in ("item", "") and row["quantity"] == 1:
+            row["quantity"] = None
+            row["unit"] = ""
+        elif row["unit_code"] in ("item", "other"):
+            row["unit"] = ""
+        elif row["unit"] and row["quantity"] != 1:
+            row["unit"] = f"{row['unit']}s"
+        rows.append(row)
+    return rows
+
+
+def _date_span(days):
+    dates = sorted(day.event_date for day in days if day.event_date)
+    if not dates:
+        return None, None
+    return dates[0], dates[-1]
+
+
+def proposal_reference(proposal):
+    return f"OC-P{proposal.pk:04d}-V{proposal.version or 1}"
+
+
+def build_proposal_document_context(proposal):
+    plan = get_selected_proposal_plan(proposal)
+    days = list(get_pdf_event_days(plan)) if plan else []
+    first_date, last_date = _date_span(days)
+    customer = get_proposal_client(proposal)
+
+    return {
+        "proposal": proposal,
+        "client": customer,
+        "city": getattr(customer, "city", "") if customer else "",
+        "selected_plan": plan,
+        "event_days": days,
+        "deliverables": _deliverable_rows(days),
+        "first_date": first_date,
+        "last_date": last_date,
+        "reference": proposal_reference(proposal),
+        "amount_words": get_amount_in_words(plan.total if plan else proposal.total),
+        "terms": _clean_lines(proposal.terms) or get_proposal_terms(),
+    }
+
+
+PAYMENT_SCHEDULE = (
+    ("Booking advance", 10, "On signing, to reserve your dates"),
+    ("On the event day", 80, "On or the day after the function"),
+    ("On delivery", 10, "When the final outputs are delivered"),
+)
+
+
+def build_contract_document_context(contract):
+    days = list(
+        contract.event_days.prefetch_related(
+            "items", "items__service", "items__package", "items__deliverables"
+        ).all()
+    )
+    first_date, last_date = _date_span(days)
+    total = get_contract_pdf_total(contract)
+
+    payments = []
+    remaining = total
+    for index, (label, percent, note) in enumerate(PAYMENT_SCHEDULE):
+        amount = remaining if index == len(PAYMENT_SCHEDULE) - 1 else percentage_amount(total, percent)
+        remaining -= amount
+        payments.append({"label": label, "percent": percent, "note": note, "amount": amount})
+
+    terms = _clean_lines(contract.terms) or get_payment_plan_terms()
+    client_notes = get_payment_plan_client_notes()
+    important_terms = get_payment_plan_important_terms()
+
+    return {
+        "contract": contract,
+        "client": get_contract_client(contract),
+        "event_days": days,
+        "deliverables": _deliverable_rows(days),
+        "first_date": first_date,
+        "last_date": last_date,
+        "total_amount": total,
+        "amount_words": get_amount_in_words(total),
+        "payments": payments,
+        "advance_paid": contract.deal.advance_paid if contract.deal_id else Decimal("0"),
+        "bank_details": get_oceanclouds_bank_details(),
+        "deliverable_rows": get_payment_plan_deliverable_rows(),
+        "client_notes": client_notes,
+        "terms": terms,
+        "important_terms": important_terms,
+        "all_terms": terms + client_notes[4:] + important_terms,
+    }

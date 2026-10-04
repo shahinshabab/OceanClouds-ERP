@@ -75,7 +75,10 @@
           <tr>
             <td>{{ package.name }}</td>
             <td>{{ package.code|default:"—" }}</td>
-            <td>{{ package.total_price }}</td>
+            <td>
+              {{ package.selling_price }}
+              {% if package.tagline %}<div class="small text-muted">{{ package.tagline }}</div>{% endif %}
+            </td>
             <td>
               {% if package.is_active %}
                 <span class="badge bg-success">Active</span>

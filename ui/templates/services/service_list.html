@@ -86,7 +86,7 @@
             </td>
             <td>
               {% if service.base_price %}
-                {{ service.base_price }}
+                {{ service.base_price }} <span class="small text-muted">{{ service.get_price_unit_display }}</span>
               {% else %}
                 —
               {% endif %}

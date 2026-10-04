@@ -83,6 +83,10 @@
           </a>
         {% endif %}
 
+        <a href="{% url 'sales:proposal_document' proposal.pk %}"
+           class="btn btn-outline-primary btn-sm">
+          Preview
+        </a>
         <a href="{% url 'sales:proposal_pdf_download' proposal.pk %}"
            class="btn btn-outline-secondary btn-sm">
           Download PDF

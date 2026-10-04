@@ -111,7 +111,7 @@
             </div>
             {% if project.event.contract_id %}
               <div class="small text-muted mt-1">
-                Contract: <a href="{% url 'sales:contract_detail' project.event.contract_id %}">{{ project.event.contract.number|default:"View" }}</a>
+                Contract: <a href="{% url 'sales:contract_document' project.event.contract_id %}">{{ project.event.contract.number|default:"View" }}</a>
               </div>
             {% endif %}
           {% endif %}

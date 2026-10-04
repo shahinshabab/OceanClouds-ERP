@@ -342,3 +342,72 @@ class ContractVisibilityTests(TestCase):
                     self.client.get(reverse("sales:contract_update", args=[self.signed.pk])).status_code,
                     403,
                 )
+
+
+class ProposalDocumentTests(TestCase):
+    """
+    Proposals and contracts are HTML documents rendered to PDF.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        from services.models import Package, PackageItem
+
+        cls.user = make_user(username="doc-admin", is_superuser=True, first_name="Shahin")
+        lead = Lead.objects.create(name="Anjali & Rahul", phone="9847000000", wedding_city="Kochi")
+        cls.deal = Deal.objects.create(name="Anjali Wedding", lead=lead, owner=cls.user)
+        service = Service.objects.create(name="Doc Photography", base_price=Decimal("25000"), summary="Candid coverage")
+        ServiceDeliverable.objects.create(service=service, title="Edited photos", quantity=250, unit="photo")
+        cls.package = Package.objects.create(name="Doc Package", price=Decimal("50000"), tagline="Main day")
+        PackageItem.objects.create(package=cls.package, service=service, quantity=3)
+
+        cls.proposal = Proposal.objects.create(
+            deal=cls.deal, title="Wedding Proposal", owner=cls.user,
+            intro="Thank you for choosing us.", terms="Advance confirms the booking.\nTravel is extra.",
+        )
+        plan = ProposalPlan.objects.create(proposal=cls.proposal, name="Signature", is_primary=True)
+        day = ProposalEventDay.objects.create(plan=plan, title="Wedding", event_date=date(2026, 12, 20), venue="Kochi")
+        cls.service_item = ProposalItem.objects.create(event_day=day, service=service, notes="Two photographers")
+        cls.package_item = ProposalItem.objects.create(event_day=day, package=cls.package)
+        cls.proposal.recalculate_totals()
+
+    def test_package_uses_bundle_price(self):
+        self.package.refresh_from_db()
+        self.assertEqual(self.package.total_price, Decimal("75000.00"))
+        self.assertEqual(self.package.selling_price, Decimal("50000"))
+        self.assertEqual(self.package.savings, Decimal("25000.00"))
+        self.assertEqual(self.package_item.unit_price, Decimal("50000"))
+
+    def test_proposal_preview_prints_items_and_custom_terms(self):
+        self.client.force_login(self.user)
+        html = self.client.get(reverse("sales:proposal_document", args=[self.proposal.pk])).content.decode()
+        for text in ("Anjali &amp; Rahul", "Doc Photography", "Candid coverage", "Two photographers",
+                     "250 Edited photos", "Doc Package", "Main day", "Travel is extra.", "Thank you for choosing us."):
+            self.assertIn(text, html)
+        self.assertIn("₹75,000", html)
+
+    def test_proposal_and_contract_pdfs_render(self):
+        contract = Contract.objects.create(deal=self.deal, owner=self.user, status=ContractStatus.SIGNED)
+        contract.populate_from_proposal(self.proposal)
+        self.client.force_login(self.user)
+
+        for url in (
+            reverse("sales:proposal_pdf_download", args=[self.proposal.pk]),
+            reverse("sales:contract_download", args=[contract.pk]),
+        ):
+            with self.subTest(url=url):
+                response = self.client.get(url)
+                self.assertEqual(response.status_code, 200)
+                self.assertTrue(response.content.startswith(b"%PDF"))
+
+        html = self.client.get(reverse("sales:contract_document", args=[contract.pk])).content.decode()
+        self.assertIn(contract.number, html)
+        self.assertIn("Doc Photography", html)
+        self.assertIn("Advance confirms the booking.", html)
+
+    def test_static_files_are_read_from_disk(self):
+        from common.pdf import local_url_fetcher
+
+        result = local_url_fetcher("http://testserver/static/sales/brand/logo.png")
+        self.assertEqual(result["mime_type"], "image/png")
+        self.assertTrue(result["string"].startswith(b"\x89PNG"))

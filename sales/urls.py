@@ -24,6 +24,7 @@ urlpatterns = [
     path("proposals/<int:pk>/edit/", views.ProposalUpdateView.as_view(), name="proposal_update"),
     path("proposals/<int:pk>/delete/", views.ProposalDeleteView.as_view(), name="proposal_delete"),
     path("proposals/<int:pk>/download/", views.ProposalPDFDownloadView.as_view(), name="proposal_pdf_download"),
+    path("proposals/<int:pk>/document/", views.ProposalDocumentView.as_view(), name="proposal_document"),
     path("proposals/<int:pk>/accept/", views.ProposalAcceptView.as_view(), name="proposal_accept"),
     path(
         "deals/<int:pk>/record-advance/",
@@ -43,6 +44,7 @@ urlpatterns = [
     path("contracts/<int:pk>/edit/", views.ContractUpdateView.as_view(), name="contract_update"),
     path("contracts/<int:pk>/delete/", views.ContractDeleteView.as_view(), name="contract_delete"),
     path("contracts/<int:pk>/download/", views.ContractPDFDownloadView.as_view(), name="contract_download"),
+    path("contracts/<int:pk>/document/", views.ContractDocumentView.as_view(), name="contract_document"),
     path(
         "contracts/<int:pk>/generate-invoice/",
         views.ContractGenerateInvoiceView.as_view(),

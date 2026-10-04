@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 from django.core.exceptions import ValidationError
+from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
@@ -357,3 +358,159 @@ class ProjectsTests(AuthenticatedViewTestMixin):
         self.assertEqual(deliverable.total_work_hm, "1h 40m")
         self.assertEqual(project.total_work_hm, "3h 20m")
 
+
+
+def make_role_user(username, role):
+    from django.contrib.auth.models import Group
+
+    user = make_user(username=username, is_staff=False)
+    user.groups.add(Group.objects.get_or_create(name=role)[0])
+    return user
+
+
+class ProjectManagerAccessTests(TestCase):
+    """
+    Project Managers run projects end to end: create, edit, self-assign,
+    and get a to-do when an event has no project yet.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        from common.roles import ROLE_CRM_MANAGER, ROLE_EMPLOYEE, ROLE_PROJECT_MANAGER
+
+        cls.pm = make_role_user("pm-one", ROLE_PROJECT_MANAGER)
+        cls.other_pm = make_role_user("pm-two", ROLE_PROJECT_MANAGER)
+        cls.crm = make_role_user("crm-one", ROLE_CRM_MANAGER)
+        cls.employee = make_role_user("emp-one", ROLE_EMPLOYEE)
+
+    def test_pm_can_create_project_and_becomes_manager(self):
+        self.client.force_login(self.pm)
+        response = self.client.get(reverse("projects:project_create"))
+        self.assertEqual(response.status_code, 200)
+
+        response = self.client.post(
+            reverse("projects:project_create"),
+            {"name": "PM Project", "status": ProjectStatus.PLANNED, "priority": "medium"},
+        )
+        project = Project.objects.get(name="PM Project")
+        self.assertRedirects(response, reverse("projects:project_detail", args=[project.pk]))
+        self.assertEqual(project.manager, self.pm)
+
+    def test_pm_sees_and_edits_projects_managed_by_others(self):
+        project = Project.objects.create(name="Someone Else", manager=self.other_pm)
+        self.client.force_login(self.pm)
+
+        self.assertEqual(
+            self.client.get(reverse("projects:project_detail", args=[project.pk])).status_code, 200
+        )
+        self.assertEqual(
+            self.client.get(reverse("projects:project_update", args=[project.pk])).status_code, 200
+        )
+
+    def test_employee_cannot_create_project(self):
+        self.client.force_login(self.employee)
+        self.assertEqual(self.client.get(reverse("projects:project_create")).status_code, 403)
+
+    def test_pm_is_offered_as_assignee_and_can_self_assign(self):
+        project = Project.objects.create(name="Self Managed", manager=self.pm)
+        task = Task.objects.create(project=project, name="Colour grade")
+        deliverable = Deliverable.objects.create(project=project, name="Teaser")
+
+        from .forms import DeliverableForm, TaskForm
+
+        form = TaskForm(user=self.pm, project=project)
+        self.assertIn(self.pm, form.fields["assigned_to"].queryset)
+        self.assertIn(self.employee, form.fields["assigned_to"].queryset)
+        self.assertIn("(me)", form.fields["assigned_to"].label_from_instance(self.pm))
+        self.assertIn(self.pm, DeliverableForm(user=self.pm, project=project).fields["assigned_to"].queryset)
+
+        self.client.force_login(self.pm)
+        self.client.post(reverse("projects:task_self_assign", args=[task.pk]))
+        self.client.post(reverse("projects:deliverable_self_assign", args=[deliverable.pk]))
+        task.refresh_from_db()
+        deliverable.refresh_from_db()
+        self.assertEqual(task.assigned_to, self.pm)
+        self.assertEqual(deliverable.assigned_to, self.pm)
+
+        # A self-assigned PM can start the work.
+        self.client.post(reverse("projects:start_task_work", args=[task.pk]))
+        self.assertTrue(
+            WorkSession.objects.filter(user=self.pm, task=task, status=WorkSessionStatus.ACTIVE).exists()
+        )
+
+    def test_employee_cannot_self_assign(self):
+        project = Project.objects.create(name="No Claim")
+        task = Task.objects.create(project=project, name="Cull")
+        self.client.force_login(self.employee)
+        response = self.client.post(reverse("projects:task_self_assign", args=[task.pk]))
+        self.assertEqual(response.status_code, 403)
+        task.refresh_from_db()
+        self.assertIsNone(task.assigned_to)
+
+    def test_new_event_without_project_notifies_pms_and_creates_todos(self):
+        from events.models import Event
+
+        with self.captureOnCommitCallbacks(execute=True):
+            event = Event.objects.create(
+                name="Asha Wedding",
+                date=timezone.localdate() + timedelta(days=30),
+                owner=self.crm,
+            )
+
+        for pm in (self.pm, self.other_pm):
+            self.assertTrue(
+                Todo.objects.filter(assigned_to=pm, event=event, status="pending").exists()
+            )
+            self.assertTrue(
+                Notification.objects.filter(
+                    recipient=pm, notif_type=Notification.Type.EVENT_NEEDS_PROJECT
+                ).exists()
+            )
+        self.assertFalse(Todo.objects.filter(assigned_to=self.crm, event=event).exists())
+
+        # Creating the project from the event closes those to-dos.
+        self.client.force_login(self.pm)
+        self.client.post(
+            reverse("projects:project_create") + f"?event={event.pk}",
+            {
+                "name": "Asha Wedding",
+                "event": event.pk,
+                "status": ProjectStatus.PLANNED,
+                "priority": "medium",
+            },
+        )
+        event.refresh_from_db()
+        self.assertIsNotNone(event.project)
+        self.assertFalse(
+            Todo.objects.filter(event=event, status__in=["pending", "in_progress"]).exists()
+        )
+
+    def test_event_with_project_creates_no_todo(self):
+        from events.models import Event
+
+        project = Project.objects.create(name="Linked")
+        with self.captureOnCommitCallbacks(execute=True):
+            event = Event.objects.create(name="Linked Event", date=timezone.localdate(), project=project)
+        self.assertFalse(Todo.objects.filter(event=event).exists())
+
+    def test_project_calendar_shows_work_with_assignee(self):
+        today = timezone.localdate()
+        project = Project.objects.create(name="Calendar Project", manager=self.pm)
+        Task.objects.create(project=project, name="Edit teaser", due_date=today, assigned_to=self.employee)
+        Deliverable.objects.create(project=project, name="Album", due_date=today, assigned_to=self.pm)
+        Task.objects.create(project=project, name="Hidden task", due_date=today, assigned_to=self.pm)
+
+        self.client.force_login(self.pm)
+        html = self.client.get(reverse("projects:project_calendar")).content.decode()
+        self.assertIn("Edit teaser", html)
+        self.assertIn("Album", html)
+        self.assertIn("emp-one", html)
+
+        # Employees see only their own work.
+        self.client.force_login(self.employee)
+        html = self.client.get(reverse("projects:project_calendar")).content.decode()
+        self.assertIn("Edit teaser", html)
+        self.assertNotIn("Hidden task", html)
+
+        response = self.client.get(reverse("projects:project_calendar"), {"month": "bad"})
+        self.assertEqual(response.status_code, 200)

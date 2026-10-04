@@ -23,6 +23,7 @@ urlpatterns = [
     path("tasks/<int:pk>/edit/", views.TaskUpdateView.as_view(), name="task_update"),
     path("tasks/kanban/", views.TaskKanbanView.as_view(), name="task_kanban"),
     path("tasks/<int:pk>/set-status/", views.TaskStatusUpdateView.as_view(), name="task_set_status"),
+    path("tasks/<int:pk>/assign-to-me/", views.TaskSelfAssignView.as_view(), name="task_self_assign"),
 
     # Deliverables
     path("deliverables/", views.DeliverableListView.as_view(), name="deliverable_list"),
@@ -32,6 +33,8 @@ urlpatterns = [
     path("deliverables/<int:pk>/edit/", views.DeliverableUpdateView.as_view(), name="deliverable_update"),
     path("deliverables/kanban/", views.DeliverableKanbanView.as_view(), name="deliverable_kanban"),
     path("deliverables/<int:pk>/set-status/", views.DeliverableStatusUpdateView.as_view(), name="deliverable_set_status"),
+    path("deliverables/<int:pk>/assign-to-me/", views.DeliverableSelfAssignView.as_view(), name="deliverable_self_assign"),
+    path("calendar/", views.ProjectCalendarView.as_view(), name="project_calendar"),
 
     # Work sessions
     path("work/start-task/<int:pk>/", views.StartTaskWorkView.as_view(), name="start_task_work"),

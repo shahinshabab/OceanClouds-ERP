@@ -1,5 +1,7 @@
 # projects/views.py
 
+import calendar
+from datetime import date, timedelta
 from decimal import Decimal
 
 from django.contrib import messages
@@ -21,10 +23,11 @@ from django.views.generic import (
     TemplateView,
 )
 
-from common.mixins import ProjectAccessMixin, ProjectWorkAccessMixin, ProjectAdminOnlyMixin
+from common.mixins import ProjectAccessMixin, ProjectWorkAccessMixin
 from common.roles import (
     ROLE_EMPLOYEE,
     ROLE_PROJECT_MANAGER,
+    can_manage_events,
 )
 
 from events.models import Event
@@ -44,6 +47,7 @@ from .models import (
 )
 from .utils import (
     _form_error_message,
+    can_self_assign,
     _scope_tags,
     _validation_error_message,
     close_active_work_for_target,
@@ -264,7 +268,7 @@ class ProjectOverviewView(ProjectAccessMixin, DetailMessageScopeMixin, DetailVie
         return context
 
 
-class ProjectCreateView(ProjectAdminOnlyMixin, DetailMessageScopeMixin, CreateView):
+class ProjectCreateView(ProjectAccessMixin, DetailMessageScopeMixin, CreateView):
     model = Project
     form_class = ProjectForm
     template_name = "projects/project_form.html"
@@ -303,6 +307,11 @@ class ProjectCreateView(ProjectAdminOnlyMixin, DetailMessageScopeMixin, CreateVi
         return initial
 
     def form_valid(self, form):
+        if not form.instance.manager_id and is_project_manager(self.request.user):
+            form.instance.manager = self.request.user
+
+        form.instance.owner = form.instance.owner or self.request.user
+        form.instance._notification_actor = self.request.user
         response = super().form_valid(form)
 
         event = self.object.event
@@ -334,7 +343,7 @@ class ProjectCreateView(ProjectAdminOnlyMixin, DetailMessageScopeMixin, CreateVi
         return reverse("projects:project_detail", args=[self.object.pk])
 
 
-class ProjectUpdateView(ProjectAdminOnlyMixin, DetailMessageScopeMixin, UpdateView):
+class ProjectUpdateView(ProjectAccessMixin, DetailMessageScopeMixin, UpdateView):
     model = Project
     form_class = ProjectForm
     template_name = "projects/project_form.html"
@@ -664,11 +673,8 @@ class TaskUpdateView(ProjectAccessMixin, DetailMessageScopeMixin, UpdateView):
             "project__manager",
         )
 
-        if is_admin(user):
+        if is_admin_or_project_manager(user):
             return qs
-
-        if is_project_manager(user):
-            return qs.filter(project__manager=user)
 
         return Task.objects.none()
 
@@ -1078,11 +1084,8 @@ class DeliverableUpdateView(ProjectAccessMixin, DetailMessageScopeMixin, UpdateV
             "project__manager",
         )
 
-        if is_admin(user):
+        if is_admin_or_project_manager(user):
             return qs
-
-        if is_project_manager(user):
-            return qs.filter(project__manager=user)
 
         return Deliverable.objects.none()
 
@@ -1608,16 +1611,245 @@ class WorkInProgressView(ProjectWorkAccessMixin, ListView):
 
         user = self.request.user
 
-        if is_admin(user):
+        if is_admin_or_project_manager(user):
             return qs
-
-        if is_project_manager(user):
-            return qs.filter(project__manager=user)
 
         if is_employee(user):
             return qs.filter(user=user)
 
         return WorkSession.objects.none()
+
+
+# ============================================================
+# Project calendar
+# ============================================================
+
+def _person_name(user):
+    if not user:
+        return ""
+    return user.get_full_name().strip() or user.username
+
+
+class ProjectCalendarView(ProjectWorkAccessMixin, TemplateView):
+    """
+    Month view of upcoming project work: events, tasks and deliverables,
+    each card showing who is assigned.
+
+    Tasks and deliverables sit on their due date (start date if no due date).
+    Employees see only their own work; events are shown to everyone.
+    """
+
+    template_name = "projects/project_calendar.html"
+
+    def get_month(self):
+        raw = (self.request.GET.get("month") or "").strip()
+        today = timezone.localdate()
+        try:
+            year, month = (int(part) for part in raw.split("-", 1))
+            return date(year, month, 1)
+        except (TypeError, ValueError):
+            return today.replace(day=1)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+        today = timezone.localdate()
+        first = self.get_month()
+        last = first.replace(day=calendar.monthrange(first.year, first.month)[1])
+        grid_start = first - timedelta(days=first.weekday())
+        grid_end = last + timedelta(days=6 - last.weekday())
+
+        project_id = (self.request.GET.get("project") or "").strip()
+        staff_id = (self.request.GET.get("staff") or "").strip()
+        can_filter_staff = is_admin_or_project_manager(user)
+
+        in_range = (
+            Q(due_date__range=(grid_start, grid_end))
+            | Q(due_date__isnull=True, start_date__range=(grid_start, grid_end))
+        )
+
+        tasks = (
+            visible_tasks_for(user)
+            .filter(in_range)
+            .exclude(status=TaskStatus.CANCELLED)
+            .select_related("project", "assigned_to")
+        )
+        deliverables = (
+            visible_deliverables_for(user)
+            .filter(in_range)
+            .exclude(status=DeliverableStatus.CANCELLED)
+            .select_related("project", "assigned_to")
+        )
+        events = (
+            Event.objects.filter(date__range=(grid_start, grid_end))
+            .exclude(status="cancelled")
+            .select_related("client", "project", "venue")
+            .prefetch_related("projects")
+        )
+
+        if project_id.isdigit():
+            tasks = tasks.filter(project_id=project_id)
+            deliverables = deliverables.filter(project_id=project_id)
+            events = events.filter(Q(project_id=project_id) | Q(projects__id=project_id)).distinct()
+
+        if staff_id.isdigit() and can_filter_staff:
+            tasks = tasks.filter(assigned_to_id=staff_id)
+            deliverables = deliverables.filter(assigned_to_id=staff_id)
+
+        items_by_day = {}
+
+        def add(day, item):
+            items_by_day.setdefault(day, []).append(item)
+
+        can_open_events = can_manage_events(user)
+        for event in events:
+            project = event.linked_project
+            add(event.date, {
+                "kind": "event",
+                "title": event.name,
+                "url": reverse("events:event_detail", args=[event.pk]) if can_open_events else "",
+                "time": event.start_time,
+                "meta": event.venue.name if event.venue_id else "",
+                "project": project.name if project else "",
+                "needs_project": project is None,
+                "status": event.get_status_display(),
+            })
+
+        for task in tasks:
+            add(task.due_date or task.start_date, {
+                "kind": "task",
+                "title": task.name,
+                "url": reverse("projects:task_detail", args=[task.pk]),
+                "project": task.project.name,
+                "assignee": _person_name(task.assigned_to),
+                "is_mine": task.assigned_to_id == user.id,
+                "status": task.get_status_display(),
+                "done": task.status == TaskStatus.COMPLETED,
+                "overdue": task.is_overdue,
+                "start_date": task.start_date if task.due_date and task.start_date != task.due_date else None,
+            })
+
+        for deliverable in deliverables:
+            add(deliverable.due_date or deliverable.start_date, {
+                "kind": "deliverable",
+                "title": deliverable.name,
+                "url": reverse("projects:deliverable_detail", args=[deliverable.pk]),
+                "project": deliverable.project.name,
+                "assignee": _person_name(deliverable.assigned_to),
+                "is_mine": deliverable.assigned_to_id == user.id,
+                "status": deliverable.get_status_display(),
+                "done": deliverable.status == DeliverableStatus.DELIVERED,
+                "overdue": deliverable.is_overdue,
+                "start_date": deliverable.start_date if deliverable.due_date and deliverable.start_date != deliverable.due_date else None,
+            })
+
+        kind_order = {"event": 0, "task": 1, "deliverable": 2}
+        weeks = []
+        day = grid_start
+        while day <= grid_end:
+            week = []
+            for _ in range(7):
+                items = sorted(
+                    items_by_day.get(day, []),
+                    key=lambda item: (kind_order[item["kind"]], str(item.get("time") or ""), item["title"]),
+                )
+                week.append({
+                    "date": day,
+                    "in_month": day.month == first.month,
+                    "is_today": day == today,
+                    "items": items,
+                })
+                day += timedelta(days=1)
+            weeks.append(week)
+
+        prev_month = (first - timedelta(days=1)).replace(day=1)
+        next_month = last + timedelta(days=1)
+
+        context.update({
+            "month": first,
+            "weeks": weeks,
+            "weekday_names": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+            "prev_month": prev_month.strftime("%Y-%m"),
+            "next_month": next_month.strftime("%Y-%m"),
+            "this_month": today.strftime("%Y-%m"),
+            "project_filter": project_id,
+            "staff_filter": staff_id,
+            "project_choices": visible_projects_for(user).exclude(
+                status__in=[ProjectStatus.CLOSED, ProjectStatus.CANCELLED]
+            ).order_by("name") if can_filter_staff else Project.objects.none(),
+            "staff_choices": User.objects.filter(
+                is_active=True,
+                groups__name__in=[ROLE_EMPLOYEE, ROLE_PROJECT_MANAGER],
+            ).distinct().order_by("first_name", "last_name", "username") if can_filter_staff else User.objects.none(),
+            "can_filter_staff": can_filter_staff,
+            "counts": {
+                "events": events.count(),
+                "tasks": tasks.count(),
+                "deliverables": deliverables.count(),
+            },
+        })
+        return context
+
+
+# ============================================================
+# Self-assign
+# ============================================================
+
+class SelfAssignMixin(ProjectAccessMixin, View):
+    """
+    "Assign to me" on a task or deliverable, for Admins and Project Managers
+    who handle the work themselves.
+    """
+
+    model = None
+    scope = ""
+    detail_url_name = ""
+
+    def post(self, request, pk):
+        obj = get_object_or_404(self.model.objects.select_related("project"), pk=pk)
+
+        if not can_self_assign(request.user, obj):
+            messages.info(
+                request,
+                f"This {self.scope} is already assigned to you.",
+                extra_tags=_scope_tags(self.scope),
+            )
+            return redirect(self.detail_url_name, pk=obj.pk)
+
+        previous = obj.assigned_to
+        if previous and previous.pk != request.user.pk:
+            close_active_work_for_target(
+                previous,
+                **{self.scope: obj},
+            )
+
+        obj.assigned_to = request.user
+        obj._notification_actor = request.user
+        obj.save(update_fields=["assigned_to", "updated_at"])
+
+        messages.success(
+            request,
+            f"{self.model._meta.verbose_name.capitalize()} assigned to you.",
+            extra_tags=_scope_tags(self.scope),
+        )
+
+        next_url = request.POST.get("next")
+        if next_url and next_url.startswith("/"):
+            return redirect(next_url)
+
+        return redirect(self.detail_url_name, pk=obj.pk)
+
+
+class TaskSelfAssignView(SelfAssignMixin):
+    model = Task
+    scope = "task"
+    detail_url_name = "projects:task_detail"
+
+
+class DeliverableSelfAssignView(SelfAssignMixin):
+    model = Deliverable
+    scope = "deliverable"
+    detail_url_name = "projects:deliverable_detail"
 
 
 # ============================================================

@@ -5,7 +5,7 @@
 
 {% block content %}
 {% has_event_manage_access request.user as can_manage_events %}
-{% is_admin request.user as can_create_project %}
+{% has_project_access request.user as can_create_project %}
 
 <div class="container py-3 max-w-2xl">
 
@@ -70,6 +70,25 @@
           <div class="fw-semibold">
             {% if event.client %}
               {{ event.client }}
+              {% if event.client.phone or event.client.email %}
+                <div class="small text-muted fw-normal">
+                  {{ event.client.phone }}{% if event.client.phone and event.client.email %} · {% endif %}{{ event.client.email }}
+                </div>
+              {% endif %}
+            {% else %}
+              —
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="col-md-4">
+          <div class="text-uppercase text-muted small">Contract</div>
+          <div class="fw-semibold">
+            {% if event.contract %}
+              <a href="{% url 'sales:contract_detail' event.contract.pk %}">
+                {{ event.contract.number|default:"View contract" }}
+              </a>
+              <div class="small text-muted fw-normal">{{ event.contract.get_status_display }}</div>
             {% else %}
               —
             {% endif %}

@@ -13,10 +13,8 @@
     <div>
       <h1 class="h3 mb-0">Deliverables</h1>
       <small class="text-muted">
-        {% if is_admin %}
+        {% if is_admin or is_project_manager %}
           Viewing all active project deliverables.
-        {% elif is_project_manager %}
-          Deliverables for projects you manage.
         {% elif is_employee %}
           Deliverables assigned to you.
         {% else %}

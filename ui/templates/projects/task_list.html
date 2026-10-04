@@ -14,10 +14,8 @@
     <div>
       <h1 class="h3 mb-0">Tasks</h1>
       <small class="text-muted">
-        {% if is_admin %}
+        {% if is_admin or is_project_manager %}
           Viewing all active project tasks.
-        {% elif is_project_manager %}
-          Tasks for projects you manage.
         {% elif is_employee %}
           Tasks assigned to you.
         {% else %}

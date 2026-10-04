@@ -117,11 +117,9 @@ def visible_projects_for(user):
         "deliverables",
     )
 
-    if is_admin(user):
+    # Project Managers have full project access, not only their own projects.
+    if is_admin_or_project_manager(user):
         return qs
-
-    if is_project_manager(user):
-        return qs.filter(manager=user)
 
     return Project.objects.none()
 
@@ -134,11 +132,8 @@ def visible_tasks_for(user):
         "assigned_to",
     )
 
-    if is_admin(user):
+    if is_admin_or_project_manager(user):
         return qs
-
-    if is_project_manager(user):
-        return qs.filter(project__manager=user)
 
     if is_employee(user):
         return qs.filter(assigned_to=user)
@@ -154,16 +149,29 @@ def visible_deliverables_for(user):
         "assigned_to",
     ).prefetch_related("tasks")
 
-    if is_admin(user):
+    if is_admin_or_project_manager(user):
         return qs
-
-    if is_project_manager(user):
-        return qs.filter(project__manager=user)
 
     if is_employee(user):
         return qs.filter(assigned_to=user)
 
     return Deliverable.objects.none()
+
+
+def can_manage_project_work(user):
+    """
+    Create/edit projects, tasks and deliverables: Admin and Project Manager.
+    """
+    return is_admin_or_project_manager(user)
+
+
+def can_self_assign(user, obj):
+    """
+    Staff who manage project work can take a task or deliverable themselves.
+    """
+    if not user.is_authenticated or not can_manage_project_work(user):
+        return False
+    return obj.assigned_to_id != user.id
 
 
 def user_has_active_work(user):
@@ -214,3 +222,85 @@ def close_active_work_for_target(user, task=None, deliverable=None):
 
     for session in qs:
         session.end()
+
+
+# ============================================================
+# Event -> project hand-off
+# ============================================================
+
+EVENT_PROJECT_TODO_PREFIX = "Create project for event: "
+
+
+def project_managers():
+    from django.contrib.auth import get_user_model
+
+    return (
+        get_user_model().objects.filter(is_active=True, groups__name=ROLE_PROJECT_MANAGER)
+        .distinct()
+        .order_by("first_name", "last_name", "username")
+    )
+
+
+def event_needs_project(event):
+    return not event.project_id and not event.projects.exists()
+
+
+def request_project_for_event(event, actor=None):
+    """
+    A new event has no project yet: tell every Project Manager and give each
+    of them a to-do to plan the project from the event and its contract.
+    """
+    from common.models import Notification
+    from common.notifications import notify_user
+    from todos.models import TodoPriority
+    from todos.services import create_todo_once
+
+    if not event_needs_project(event):
+        return []
+
+    created = []
+    when = event.date.strftime("%d %b %Y") if event.date else "date not set"
+    description = (
+        f"{event.name} on {when} has no project yet. "
+        "Open the event, check the client and the contract, then create the project "
+        "and schedule its tasks and deliverables."
+    )
+
+    for manager in project_managers():
+        notify_user(
+            recipient=manager,
+            actor=actor,
+            notif_type=Notification.Type.EVENT_NEEDS_PROJECT,
+            target=event,
+            message=f"New event needs a project: {event.name} ({when})",
+        )
+        todo, was_created = create_todo_once(
+            title=f"{EVENT_PROJECT_TODO_PREFIX}{event.name}",
+            description=description,
+            owner=actor or event.owner or manager,
+            assigned_to=manager,
+            priority=TodoPriority.HIGH,
+            due_date=event.date,
+            event=event,
+            client=event.client,
+            contract=event.contract,
+        )
+        if was_created:
+            created.append(todo)
+
+    return created
+
+
+def close_event_project_todos(event):
+    """
+    The event now has a project: the open "create project" to-dos are done.
+    """
+    from todos.models import Todo, TodoStatus
+
+    todos = Todo.objects.filter(
+        event=event,
+        title__startswith=EVENT_PROJECT_TODO_PREFIX,
+        status__in=[TodoStatus.PENDING, TodoStatus.IN_PROGRESS],
+    )
+    for todo in todos:
+        todo.mark_completed()

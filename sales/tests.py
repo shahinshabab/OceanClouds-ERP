@@ -301,3 +301,44 @@ class ClientAfterContractFlowTests(TestCase):
         response = self.client.get(reverse("events:event_create") + f"?client={existing.pk}")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["form"].initial["client"], existing.pk)
+
+
+class ContractVisibilityTests(TestCase):
+    """
+    Everyone in the company can read the digital copy of a signed contract;
+    only sales can see drafts or change anything.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        from django.contrib.auth.models import Group
+        from common.roles import ROLE_EMPLOYEE, ROLE_PROJECT_MANAGER
+
+        cls.employee = make_user(username="contract-emp", is_staff=False)
+        cls.employee.groups.add(Group.objects.get_or_create(name=ROLE_EMPLOYEE)[0])
+        cls.pm = make_user(username="contract-pm", is_staff=False)
+        cls.pm.groups.add(Group.objects.get_or_create(name=ROLE_PROJECT_MANAGER)[0])
+        client = Client.objects.create(name="Visible Client", phone="9999")
+        deal = Deal.objects.create(name="Visible Deal", client=client)
+        cls.signed = Contract.objects.create(deal=deal, status=ContractStatus.SIGNED)
+        cls.draft = Contract.objects.create(deal=deal, status=ContractStatus.DRAFT)
+
+    def test_employee_and_pm_read_signed_contract_only(self):
+        for user in (self.employee, self.pm):
+            with self.subTest(user=user.username):
+                self.client.force_login(user)
+                list_html = self.client.get(reverse("sales:contract_list")).content.decode()
+                self.assertIn(self.signed.number, list_html)
+                self.assertNotIn(self.draft.number, list_html)
+                self.assertEqual(
+                    self.client.get(reverse("sales:contract_detail", args=[self.signed.pk])).status_code,
+                    200,
+                )
+                self.assertEqual(
+                    self.client.get(reverse("sales:contract_detail", args=[self.draft.pk])).status_code,
+                    404,
+                )
+                self.assertEqual(
+                    self.client.get(reverse("sales:contract_update", args=[self.signed.pk])).status_code,
+                    403,
+                )

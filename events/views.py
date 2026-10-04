@@ -344,7 +344,7 @@ class EventDetailView(EventManageMixin, DetailView):
         return (
             super()
             .get_queryset()
-            .select_related("project", "client", "primary_contact", "venue")
+            .select_related("project", "client", "primary_contact", "venue", "contract")
             .prefetch_related(
                 "services",
                 "packages",

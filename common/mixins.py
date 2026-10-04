@@ -19,6 +19,7 @@ from .roles import (
     PROJECT_REPORT_ACCESS_ROLES,
     EMPLOYEE_REPORT_ACCESS_ROLES,
     ATTENDANCE_ACCESS_ROLES,
+    ROLE_ALL,
     can_access_event_calendar,
     user_has_role,
 )
@@ -78,6 +79,19 @@ class SalesReadOnlyAccessMixin(RolesRequiredMixin):
     accept proposal, convert proposal, generate invoice, or payment creation.
     """
     allowed_roles = SALES_ACCESS_ROLES + [ROLE_PROJECT_MANAGER]
+
+
+class ContractViewAccessMixin(RolesRequiredMixin):
+    """
+    Digital contract (read-only view and PDF):
+    - Everyone in the company who is signed in.
+
+    Editing, sending, invoicing and deleting stay with SalesAccessMixin.
+    """
+    allowed_roles = ROLE_ALL
+
+    def test_func(self):
+        return self.request.user.is_authenticated
 
 
 class ProjectAdminOnlyMixin(RolesRequiredMixin):

@@ -8,6 +8,8 @@
 {% is_crm_manager request.user as is_crm_manager %}
 {% is_project_manager request.user as is_project_manager %}
 {% is_employee request.user as is_employee %}
+{% has_sales_access request.user as is_sales %}
+{% has_event_manage_access request.user as can_open_events %}
 
 <div class="container py-3">
 
@@ -98,7 +100,11 @@
         </a>
       {% endif %}
       
-      {% if is_project_manager %}
+      {% if not is_sales %}
+        <a href="{% url 'sales:contract_download' contract.pk %}"
+           class="btn btn-outline-secondary btn-sm">
+          Download PDF
+        </a>
         {% if request.GET.next %}
           <a href="{{ request.GET.next }}" class="btn btn-secondary btn-sm">
             Back to Project Overview
@@ -126,7 +132,9 @@
         <div class="col-md-4 mb-3 mb-md-0">
           <div class="text-muted small text-uppercase">Deal</div>
           <div class="fw-semibold mt-1">
-            {% if contract.deal %}
+            {% if contract.deal and not is_sales and not is_project_manager %}
+              {{ contract.deal.name }}
+            {% elif contract.deal %}
               <a href="{% url 'sales:deal_detail' contract.deal.pk %}" class="text-decoration-none">
                 {{ contract.deal.name }}
               </a>
@@ -139,10 +147,15 @@
         <div class="col-md-4 mb-3 mb-md-0">
           <div class="text-muted small text-uppercase">Client</div>
           <div class="fw-semibold mt-1">
-            {% if contract.deal.client %}
+            {% if contract.deal.client and is_sales %}
               <a href="{% url 'crm:client_detail' contract.deal.client.pk %}" class="text-decoration-none">
                 {{ contract.deal.client }}
               </a>
+            {% elif contract.deal.client %}
+              {{ contract.deal.client }}
+              {% if contract.deal.client.phone or contract.deal.client.email %}
+                <div class="text-muted small fw-normal">{{ contract.deal.client.phone }}{% if contract.deal.client.phone and contract.deal.client.email %} · {% endif %}{{ contract.deal.client.email }}</div>
+              {% endif %}
             {% elif contract.deal.customer %}
               {{ contract.deal.customer }}
               <div class="text-muted small fw-normal">Lead. Client is created after signing and invoicing.</div>
@@ -199,7 +212,9 @@
         <div class="col-md-4 mb-3 mb-md-0">
           <div class="text-muted small text-uppercase">Proposal</div>
           <div class="fw-semibold mt-1">
-            {% if contract.proposal %}
+            {% if contract.proposal and not is_sales and not is_project_manager %}
+              {{ contract.proposal.title }} (v{{ contract.proposal.version }})
+            {% elif contract.proposal %}
               <a href="{% url 'sales:proposal_detail' contract.proposal.pk %}">
                 {{ contract.proposal.title }} (v{{ contract.proposal.version }})
               </a>
@@ -324,6 +339,7 @@
   </div>
 
   <!-- Invoices -->
+  {% if is_sales or is_project_manager %}
   <div class="card mb-4 shadow-sm">
     <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
       <span>Invoices</span>
@@ -403,6 +419,8 @@
     </div>
   </div>
 
+  {% endif %}
+
   {% if contract.events.exists %}
     <div class="card mb-4 shadow-sm">
       <div class="card-header bg-light">
@@ -411,7 +429,11 @@
       <ul class="list-group list-group-flush">
         {% for event in contract.events.all %}
           <li class="list-group-item d-flex justify-content-between align-items-center">
-            <a href="{% url 'events:event_detail' event.pk %}" class="text-decoration-none">{{ event.name }}</a>
+            {% if can_open_events %}
+              <a href="{% url 'events:event_detail' event.pk %}" class="text-decoration-none">{{ event.name }}</a>
+            {% else %}
+              {{ event.name }}
+            {% endif %}
             <span class="text-muted small">{{ event.date }}</span>
           </li>
         {% endfor %}

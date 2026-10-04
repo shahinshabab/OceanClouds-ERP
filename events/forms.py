@@ -2,7 +2,6 @@
 
 from django import forms
 
-from crm.models import Contact
 from services.models import Service, Package, Vendor, InventoryItem
 
 from .models import (
@@ -70,9 +69,7 @@ class EventForm(BootstrapModelForm):
     class Meta:
         model = Event
         fields = [
-            "project",
             "client",
-            "primary_contact",
             "name",
             "event_type",
             "status",
@@ -108,32 +105,25 @@ class EventForm(BootstrapModelForm):
 
         self.fields["services"].queryset = Service.objects.filter(is_active=True).order_by("name")
         self.fields["packages"].queryset = Package.objects.filter(is_active=True).order_by("name")
-        self.fields["vendors"].queryset = Vendor.objects.filter(is_active=True).order_by("name")
-        self.fields["inventory_items"].queryset = InventoryItem.objects.filter(is_active=True).order_by("name")
+        if "vendors" in self.fields:
+            self.fields["vendors"].queryset = Vendor.objects.filter(is_active=True).order_by("name")
+            self.fields["inventory_items"].queryset = InventoryItem.objects.filter(is_active=True).order_by("name")
         self.fields["venue"].queryset = Venue.objects.filter(is_active=True).order_by("name")
 
-        client_id = None
+        # Contact comes from the client and the project is created later
+        # from the event. Vendors and inventory are assigned after the
+        # event exists, so they only show when editing.
+        if not self.instance.pk:
+            del self.fields["vendors"]
+            del self.fields["inventory_items"]
 
-        if self.data.get("client"):
-            client_id = self.data.get("client")
-        elif self.instance and self.instance.client_id:
-            client_id = self.instance.client_id
-
-        if client_id:
-            self.fields["primary_contact"].queryset = Contact.objects.filter(
-                client_id=client_id
-            ).order_by("first_name", "last_name")
-        else:
-            self.fields["primary_contact"].queryset = Contact.objects.none()
-
-        self.fields["project"].required = False
         self.fields["client"].required = False
-        self.fields["primary_contact"].required = False
         self.fields["venue"].required = False
         self.fields["services"].required = False
         self.fields["packages"].required = False
-        self.fields["vendors"].required = False
-        self.fields["inventory_items"].required = False
+        for name in ("vendors", "inventory_items"):
+            if name in self.fields:
+                self.fields[name].required = False
 
     def clean(self):
         cleaned_data = super().clean()

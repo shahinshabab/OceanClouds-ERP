@@ -62,6 +62,7 @@
                 <a class="nav-link" href="{% url 'projects:project_kanban' %}">Projects</a>
                 <a class="nav-link" href="{% url 'projects:task_kanban' %}">Tasks</a>
                 <a class="nav-link" href="{% url 'projects:deliverable_kanban' %}">Deliverables</a>
+                <a class="nav-link" href="{% url 'projects:project_calendar' %}">Project Calendar</a>
             </nav>
 
             <p class="sidebar-section-title">Events</p>
@@ -126,6 +127,14 @@
                 <a class="nav-link" href="{% url 'sales:invoice_list' %}">Invoices</a>
             </nav>
 
+            <p class="sidebar-section-title">Events</p>
+            <nav class="nav flex-column mb-3">
+                <a class="nav-link" href="{% url 'events:event_list' %}">Events</a>
+                <a class="nav-link" href="{% url 'events:venue_list' %}">Venues</a>
+                <a class="nav-link" href="{% url 'events:checklist_list' %}">Checklists</a>
+                <a class="nav-link" href="{% url 'events:event_calendar' %}">Event Calendar</a>
+            </nav>
+
             <p class="sidebar-section-title">Communication</p>
             <nav class="nav flex-column mb-3">
                 <a class="nav-link" href="{% url 'messaging:ticket_list' %}">Raise a Ticket</a>
@@ -145,6 +154,7 @@
             <p class="sidebar-section-title">CRM</p>
             <nav class="nav flex-column mb-3">
                 <a class="nav-link" href="{% url 'crm:inquiry_list' %}">Inquiries</a>
+                <a class="nav-link" href="{% url 'sales:contract_list' %}">Contracts</a>
             </nav>
 
             <p class="sidebar-section-title">Projects &amp; Tasks</p>
@@ -152,6 +162,7 @@
                 <a class="nav-link" href="{% url 'projects:project_kanban' %}">Projects</a>
                 <a class="nav-link" href="{% url 'projects:task_kanban' %}">Tasks</a>
                 <a class="nav-link" href="{% url 'projects:deliverable_kanban' %}">Deliverables</a>
+                <a class="nav-link" href="{% url 'projects:project_calendar' %}">Project Calendar</a>
             </nav>
 
             <p class="sidebar-section-title">Events</p>
@@ -181,11 +192,13 @@
             <nav class="nav flex-column mb-3">
                 <a class="nav-link" href="{% url 'projects:task_kanban' %}">Task</a>
                 <a class="nav-link" href="{% url 'projects:deliverable_kanban' %}">Deliverable</a>
+                <a class="nav-link" href="{% url 'projects:project_calendar' %}">Calendar</a>
             </nav>
 
             <p class="sidebar-section-title">My CRM</p>
             <nav class="nav flex-column mb-3">
                 <a class="nav-link" href="{% url 'crm:inquiry_list' %}">Inquiries</a>
+                <a class="nav-link" href="{% url 'sales:contract_list' %}">Contracts</a>
             </nav>
 
             <p class="sidebar-section-title">Events</p>

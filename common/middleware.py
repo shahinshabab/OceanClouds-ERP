@@ -13,16 +13,35 @@ from common.models import ImportantNotice, UserLoginSession
 from common.session_management import close_expired_login_sessions
 
 
+def is_user_activity(request):
+    """
+    Only requests a person made count as activity: clicking a link, submitting
+    a form, typing a URL. Automatic page reloads and background fetches (live
+    updates, the notification bell) do not, so an unattended tab goes idle.
+    Browsers without Fetch Metadata headers count every request, as before.
+    """
+    mode = request.headers.get("Sec-Fetch-Mode")
+    if mode is None:
+        return True
+    return mode == "navigate" and request.headers.get("Sec-Fetch-User") == "?1"
+
+
 class CloseExpiredLoginSessionsMiddleware:
     """
-    Enforces the fixed login deadline without treating page inactivity as work
-    inactivity. A scheduled command performs the same cleanup between requests.
+    Signs out logins that went idle or reached their fixed deadline, and
+    records user activity. A scheduled command performs the same cleanup
+    between requests.
     """
 
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
+        if request.path_info == reverse("common:session_heartbeat"):
+            # The endpoint checks its own session deadline and throttles writes.
+            # The scheduled cleanup still closes expired attendance sessions.
+            return self.get_response(request)
+
         expired_keys = set(close_expired_login_sessions())
 
         current_session_key = request.session.session_key
@@ -32,14 +51,29 @@ class CloseExpiredLoginSessionsMiddleware:
         ):
             auth_logout(request)
 
+        current_user_id = request.user.pk if request.user.is_authenticated else None
         response = self.get_response(request)
 
         if request.user.is_authenticated and request.session.session_key:
-            UserLoginSession.objects.filter(
-                user_id=request.user.pk,
-                session_key=request.session.session_key,
-                logout_at__isnull=True,
-            ).update(last_activity_at=timezone.now())
+            if (
+                current_user_id == request.user.pk
+                and current_session_key
+                and current_session_key != request.session.session_key
+            ):
+                # Password changes rotate the browser key without a login signal.
+                # Keep the same attendance row and its original fixed deadline.
+                UserLoginSession.objects.filter(
+                    user_id=current_user_id,
+                    session_key=current_session_key,
+                    logout_at__isnull=True,
+                ).update(session_key=request.session.session_key)
+
+            if is_user_activity(request):
+                UserLoginSession.objects.filter(
+                    user_id=request.user.pk,
+                    session_key=request.session.session_key,
+                    logout_at__isnull=True,
+                ).update(last_activity_at=timezone.now())
 
         return response
 
@@ -60,6 +94,9 @@ class RequireNoticeAcknowledgementMiddleware:
 
     def __call__(self, request):
         if not request.user.is_authenticated:
+            return self.get_response(request)
+
+        if request.path_info == reverse("common:session_heartbeat"):
             return self.get_response(request)
 
         notice_url = reverse("common:important_notice")

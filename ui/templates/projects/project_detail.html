@@ -1,6 +1,7 @@
 {% extends "ui/base.html" %}
 {% load static %}
 {% load roles_tags %}
+{% block live_topics %}task-project:{{ project.pk }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid py-4">
@@ -41,7 +42,11 @@
         Full Overview
       </a>
 
-      {% if is_admin %}
+      <a href="{% url 'projects:project_calendar' %}?project={{ project.pk }}" class="btn btn-outline-secondary btn-sm">
+        Calendar
+      </a>
+
+      {% if is_admin or is_project_manager %}
         <a href="{% url 'projects:project_update' project.pk %}" class="btn btn-primary btn-sm">
           Edit Project
         </a>
@@ -102,8 +107,13 @@
 
           {% if project.event %}
             <div class="small text-muted mt-2">
-              Event: {{ project.event }}
+              Event: <a href="{% url 'events:event_detail' project.event.pk %}">{{ project.event }}</a>
             </div>
+            {% if project.event.contract_id %}
+              <div class="small text-muted mt-1">
+                Contract: <a href="{% url 'sales:contract_document' project.event.contract_id %}">{{ project.event.contract.number|default:"View" }}</a>
+              </div>
+            {% endif %}
           {% endif %}
 
           <div class="small text-muted mt-2">

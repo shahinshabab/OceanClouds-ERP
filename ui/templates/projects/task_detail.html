@@ -1,5 +1,6 @@
 {% extends "ui/base.html" %}
 {% load roles_tags %}
+{% block live_topics %}task:{{ task.pk }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid py-4">
@@ -33,6 +34,14 @@
         <a href="{% url 'projects:task_update' task.pk %}" class="btn btn-primary btn-sm">
           Edit Task
         </a>
+      {% endif %}
+      {% if is_admin or is_project_manager %}
+        {% if task.assigned_to_id != request.user.id %}
+          <form method="post" action="{% url 'projects:task_self_assign' task.pk %}" class="d-inline">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-primary btn-sm">Assign to me</button>
+          </form>
+        {% endif %}
       {% endif %}
       {% if request.GET.next %}
         <a href="{{ request.GET.next }}" class="btn btn-outline-secondary btn-sm">

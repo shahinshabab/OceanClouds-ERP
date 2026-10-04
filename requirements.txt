@@ -4,7 +4,10 @@ botocore==1.42.9
 brotli==1.2.0
 certifi==2026.4.22
 cffi==2.0.0
+channels==4.3.2
+channels-redis==4.3.0
 charset-normalizer==3.4.7
+click==8.5.0
 cssselect2==0.8.0
 Django==5.2.7
 django-crontab==0.7.1
@@ -13,9 +16,12 @@ django-storages==1.14.6
 docopt==0.6.2
 fonttools==4.60.1
 gunicorn==23.0.0
+h11==0.16.0
+httptools==0.8.0
 idna==3.13
 jmespath==1.0.1
 lxml==6.1.1
+msgpack==1.2.3
 num2words==0.5.14
 packaging==26.2
 pikepdf==10.7.2
@@ -26,6 +32,7 @@ PyMuPDF==1.27.2.3
 pyphen==0.17.2
 psycopg[binary]==3.2.9
 python-dateutil==2.9.0.post0
+redis==8.1.0
 requests==2.33.1
 s3transfer==0.16.0
 six==1.17.0
@@ -33,6 +40,10 @@ sqlparse==0.5.3
 tinycss2==1.5.0
 tinyhtml5==2.0.0
 urllib3==2.6.2
+uvicorn==0.54.0
+uvicorn-worker==0.4.0
+uvloop==0.23.0
 weasyprint==66.0
 webencodings==0.5.1
+websockets==17.1
 zopfli==0.4.0

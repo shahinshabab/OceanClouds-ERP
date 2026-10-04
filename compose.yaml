@@ -17,6 +17,27 @@ services:
       retries: 12
       start_period: 10s
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # Only carries live-update messages: no persistence, small fixed memory.
+    command:
+      - redis-server
+      - --maxmemory
+      - 64mb
+      - --maxmemory-policy
+      - noeviction
+      - --save
+      - ""
+      - --appendonly
+      - "no"
+    mem_limit: 128m
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
   web:
     build:
       context: .
@@ -33,8 +54,13 @@ services:
       DB_USER: ${DB_USER:-oceanclouds}
       DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?Set DJANGO_SECRET_KEY in .env}
+      REDIS_URL: redis://redis:6379/0
+      # ASGI runs views in worker threads; open a fresh DB connection per request.
+      DB_CONN_MAX_AGE: "0"
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     volumes:
       - static_data:/app/staticfiles
@@ -67,8 +93,11 @@ services:
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?Set DJANGO_SECRET_KEY in .env}
       RUN_MIGRATIONS: "0"
       COLLECT_STATIC: "0"
+      REDIS_URL: redis://redis:6379/0
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     command:
       - /bin/sh

@@ -94,7 +94,9 @@
                 </td>
 
                 <td>
-                  {% if contract.deal %}
+                  {% if contract.deal and not is_admin and not is_crm_manager %}
+                    {{ contract.deal.name }}
+                  {% elif contract.deal %}
                     <a href="{% url 'sales:deal_detail' contract.deal.pk %}" class="text-decoration-none">
                       {{ contract.deal.name }}
                     </a>
@@ -104,10 +106,14 @@
                 </td>
 
                 <td>
-                  {% if contract.deal.client %}
+                  {% if contract.deal.client and not is_admin and not is_crm_manager %}
+                    {{ contract.deal.client }}
+                  {% elif contract.deal.client %}
                     <a href="{% url 'crm:client_detail' contract.deal.client.pk %}" class="text-decoration-none">
                       {{ contract.deal.client }}
                     </a>
+                  {% elif contract.deal.lead %}
+                    {{ contract.deal.lead.name }} <span class="badge bg-light text-muted border">Lead</span>
                   {% else %}
                     <span class="text-muted">—</span>
                   {% endif %}

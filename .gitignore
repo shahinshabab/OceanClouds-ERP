@@ -29,3 +29,7 @@ oceanclouds-crm.code-workspace
 # Local production backups contain secrets and customer data
 Server-Backup/
 migration-output/
+
+# Local Codex project context (may contain infrastructure details)
+.codex
+AGENTS.md

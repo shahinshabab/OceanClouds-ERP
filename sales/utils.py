@@ -88,7 +88,7 @@ def get_or_create_client_from_lead(lead, user):
             name=lead.name,
             display_name=lead.name,
             email=lead.email,
-            phone=lead.phone,
+            phone=lead.phone or lead.whatsapp,
             city=lead.wedding_city,
             district=lead.wedding_district,
             state=lead.wedding_state or "Kerala",
@@ -101,12 +101,16 @@ def get_or_create_client_from_lead(lead, user):
     lead.client = client
     lead.save(update_fields=["client", "updated_at"])
 
+    contact_match = Q(pk__in=[])
+    if lead.email:
+        contact_match |= Q(email__iexact=lead.email)
+    if lead.phone:
+        contact_match |= Q(phone__iexact=lead.phone)
+    if lead.whatsapp:
+        contact_match |= Q(whatsapp__iexact=lead.whatsapp)
+
     if lead.email or lead.phone or lead.whatsapp:
-        existing_contact = client.contacts.filter(
-            Q(email__iexact=lead.email)
-            | Q(phone__iexact=lead.phone)
-            | Q(whatsapp__iexact=lead.whatsapp)
-        ).first()
+        existing_contact = client.contacts.filter(contact_match).first()
 
         if not existing_contact:
             Contact.objects.create(
@@ -218,8 +222,8 @@ def get_pdf_deliverables(plan):
 
 
 def get_proposal_client(proposal):
-    if proposal.deal and getattr(proposal.deal, "client", None):
-        return proposal.deal.client
+    if proposal.deal:
+        return proposal.deal.customer
 
     return None
 
@@ -324,8 +328,8 @@ get_contract_public_sign_total = get_contract_pdf_total
 
 
 def get_contract_client(contract):
-    if getattr(contract, "deal", None) and getattr(contract.deal, "client", None):
-        return contract.deal.client
+    if getattr(contract, "deal", None):
+        return contract.deal.customer
 
     return None
 
@@ -434,6 +438,10 @@ def resolve_client_email(client):
     if email:
         return email
 
+    # Deals without a client yet use the lead's details (LeadCustomer).
+    if not isinstance(client, Client):
+        return ""
+
     primary = getattr(client, "primary_contact", None)
     if primary:
         primary_email = (getattr(primary, "email", "") or "").strip()
@@ -448,7 +456,7 @@ def resolve_client_email(client):
 
 
 def resolve_primary_contact(client):
-    if not client:
+    if not client or not isinstance(client, Client):
         return None
 
     primary = getattr(client, "primary_contact", None)
@@ -539,3 +547,255 @@ def check_before_send(
         return redirect(redirect_url_name, pk=redirect_pk)
 
     return None
+
+
+def _event_date_for_day(contract, day=None):
+    deal = contract.deal
+    lead = deal.lead if deal else None
+
+    return (
+        (day.event_date if day else None)
+        or contract.start_date
+        or (lead.wedding_date if lead else None)
+        or (deal.expected_close_date if deal else None)
+    )
+
+
+def create_client_and_events_from_contract(contract, user):
+    """
+    Final step of the sales flow, after the contract is signed and invoiced.
+
+    - Creates the client from the lead (or reuses one with the same
+      email/phone), links it to the deal and lead, and adds a primary contact.
+    - Creates one event per contract event day, carrying over its services
+      and packages. Events already created from this contract are kept.
+
+    Returns (client, created_events, skipped_day_titles).
+    """
+
+    from events.models import Event, EventStatus, Venue
+
+    deal = contract.deal
+    lead = deal.lead
+
+    if deal.client_id:
+        client = deal.client
+        if lead:
+            copy_lead_data_to_client_if_empty(client, lead)
+            if not lead.client_id:
+                lead.client = client
+                lead.save(update_fields=["client", "updated_at"])
+    elif lead:
+        client = get_or_create_client_from_lead(lead, user)
+    else:
+        client = Client.objects.create(
+            owner=user,
+            name=deal.name,
+            display_name=deal.name,
+            notes=f"Created from contract {contract.number}",
+        )
+
+    if deal.client_id != client.pk:
+        deal.client = client
+        deal.save(update_fields=["client", "updated_at"])
+
+    if lead:
+        set_lead_status(lead, "STATUS_CONVERTED_TO_CLIENT", "converted_to_client")
+
+    primary_contact = client.primary_contact or client.contacts.first()
+
+    created_events = []
+    skipped_days = []
+
+    if contract.events.exists():
+        return client, created_events, skipped_days
+
+    days = list(
+        contract.event_days.prefetch_related(
+            "items__service",
+            "items__package",
+        ).all()
+    )
+
+    for day in days:
+        event_date = _event_date_for_day(contract, day)
+        if not event_date:
+            skipped_days.append(day.title)
+            continue
+
+        venue = None
+        if day.venue:
+            venue = Venue.objects.filter(name__iexact=day.venue.strip()).first()
+
+        notes = [line for line in [
+            f"Venue: {day.venue}" if day.venue and not venue else "",
+            day.notes,
+        ] if line]
+
+        event = Event.objects.create(
+            owner=user,
+            client=client,
+            primary_contact=primary_contact,
+            contract=contract,
+            name=f"{client} - {day.title}",
+            status=EventStatus.CONFIRMED,
+            date=event_date,
+            start_time=day.start_time,
+            end_time=day.end_time,
+            venue=venue,
+            notes="\n".join(notes),
+            internal_notes=f"Created from signed contract {contract.number}.",
+        )
+
+        services = {item.service for item in day.items.all() if item.service_id}
+        packages = {item.package for item in day.items.all() if item.package_id}
+        if services:
+            event.services.set(services)
+        if packages:
+            event.packages.set(packages)
+
+        event.sync_auto_checklist(owner=user)
+        created_events.append(event)
+
+    if not days:
+        event_date = _event_date_for_day(contract)
+        if event_date:
+            event = Event.objects.create(
+                owner=user,
+                client=client,
+                primary_contact=primary_contact,
+                contract=contract,
+                name=f"{client} - Wedding",
+                status=EventStatus.CONFIRMED,
+                date=event_date,
+                internal_notes=f"Created from signed contract {contract.number}.",
+            )
+            event.sync_auto_checklist(owner=user)
+            created_events.append(event)
+        else:
+            skipped_days.append("Wedding")
+
+    return client, created_events, skipped_days
+
+
+# ============================================================
+# Proposal / contract documents (HTML -> PDF)
+# ============================================================
+
+def _clean_lines(text):
+    return [line.strip(" -•\t") for line in str(text or "").splitlines() if line.strip(" -•\t")]
+
+
+def _deliverable_rows(days):
+    """
+    One row per deliverable across all event days, quantities added up.
+    "1 item" is left out because it says nothing.
+    """
+    grouped = {}
+
+    for day in days:
+        for item in day.items.all():
+            for deliverable in item.deliverables.all():
+                if not getattr(deliverable, "is_included", True):
+                    continue
+                title = (deliverable.title or "").strip()
+                if not title:
+                    continue
+                unit = deliverable.unit or ""
+                row = grouped.setdefault(
+                    (title.lower(), unit),
+                    {"title": title, "quantity": Decimal("0"), "unit_code": unit,
+                     "unit": deliverable.get_unit_display() if unit else ""},
+                )
+                row["quantity"] += Decimal(deliverable.quantity or 0)
+
+    rows = []
+    for row in grouped.values():
+        if row["unit_code"] in ("item", "") and row["quantity"] == 1:
+            row["quantity"] = None
+            row["unit"] = ""
+        elif row["unit_code"] in ("item", "other"):
+            row["unit"] = ""
+        elif row["unit"] and row["quantity"] != 1:
+            row["unit"] = f"{row['unit']}s"
+        rows.append(row)
+    return rows
+
+
+def _date_span(days):
+    dates = sorted(day.event_date for day in days if day.event_date)
+    if not dates:
+        return None, None
+    return dates[0], dates[-1]
+
+
+def proposal_reference(proposal):
+    return f"OC-P{proposal.pk:04d}-V{proposal.version or 1}"
+
+
+def build_proposal_document_context(proposal):
+    plan = get_selected_proposal_plan(proposal)
+    days = list(get_pdf_event_days(plan)) if plan else []
+    first_date, last_date = _date_span(days)
+    customer = get_proposal_client(proposal)
+
+    return {
+        "proposal": proposal,
+        "client": customer,
+        "city": getattr(customer, "city", "") if customer else "",
+        "selected_plan": plan,
+        "event_days": days,
+        "deliverables": _deliverable_rows(days),
+        "first_date": first_date,
+        "last_date": last_date,
+        "reference": proposal_reference(proposal),
+        "amount_words": get_amount_in_words(plan.total if plan else proposal.total),
+        "terms": _clean_lines(proposal.terms) or get_proposal_terms(),
+    }
+
+
+PAYMENT_SCHEDULE = (
+    ("Booking advance", 10, "On signing, to reserve your dates"),
+    ("On the event day", 80, "On or the day after the function"),
+    ("On delivery", 10, "When the final outputs are delivered"),
+)
+
+
+def build_contract_document_context(contract):
+    days = list(
+        contract.event_days.prefetch_related(
+            "items", "items__service", "items__package", "items__deliverables"
+        ).all()
+    )
+    first_date, last_date = _date_span(days)
+    total = get_contract_pdf_total(contract)
+
+    payments = []
+    remaining = total
+    for index, (label, percent, note) in enumerate(PAYMENT_SCHEDULE):
+        amount = remaining if index == len(PAYMENT_SCHEDULE) - 1 else percentage_amount(total, percent)
+        remaining -= amount
+        payments.append({"label": label, "percent": percent, "note": note, "amount": amount})
+
+    terms = _clean_lines(contract.terms) or get_payment_plan_terms()
+    client_notes = get_payment_plan_client_notes()
+    important_terms = get_payment_plan_important_terms()
+
+    return {
+        "contract": contract,
+        "client": get_contract_client(contract),
+        "event_days": days,
+        "deliverables": _deliverable_rows(days),
+        "first_date": first_date,
+        "last_date": last_date,
+        "total_amount": total,
+        "amount_words": get_amount_in_words(total),
+        "payments": payments,
+        "advance_paid": contract.deal.advance_paid if contract.deal_id else Decimal("0"),
+        "bank_details": get_oceanclouds_bank_details(),
+        "deliverable_rows": get_payment_plan_deliverable_rows(),
+        "client_notes": client_notes,
+        "terms": terms,
+        "important_terms": important_terms,
+        "all_terms": terms + client_notes[4:] + important_terms,
+    }

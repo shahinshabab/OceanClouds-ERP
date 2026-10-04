@@ -1,0 +1,64 @@
+{% extends "ui/base.html" %}
+
+{% block title %}Record Advance – {{ deal.name }}{% endblock %}
+
+{% block content %}
+<div class="container py-3 max-w-2xl">
+
+  <h2 class="fw-semibold mb-1">Record Advance</h2>
+  <p class="text-muted mb-4">
+    {{ deal.name }}{% if deal.customer %} · {{ deal.customer }}{% endif %}
+    {% if proposal %}<br>Accepted proposal: {{ proposal.title }} (total {{ proposal.total }}){% endif %}
+  </p>
+
+  {% if advance_paid %}
+    <div class="alert alert-info">
+      Advance already received on this deal: {{ advance_paid }}. A new entry adds to it.
+    </div>
+  {% endif %}
+
+  <form method="post" novalidate>
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+      <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+    {% endif %}
+
+    <div class="card shadow-sm">
+      <div class="card-header bg-light">
+        <strong>Advance Payment</strong>
+      </div>
+
+      <div class="card-body">
+        <div class="row">
+          {% for field in form %}
+            <div class="{% if field.name == 'notes' %}col-12{% else %}col-md-6{% endif %} mb-3">
+              <label class="form-label" for="{{ field.id_for_label }}">
+                {{ field.label }}{% if field.field.required %} *{% endif %}
+              </label>
+              {{ field }}
+              {% for error in field.errors %}
+                <div class="text-danger small">{{ error }}</div>
+              {% endfor %}
+            </div>
+          {% endfor %}
+        </div>
+
+        <div class="form-text">
+          This creates an advance invoice for the deal and records the payment against it.
+          The contract invoice deducts it later.
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-3 d-flex gap-2">
+      <button type="submit" class="btn btn-success">Record Advance</button>
+      {% if proposal %}
+        <a href="{% url 'sales:proposal_detail' proposal.pk %}" class="btn btn-secondary">Cancel</a>
+      {% else %}
+        <a href="{% url 'sales:deal_detail' deal.pk %}" class="btn btn-secondary">Cancel</a>
+      {% endif %}
+    </div>
+  </form>
+</div>
+{% endblock %}

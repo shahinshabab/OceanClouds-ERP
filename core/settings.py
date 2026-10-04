@@ -37,6 +37,8 @@ env = environ.Env(
     DB_PORT=(str, ""),
     DB_CONN_MAX_AGE=(int, 60),
     APP_VERSION=(str, "dev"),
+    REDIS_URL=(str, ""),
+    LOGIN_IDLE_TIMEOUT_MINUTES=(int, 30),
     AWS_REGION=(str, ""),
     AWS_SES_SENDER=(str, ""),
     AWS_ACCESS_KEY_ID=(str, ""),
@@ -107,6 +109,7 @@ DJANGO_APPS = [
 ]
 
 THIRD_PARTY_APPS = [
+    "channels",
     "django_crontab",
     "storages",
 ]
@@ -147,6 +150,31 @@ MIDDLEWARE = [
 ROOT_URLCONF = "core.urls"
 WSGI_APPLICATION = "core.wsgi.application"
 ASGI_APPLICATION = "core.asgi.application"
+
+# ------------------------------------------------------------------------------
+# Live updates (Django Channels)
+# ------------------------------------------------------------------------------
+# Redis carries websocket pushes between Gunicorn/Uvicorn workers. Without
+# REDIS_URL (local runserver, tests) an in-process layer is used instead.
+REDIS_URL = env("REDIS_URL")
+
+if REDIS_URL:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {
+                # redis-py 8 defaults to a 5 s socket timeout, the same as
+                # channels_redis' 5 s blocking pop, which kills idle sockets.
+                "hosts": [{"address": REDIS_URL, "socket_timeout": 15}],
+                "capacity": 200,
+                "expiry": 30,
+            },
+        }
+    }
+else:
+    CHANNEL_LAYERS = {
+        "default": {"BACKEND": "channels.layers.InMemoryChannelLayer"}
+    }
 
 # ------------------------------------------------------------------------------
 # Templates (global templates live in ui/templates)
@@ -280,3 +308,12 @@ LOGIN_SESSION_MAX_SECONDS = 16 * 60 * 60
 SESSION_COOKIE_AGE = LOGIN_SESSION_MAX_SECONDS
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 SESSION_SAVE_EVERY_REQUEST = False
+
+# A login with no user activity (clicks, typing, scrolling, page navigation)
+# for this long is signed out, and its logout time is the last activity time.
+# 0 turns idle logout off; the fixed deadline above always applies.
+LOGIN_IDLE_TIMEOUT_SECONDS = env.int("LOGIN_IDLE_TIMEOUT_MINUTES") * 60
+
+# Heartbeats are sent only while someone interacts with an open page.
+BROWSER_HEARTBEAT_INTERVAL_SECONDS = 60
+BROWSER_OFFLINE_THRESHOLD_SECONDS = 180

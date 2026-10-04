@@ -14,6 +14,7 @@ from django.views.generic import (
 )
 
 from common.mixins import EventManageMixin, EventCalendarAccessMixin
+from crm.models import Client
 from .models import (
     Venue,
     Event,
@@ -44,7 +45,7 @@ class EventCommonDeleteMixin(EventManageMixin, DeleteView):
     events/confirm_delete.html
 
     Access:
-    Admin + Project Manager
+    Admin + CRM Manager + Project Manager
     """
 
     template_name = "events/confirm_delete.html"
@@ -86,8 +87,8 @@ class EventCommonDeleteMixin(EventManageMixin, DeleteView):
 
 class EventCalendarView(EventCalendarAccessMixin, TemplateView):
     """
-    Employees can access this page.
-    They only see upcoming events calendar.
+    Everyone can access this page.
+    Non-managers only see the calendar, not event details.
     """
 
     template_name = "events/event_calendar.html"
@@ -298,7 +299,7 @@ class EventListView(EventManageMixin, ListView):
             super()
             .get_queryset()
             .select_related("project", "client", "primary_contact", "venue")
-            .prefetch_related("services", "packages", "vendors", "inventory_items")
+            .prefetch_related("services", "packages", "vendors", "inventory_items", "projects")
         )
 
         q = (self.request.GET.get("q") or "").strip()
@@ -343,7 +344,7 @@ class EventDetailView(EventManageMixin, DetailView):
         return (
             super()
             .get_queryset()
-            .select_related("project", "client", "primary_contact", "venue")
+            .select_related("project", "client", "primary_contact", "venue", "contract")
             .prefetch_related(
                 "services",
                 "packages",
@@ -357,6 +358,7 @@ class EventDetailView(EventManageMixin, DetailView):
 
         checklist = self.object.checklist
 
+        context["linked_project"] = self.object.linked_project
         context["checklist"] = checklist
         context["checklist_items"] = (
             checklist.items
@@ -373,6 +375,19 @@ class EventCreateView(EventManageMixin, CreateView):
     template_name = "events/event_form.html"
     success_url = reverse_lazy("events:event_list")
 
+    def get_initial(self):
+        initial = super().get_initial()
+
+        # Existing customers: Client page -> New Event.
+        client_id = self.request.GET.get("client")
+        if client_id and client_id.isdigit():
+            client = Client.objects.filter(pk=client_id).first()
+            if client:
+                initial["client"] = client.pk
+                initial["name"] = f"{client} - Wedding"
+
+        return initial
+
     def form_valid(self, form):
         form.instance.owner = self.request.user
 
@@ -386,10 +401,10 @@ class EventCreateView(EventManageMixin, CreateView):
 
         messages.success(
             self.request,
-            "Event created successfully. Checklist was generated automatically.",
+            "Event created. Assign vendors and inventory, or create the project, from the event page.",
         )
 
-        return redirect(self.get_success_url())
+        return redirect(self.object.get_absolute_url())
 
 
 class EventUpdateView(EventManageMixin, UpdateView):

@@ -2,6 +2,7 @@
 {% load roles_tags %}
 
 {% block title %}Inquiry – {{ inquiry.name|default:inquiry.email|default:inquiry.phone }}{% endblock %}
+{% block live_topics %}inquiry:{{ inquiry.pk }}{% endblock %}
 
 {% block content %}
 {% is_admin request.user as is_admin %}

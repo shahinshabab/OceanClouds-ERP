@@ -33,34 +33,15 @@
     <div class="card shadow-sm">
       <div class="card-body">
 
-        <!-- Row 1: Project / Client / Contact -->
+        <!-- Row 1: Client -->
         <div class="row">
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.project.label }}{% if form.project.field.required %} *{% endif %}
-            </label>
-            {{ form.project }}
-            {% for error in form.project.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
+          <div class="col-12 mb-3">
             <label class="form-label">
               {{ form.client.label }}{% if form.client.field.required %} *{% endif %}
             </label>
             {{ form.client }}
+            <div class="form-text">The contact person is taken from the client. The project is created later from the event page.</div>
             {% for error in form.client.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.primary_contact.label }}{% if form.primary_contact.field.required %} *{% endif %}
-            </label>
-            {{ form.primary_contact }}
-            {% for error in form.primary_contact.errors %}
               <div class="text-danger small">{{ error }}</div>
             {% endfor %}
           </div>
@@ -179,6 +160,7 @@
           </div>
         </div>
 
+        {% if form.instance.pk %}
         <div class="row">
           <div class="col-md-6 mb-3">
             <label class="form-label">
@@ -208,6 +190,9 @@
             {% endfor %}
           </div>
         </div>
+        {% else %}
+        <p class="text-muted small mb-3">Vendors and inventory can be assigned after the event is created.</p>
+        {% endif %}
 
         <!-- Row 7: Notes -->
         <div class="row">

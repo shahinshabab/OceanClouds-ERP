@@ -283,6 +283,7 @@ class Notification(models.Model):
 
         # Future
         EVENT_REMINDER = "event_reminder", "Event reminder"
+        EVENT_NEEDS_PROJECT = "event_needs_project", "Event needs a project"
 
     recipient = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -358,6 +359,7 @@ class Notification(models.Model):
 class UserSessionEndReason(models.TextChoices):
     LOGOUT = "logout", "Manual Logout"
     AUTO_TIMEOUT = "auto_timeout", "Auto Timeout"
+    IDLE_TIMEOUT = "idle_timeout", "Idle Logout (Last Activity)"
     SESSION_EXPIRED = "session_expired", "Fixed Session Expired"
     SESSION_REPLACED = "session_replaced", "Replaced by New Login"
     SYSTEM = "system", "System"

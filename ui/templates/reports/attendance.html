@@ -88,6 +88,7 @@
       <div>
         <div class="fw-semibold">Attendance Sessions</div>
         <div class="small text-muted">Expired sessions require the employee's correction before manager approval.</div>
+        <div class="small text-muted">Browser presence is estimated from recent signals. Offline does not mean checked out. Refresh to update.</div>
       </div>
       <span class="badge text-bg-light">{{ date_from }} – {{ date_to }}</span>
     </div>
@@ -100,6 +101,7 @@
             <th>Checkout</th>
             <th>Duration</th>
             <th>Session result</th>
+            <th>Browser presence</th>
             <th>Attendance review</th>
           </tr>
         </thead>
@@ -112,10 +114,29 @@
               </td>
               <td>{{ session.login_at|date:"d M Y, h:i A" }}</td>
               <td>
-                {% if session.display_logout_at %}{{ session.display_logout_at|date:"d M Y, h:i A" }}{% else %}<span class="text-success">Active</span>{% endif %}
+                {% if session.display_logout_at %}
+                  {{ session.display_logout_at|date:"d M Y, h:i A" }}
+                {% elif session.is_active %}
+                  <span class="text-muted">Not checked out</span>
+                {% else %}
+                  <span class="text-warning">Awaiting correction</span>
+                {% endif %}
               </td>
               <td>{{ session.display_duration_hm }}</td>
               <td><span class="badge text-bg-light">{{ session.get_end_reason_display|default:"Active" }}</span></td>
+              <td>
+                {% if session.browser_presence.status == "online" %}
+                  <span class="badge bg-success-subtle text-success">Online</span>
+                {% elif session.browser_presence.status == "offline" %}
+                  <span class="badge bg-secondary-subtle text-secondary">Offline (estimated)</span>
+                {% else %}
+                  <span class="badge text-bg-light">Session ended</span>
+                {% endif %}
+                <div class="small text-muted mt-1">Last seen: {{ session.browser_presence.last_seen_at|date:"d M Y, h:i:s A" }}</div>
+                {% if session.browser_presence.offline_since %}
+                  <div class="small text-muted">Offline since: {{ session.browser_presence.offline_since|date:"d M Y, h:i:s A" }} (estimated)</div>
+                {% endif %}
+              </td>
               <td>
                 {% if session.checkout_review_status == "approved" %}
                   <span class="badge bg-success-subtle text-success">Approved</span>
@@ -140,7 +161,7 @@
             </tr>
             {% if session.awaiting_review %}
               <tr class="table-info">
-                <td colspan="6">
+                <td colspan="7">
                   <div class="d-flex align-items-start gap-2">
                     <i class="bi bi-hourglass-split text-primary"></i>
                     <div>
@@ -153,7 +174,7 @@
             {% endif %}
             {% if session.can_submit_correction %}
               <tr class="table-warning">
-                <td colspan="6">
+                <td colspan="7">
                   <form method="post" class="row g-2 align-items-end">
                     {% csrf_token %}
                     <input type="hidden" name="action" value="submit_checkout">
@@ -176,7 +197,7 @@
             {% endif %}
             {% if session.can_review %}
               <tr class="table-info">
-                <td colspan="6">
+                <td colspan="7">
                   <div class="alert alert-light border mb-3">
                     <div class="fw-semibold mb-1">Employee correction request</div>
                     <div class="small"><strong>Requested checkout:</strong> {{ session.requested_logout_at|date:"d M Y, h:i A" }}</div>
@@ -200,7 +221,7 @@
               </tr>
             {% endif %}
           {% empty %}
-            <tr><td colspan="6" class="text-center text-muted py-4">No attendance sessions in this date range.</td></tr>
+            <tr><td colspan="7" class="text-center text-muted py-4">No attendance sessions in this date range.</td></tr>
           {% endfor %}
         </tbody>
       </table>

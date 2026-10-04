@@ -45,6 +45,13 @@
           Generate Proposal
         </a>
 
+        {% if deal.stage != "won" and deal.stage != "lost" %}
+          <a href="{% url 'sales:deal_record_advance' deal.pk %}"
+             class="btn btn-outline-success btn-sm">
+            Record Advance
+          </a>
+        {% endif %}
+
         <a href="{% url 'sales:deal_update' deal.pk %}"
            class="btn btn-primary btn-sm">
           Edit
@@ -80,7 +87,8 @@
                 {{ deal.client }}
               </a>
             {% else %}
-              <span class="text-muted">—</span>
+              <span class="text-muted">Not created yet</span>
+              <div class="text-muted small fw-normal">Created after the contract is signed.</div>
             {% endif %}
           </div>
         </div>
@@ -380,6 +388,9 @@
                     <a href="{% url 'sales:invoice_detail' invoice.pk %}" class="text-decoration-none fw-semibold">
                       {{ invoice.number|default:"Draft Invoice" }}
                     </a>
+                    {% if invoice.is_advance %}
+                      <span class="badge bg-info text-dark ms-1">Advance</span>
+                    {% endif %}
                   </td>
 
                   <td>

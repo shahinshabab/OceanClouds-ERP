@@ -25,9 +25,20 @@ class DealStage(models.TextChoices):
     QUALIFIED = "qualified", _("Qualified")
     PROPOSAL_SENT = "proposal_sent", _("Proposal Sent")
     NEGOTIATION = "negotiation", _("Negotiation")
+    ADVANCE_RECEIVED = "advance_received", _("Advance Received")
+    CONTRACT_SENT = "contract_sent", _("Contract Sent")
     WON = "won", _("Won")
     LOST = "lost", _("Lost")
     ON_HOLD = "on_hold", _("On Hold")
+
+
+# Stages before the advance; later steps only move a deal forward from here.
+OPEN_DEAL_STAGES = (
+    DealStage.NEW,
+    DealStage.QUALIFIED,
+    DealStage.PROPOSAL_SENT,
+    DealStage.NEGOTIATION,
+)
 
 
 class ProposalStatus(models.TextChoices):
@@ -82,6 +93,35 @@ class PaymentType(models.TextChoices):
 # Deal
 # -------------------------------------------------------------------
 
+class LeadCustomer:
+    """
+    Read-only stand-in for a Client while a deal is still running on its lead.
+
+    The client record is created only after the contract is signed, so until
+    then proposals, contracts, PDFs and emails show the lead's details through
+    this object, which exposes the same attributes templates read from Client.
+    """
+
+    is_client = False
+    pk = None
+    billing_address = ""
+
+    def __init__(self, lead):
+        self.lead = lead
+        self.name = lead.name or ""
+        self.display_name = lead.name or ""
+        self.email = lead.email or ""
+        self.phone = lead.phone or lead.whatsapp or ""
+        self.whatsapp = lead.whatsapp or ""
+        self.city = lead.wedding_city or ""
+        self.district = lead.wedding_district or ""
+        self.state = lead.wedding_state or ""
+        self.country = lead.wedding_country or ""
+
+    def __str__(self):
+        return self.display_name or self.name or "Lead"
+
+
 class Deal(TimeStamped, Owned):
     name = models.CharField(max_length=255)
 
@@ -124,10 +164,40 @@ class Deal(TimeStamped, Owned):
         ordering = ["-created_at"]
 
     def __str__(self):
-        return f"{self.name} ({self.client})"
+        return f"{self.name} ({self.customer or '-'})"
 
     def get_absolute_url(self):
         return reverse("sales:deal_detail", args=[self.pk])
+
+    @property
+    def customer(self):
+        """
+        The client once it exists, otherwise the lead's details.
+        """
+
+        if self.client_id:
+            return self.client
+
+        if self.lead_id:
+            return LeadCustomer(self.lead)
+
+        return None
+
+    @property
+    def advance_invoices(self):
+        return self.invoices.filter(is_advance=True)
+
+    @property
+    def advance_paid(self):
+        return (
+            Payment.objects.filter(invoice__deal=self, invoice__is_advance=True)
+            .aggregate(total=Sum("amount"))["total"]
+            or Decimal("0.00")
+        )
+
+    @property
+    def has_advance(self):
+        return self.advance_paid > 0
 
 
 # -------------------------------------------------------------------
@@ -151,6 +221,15 @@ class Proposal(TimeStamped, Owned):
     )
 
     valid_until = models.DateField(null=True, blank=True)
+
+    intro = models.TextField(
+        blank=True,
+        help_text=_("Personal note to the couple, printed on the cover letter page."),
+    )
+    terms = models.TextField(
+        blank=True,
+        help_text=_("One condition per line. Leave blank to use the standard Ocean Clouds terms."),
+    )
 
     accepted_plan = models.ForeignKey(
         "ProposalPlan",
@@ -240,10 +319,11 @@ class Proposal(TimeStamped, Owned):
         self.status = ProposalStatus.ACCEPTED
         self.save(update_fields=["accepted_plan", "status", "updated_at"])
 
-        self.deal.stage = DealStage.WON
+        # The deal is won only when the contract is signed.
+        if self.deal.stage in OPEN_DEAL_STAGES:
+            self.deal.stage = DealStage.NEGOTIATION
         self.deal.amount = plan.total
-        self.deal.closed_on = timezone.localdate()
-        self.deal.save(update_fields=["stage", "amount", "closed_on", "updated_at"])
+        self.deal.save(update_fields=["stage", "amount", "updated_at"])
 
         self.recalculate_totals(save=True)
 
@@ -443,7 +523,7 @@ class ProposalItem(models.Model):
         if self.service:
             return self.service.base_price or Decimal("0.00")
         if self.package:
-            return self.package.total_price or Decimal("0.00")
+            return self.package.selling_price
         return Decimal("0.00")
 
     def copy_default_deliverables(self):
@@ -749,12 +829,15 @@ class Contract(TimeStamped, Owned):
         self.proposal_plan = selected_plan
         self.discount = selected_plan.discount
         self.tax_rate = selected_plan.tax_rate
+        if not self.terms and proposal.terms:
+            self.terms = proposal.terms
         self.save(
             update_fields=[
                 "proposal",
                 "proposal_plan",
                 "discount",
                 "tax_rate",
+                "terms",
                 "updated_at",
             ]
         )
@@ -981,6 +1064,17 @@ class Invoice(TimeStamped, Owned):
     total = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
     amount_paid = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
 
+    is_advance = models.BooleanField(
+        default=False,
+        help_text=_("Booking advance collected before the contract is signed."),
+    )
+    advance_adjustment = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        help_text=_("Advance already received on this deal, deducted from the total."),
+    )
+
     notes = models.TextField(blank=True)
 
     class Meta:
@@ -1053,12 +1147,28 @@ class Invoice(TimeStamped, Owned):
             taxable_amount = Decimal("0.00")
 
         self.tax = (taxable_amount * tax_rate) / Decimal("100.00")
-        self.total = taxable_amount + self.tax
+
+        total = taxable_amount + self.tax - (self.advance_adjustment or Decimal("0.00"))
+        if total < Decimal("0.00"):
+            total = Decimal("0.00")
+        self.total = total
 
         if save:
             self.save(update_fields=["subtotal", "tax", "total", "updated_at"])
 
         return self.total
+
+    @property
+    def gross_total(self):
+        """
+        Invoice value before the advance adjustment.
+        """
+
+        taxable_amount = (self.subtotal or Decimal("0.00")) - (self.discount or Decimal("0.00"))
+        if taxable_amount < Decimal("0.00"):
+            taxable_amount = Decimal("0.00")
+
+        return taxable_amount + (self.tax or Decimal("0.00"))
 
     @transaction.atomic
     def populate_from_contract(self, contract, clear_existing=False):
@@ -1073,7 +1183,26 @@ class Invoice(TimeStamped, Owned):
         self.contract = contract
         self.discount = contract.discount or Decimal("0.00")
         self.tax_rate = contract.tax_rate or Decimal("0.00")
-        self.save(update_fields=["contract", "discount", "tax_rate", "updated_at"])
+
+        # The booking advance was billed on its own invoice before the
+        # contract, so the contract invoice only asks for the remainder.
+        if not self.is_advance:
+            self.advance_adjustment = (
+                Payment.objects.filter(invoice__deal_id=self.deal_id, invoice__is_advance=True)
+                .exclude(invoice_id=self.pk)
+                .aggregate(total=Sum("amount"))["total"]
+                or Decimal("0.00")
+            )
+
+        self.save(
+            update_fields=[
+                "contract",
+                "discount",
+                "tax_rate",
+                "advance_adjustment",
+                "updated_at",
+            ]
+        )
 
         if clear_existing:
             self.items.all().delete()

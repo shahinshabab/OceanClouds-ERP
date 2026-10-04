@@ -266,8 +266,9 @@ def _build_attendance_summary(login_sessions_qs, date_from, date_to):
     """
     Count attendance from completed, user-valid login sessions.
 
-    Manual logout, auto-timeout, and replaced sessions all contain valid used
-    time. The auto-timeout idle window is excluded, and sessions crossing
+    Manual logout, idle logout, auto-timeout, and replaced sessions all contain
+    valid used time. Idle logouts already end at the last activity; the legacy
+    auto-timeout idle window is excluded, and sessions crossing
     midnight are split across their actual local calendar days.
     """
     completed_sessions = (
@@ -279,6 +280,7 @@ def _build_attendance_summary(login_sessions_qs, date_from, date_to):
             end_reason__in=[
                 UserSessionEndReason.LOGOUT,
                 UserSessionEndReason.AUTO_TIMEOUT,
+                UserSessionEndReason.IDLE_TIMEOUT,
                 UserSessionEndReason.SESSION_EXPIRED,
                 UserSessionEndReason.SESSION_REPLACED,
             ],
@@ -373,6 +375,7 @@ def _build_login_week_chart(request, login_sessions_qs):
             end_reason__in=[
                 UserSessionEndReason.LOGOUT,
                 UserSessionEndReason.AUTO_TIMEOUT,
+                UserSessionEndReason.IDLE_TIMEOUT,
                 UserSessionEndReason.SESSION_EXPIRED,
                 UserSessionEndReason.SESSION_REPLACED,
             ],

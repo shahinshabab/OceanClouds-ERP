@@ -24,13 +24,15 @@ from django.views.generic import (
     UpdateView,
 )
 
-from common.mixins import SalesAccessMixin, SalesReadOnlyAccessMixin
-from crm.models import Client, Contact, Lead
+from common.mixins import ContractViewAccessMixin, SalesAccessMixin, SalesReadOnlyAccessMixin
+from common.roles import can_access_sales
+from crm.models import Lead
 from messaging.models import EmailTemplate
 from messaging.utils import EmailSendError, send_templated_email
 from services.models import Service, Package
 
 from .forms import (
+    AdvancePaymentForm,
     DealForm,
     ProposalForm,
     ProposalPlanForm,
@@ -48,16 +50,21 @@ from .models import (
     ProposalEventDay,
     Contract,
     Invoice,
+    InvoiceItem,
     Payment,
+    PaymentType,
     DealStage,
+    OPEN_DEAL_STAGES,
     ProposalStatus,
     ContractStatus,
     InvoiceStatus,
 )
 from .utils import (
     build_common_email_context,
+    build_contract_document_context,
+    build_proposal_document_context,
     check_before_send,
-    copy_lead_data_to_client_if_empty,
+    create_client_and_events_from_contract,
     flash_send_result,
     get_amount_in_words,
     get_contract_client,
@@ -74,17 +81,13 @@ from .utils import (
     get_proposal_terms,
     get_selected_proposal_plan,
     lead_status,
-    link_client_and_status_to_lead,
     percentage_amount,
     resolve_client_email,
     resolve_primary_contact,
     set_lead_status,
 )
 
-try:
-    from weasyprint import HTML
-except ImportError:
-    HTML = None
+from common.pdf import HTML, render_pdf
 
 
 class OwnerAssignMixin:
@@ -103,6 +106,17 @@ def _contract_has_invoice(contract):
     return contract.invoices.exists()
 
 
+def mark_deal_won(deal):
+    """
+    Signing the contract closes the deal as won.
+    """
+
+    deal.stage = DealStage.WON
+    deal.closed_on = deal.closed_on or timezone.localdate()
+    deal.is_active = True
+    deal.save(update_fields=["stage", "closed_on", "is_active", "updated_at"])
+
+
 def _get_price_maps():
     services_price_map = {
         str(s.id): str(s.base_price or Decimal("0.00"))
@@ -110,8 +124,8 @@ def _get_price_maps():
     }
 
     packages_price_map = {
-        str(p.id): str(p.total_price or Decimal("0.00"))
-        for p in Package.objects.all().only("id", "total_price").order_by("id")
+        str(p.id): str(p.selling_price)
+        for p in Package.objects.all().only("id", "total_price", "price").order_by("id")
     }
 
     return services_price_map, packages_price_map
@@ -333,7 +347,7 @@ class DealCreateView(SalesAccessMixin, OwnerAssignMixin, CreateView):
                         "lead": lead.pk,
                         # Important:
                         # Do not create or assign client here.
-                        # Client will be created only after proposal acceptance.
+                        # Client is created only after the contract is signed.
                         "name": f"{lead.name} Wedding Deal",
                         "amount": lead.budget_max or lead.budget_min,
                         "expected_close_date": lead.wedding_date,
@@ -412,8 +426,8 @@ class LeadConvertToDealView(SalesAccessMixin, OwnerAssignMixin, CreateView):
 
     Important:
     This does NOT create a client.
-    Client will be created only after proposal is accepted
-    and the user clicks the Create Client button.
+    Client is created only after the contract is signed and invoiced,
+    from the contract's Create Client & Event button.
     """
 
     model = Deal
@@ -508,6 +522,7 @@ class ProposalListView(SalesAccessMixin, ListView):
             qs = qs.filter(
                 Q(deal__name__icontains=q)
                 | Q(deal__client__name__icontains=q)
+                | Q(deal__lead__name__icontains=q)
                 | Q(title__icontains=q)
             )
 
@@ -598,32 +613,12 @@ class ProposalPDFDownloadView(SalesAccessMixin, DetailView):
     def get(self, request, *args, **kwargs):
         proposal = self.get_object()
 
-        selected_plan = get_selected_proposal_plan(proposal)
-        event_days = get_pdf_event_days(selected_plan)
-        deliverables = get_pdf_deliverables(selected_plan)
-
-        context = {
-            "proposal": proposal,
-            "client": get_proposal_client(proposal),
-            "selected_plan": selected_plan,
-            "event_days": event_days,
-            "deliverables": deliverables,
-            "amount_words": get_amount_in_words(proposal.total),
-            "terms": get_proposal_terms(),
-            "static_base_url": request.build_absolute_uri(settings.STATIC_URL),
-        }
-
-        html_string = render_to_string(
-            "sales/proposal_pdf.html",
-            context,
-            request=request,
-        )
-
         try:
-            pdf_bytes = HTML(
-                string=html_string,
-                base_url=request.build_absolute_uri("/"),
-            ).write_pdf()
+            pdf_bytes = render_pdf(
+                "sales/proposal_pdf.html",
+                build_proposal_document_context(proposal),
+                request=request,
+            )
         except Exception as exc:
             raise Http404(f"Could not generate proposal PDF: {exc}")
 
@@ -634,6 +629,20 @@ class ProposalPDFDownloadView(SalesAccessMixin, DetailView):
         response = HttpResponse(pdf_bytes, content_type="application/pdf")
         response["Content-Disposition"] = f'attachment; filename="{filename}"'
         return response
+
+
+class ProposalDocumentView(SalesReadOnlyAccessMixin, DetailView):
+    """
+    The proposal in the browser: the same document as the PDF.
+    """
+
+    model = Proposal
+
+    def get(self, request, *args, **kwargs):
+        proposal = self.get_object()
+        context = build_proposal_document_context(proposal)
+        context["screen"] = True
+        return render(request, "sales/proposal_pdf.html", context)
 
 
 class ProposalCreateView(SalesAccessMixin, OwnerAssignMixin, CreateView):
@@ -1243,9 +1252,9 @@ class ProposalAcceptView(SalesAccessMixin, View):
     """
     Proposal accepted:
     - Proposal status = accepted
-    - Deal stage = won
-    - Lead status = proposal accepted / converted pending client creation
-    - Does NOT create client automatically
+    - Deal stage = negotiation (won only when the contract is signed)
+    - Lead status = proposal accepted
+    - Does NOT create client; next step is recording the advance
     """
 
     @transaction.atomic
@@ -1265,21 +1274,20 @@ class ProposalAcceptView(SalesAccessMixin, View):
             proposal.status = ProposalStatus.ACCEPTED
             proposal.save(update_fields=["status", "updated_at"])
 
-        deal.stage = DealStage.WON
+        deal.refresh_from_db()
+        if deal.stage in OPEN_DEAL_STAGES:
+            deal.stage = DealStage.NEGOTIATION
         if plan:
             deal.amount = plan.total
-        deal.closed_on = timezone.localdate()
         deal.is_active = True
-        deal.save(update_fields=["stage", "amount", "closed_on", "is_active", "updated_at"])
+        deal.save(update_fields=["stage", "amount", "is_active", "updated_at"])
 
         if lead:
-            # Do not assign client here.
-            # Client will be created using Create Client button.
             set_lead_status(lead, "STATUS_PROPOSAL_ACCEPTED", "proposal_accepted")
 
         messages.success(
             request,
-            "Proposal accepted. You can now create the client using the Create Client button.",
+            "Proposal accepted. Next, record the advance payment.",
             extra_tags=_scope_tags("proposal"),
         )
 
@@ -1289,9 +1297,9 @@ class ProposalConvertToContractView(SalesAccessMixin, OwnerAssignMixin, CreateVi
     """
     Proposal detail page -> Convert to Contract.
 
-    Contract can be created only after:
-    1. Proposal is accepted
-    2. Client is created/linked to the deal
+    Contract can be created once the proposal is accepted. The advance is
+    normally recorded first; without it the contract is still allowed but
+    the user is warned. No client is needed at this stage.
     """
 
     model = Contract
@@ -1319,16 +1327,7 @@ class ProposalConvertToContractView(SalesAccessMixin, OwnerAssignMixin, CreateVi
             )
             return redirect("sales:proposal_detail", pk=self.proposal.pk)
 
-        # 2. Client must be created/linked before contract
-        if not deal.client_id:
-            messages.error(
-                request,
-                "Please create the client from the accepted proposal before creating a contract.",
-                extra_tags=_scope_tags("proposal"),
-            )
-            return redirect("sales:proposal_detail", pk=self.proposal.pk)
-
-        # 3. Prevent duplicate contract
+        # 2. Prevent duplicate contract
         existing_contract = self.proposal.contracts.order_by("-created_at").first()
         if existing_contract:
             messages.info(
@@ -1351,7 +1350,7 @@ class ProposalConvertToContractView(SalesAccessMixin, OwnerAssignMixin, CreateVi
                 "proposal_plan": selected_plan.pk if selected_plan else None,
                 "status": ContractStatus.DRAFT,
                 "start_date": timezone.localdate(),
-                "terms": self.proposal.notes,
+                "terms": self.proposal.terms,
             }
         )
 
@@ -1378,21 +1377,18 @@ class ProposalConvertToContractView(SalesAccessMixin, OwnerAssignMixin, CreateVi
             clear_existing=True,
         )
 
-        deal = self.proposal.deal
-
-        deal.stage = DealStage.WON
-        deal.closed_on = timezone.localdate()
-        deal.save(update_fields=["stage", "closed_on", "updated_at"])
-
-        if deal.lead_id:
-            lead = deal.lead
-            link_client_and_status_to_lead(lead, deal.client)
-
         messages.success(
             self.request,
             "Contract created from proposal successfully.",
             extra_tags=_scope_tags("contract"),
         )
+
+        if not self.proposal.deal.has_advance:
+            messages.warning(
+                self.request,
+                "No advance payment is recorded for this deal yet.",
+                extra_tags=_scope_tags("contract"),
+            )
 
         return response
 
@@ -1402,137 +1398,167 @@ class ProposalConvertToContractView(SalesAccessMixin, OwnerAssignMixin, CreateVi
             kwargs={"pk": self.object.pk},
         )
     
-@method_decorator(require_POST, name="dispatch")
-class ProposalCreateClientView(SalesAccessMixin, View):
+class DealRecordAdvanceView(SalesAccessMixin, View):
     """
-    Creates/links a client from proposal flow.
+    Deal / accepted proposal -> Record Advance.
 
-    Correct flow:
-    Deal is created without client.
-    Proposal is generated.
-    Proposal is accepted.
-    Then user clicks Create Client.
-    Only here the client is created or linked.
+    Creates an advance invoice for the deal with a single "Booking advance"
+    line and records the advance payment against it in one step. The
+    contract invoice later deducts this amount.
+    """
+
+    template_name = "sales/advance_form.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        self.deal = get_object_or_404(
+            Deal.objects.select_related("client", "lead"),
+            pk=self.kwargs["pk"],
+        )
+        self.proposal = (
+            self.deal.proposals.filter(status=ProposalStatus.ACCEPTED)
+            .order_by("-updated_at")
+            .first()
+        )
+        return super().dispatch(request, *args, **kwargs)
+
+    def _render(self, request, form):
+        return render(
+            request,
+            self.template_name,
+            {
+                "form": form,
+                "deal": self.deal,
+                "proposal": self.proposal,
+                "advance_paid": self.deal.advance_paid,
+            },
+        )
+
+    def get(self, request, pk):
+        initial = {"date": timezone.localdate()}
+
+        total = self.proposal.total if self.proposal else self.deal.amount
+        if total:
+            initial["amount"] = percentage_amount(total, Decimal("10"))
+
+        return self._render(request, AdvancePaymentForm(initial=initial))
+
+    @transaction.atomic
+    def post(self, request, pk):
+        form = AdvancePaymentForm(request.POST)
+        if not form.is_valid():
+            return self._render(request, form)
+
+        data = form.cleaned_data
+        amount = data["amount"]
+
+        invoice = Invoice.objects.create(
+            owner=request.user,
+            deal=self.deal,
+            is_advance=True,
+            issue_date=data["date"],
+            due_date=data["date"],
+            status=InvoiceStatus.DRAFT,
+            notes=data["notes"] or f"Booking advance for {self.deal.name}",
+        )
+        InvoiceItem.objects.create(
+            invoice=invoice,
+            description=(
+                f"Booking advance - {self.proposal.title}"
+                if self.proposal
+                else "Booking advance"
+            ),
+            quantity=1,
+            unit_price=amount,
+        )
+
+        invoice.status = InvoiceStatus.ISSUED
+        invoice.save(update_fields=["status", "updated_at"])
+
+        Payment.objects.create(
+            owner=request.user,
+            invoice=invoice,
+            date=data["date"],
+            amount=amount,
+            payment_type=PaymentType.ADVANCE,
+            method=data["method"],
+            reference=data["reference"],
+            notes=data["notes"],
+            received_by=request.user,
+        )
+
+        if self.deal.stage in OPEN_DEAL_STAGES:
+            self.deal.stage = DealStage.ADVANCE_RECEIVED
+            self.deal.save(update_fields=["stage", "updated_at"])
+
+        messages.success(
+            request,
+            f"Advance of {amount} recorded on invoice {invoice.number}. Next, create and send the contract.",
+            extra_tags=_scope_tags("deal", "invoice"),
+        )
+
+        if self.proposal:
+            return redirect("sales:proposal_detail", pk=self.proposal.pk)
+
+        return redirect("sales:deal_detail", pk=self.deal.pk)
+
+
+@method_decorator(require_POST, name="dispatch")
+class ContractCreateClientEventView(SalesAccessMixin, View):
+    """
+    Last step of the sales flow:
+    contract signed -> invoice generated -> Create Client & Event.
+
+    Creates (or reuses) the client from the lead and one event per
+    contract event day.
     """
 
     @transaction.atomic
     def post(self, request, pk):
-        proposal = get_object_or_404(
-            Proposal.objects.select_related(
-                "deal",
-                "deal__client",
-                "deal__lead",
-            ),
+        contract = get_object_or_404(
+            Contract.objects.select_related("deal", "deal__client", "deal__lead"),
             pk=pk,
         )
 
-        deal = proposal.deal
-        lead = deal.lead
-
-        if proposal.status != ProposalStatus.ACCEPTED:
+        if contract.status != ContractStatus.SIGNED:
             messages.error(
                 request,
-                "Please accept the proposal before creating a client.",
-                extra_tags=_scope_tags("proposal", "client"),
+                "The contract must be signed before creating the client and event.",
+                extra_tags=_scope_tags("contract"),
             )
-            return redirect("sales:proposal_detail", pk=proposal.pk)
+            return redirect("sales:contract_detail", pk=contract.pk)
 
-        # If client already exists, do not duplicate.
-        if deal.client_id:
-            client = deal.client
+        if not contract.invoices.exists():
+            messages.error(
+                request,
+                "Please generate the invoice from this contract first.",
+                extra_tags=_scope_tags("contract"),
+            )
+            return redirect("sales:contract_detail", pk=contract.pk)
 
-            proposal.status = ProposalStatus.ACCEPTED
-            proposal.save(update_fields=["status", "updated_at"])
+        client, created_events, skipped_days = create_client_and_events_from_contract(
+            contract,
+            request.user,
+        )
 
-            deal.stage = DealStage.WON
-            deal.closed_on = timezone.localdate()
-            deal.save(update_fields=["stage", "closed_on", "updated_at"])
-
-            if lead:
-                link_client_and_status_to_lead(lead, client)
-
+        if created_events:
+            messages.success(
+                request,
+                f"Client {client} is ready and {len(created_events)} event(s) were created.",
+                extra_tags=_scope_tags("client"),
+            )
+        else:
             messages.info(
                 request,
-                "Client already exists. Proposal marked as accepted.",
-                extra_tags=_scope_tags("proposal", "client"),
+                f"Client {client} is ready. No new events were created.",
+                extra_tags=_scope_tags("client"),
             )
 
-            return redirect("crm:client_detail", pk=client.pk)
-
-        client = None
-
-        # Try to reuse existing client using lead email/phone.
-        if lead and lead.email:
-            client = Client.objects.filter(email__iexact=lead.email).first()
-
-        if client is None and lead and lead.phone:
-            client = Client.objects.filter(phone__iexact=lead.phone).first()
-
-        # Create client only here.
-        if client is None:
-            if lead:
-                client = Client.objects.create(
-                    owner=request.user,
-                    name=lead.name or deal.name,
-                    display_name=lead.name or deal.name,
-                    email=lead.email or "",
-                    phone=lead.phone or "",
-                    city=lead.wedding_city or "",
-                    district=lead.wedding_district or "",
-                    state=lead.wedding_state or "Kerala",
-                    country=lead.wedding_country or "India",
-                    is_active=True,
-                    notes=f"Created from accepted proposal: {proposal.title}",
-                )
-            else:
-                client = Client.objects.create(
-                    owner=request.user,
-                    name=deal.name,
-                    display_name=deal.name,
-                    is_active=True,
-                    notes=f"Created from accepted proposal: {proposal.title}",
-                )
-        else:
-            if lead:
-                copy_lead_data_to_client_if_empty(client, lead)
-
-        # Link client to deal.
-        deal.client = client
-        deal.stage = DealStage.WON
-        deal.closed_on = timezone.localdate()
-        deal.is_active = True
-        deal.save(update_fields=["client", "stage", "closed_on", "is_active", "updated_at"])
-
-        # Link client to lead.
-        if lead:
-            link_client_and_status_to_lead(lead, client)
-
-            if lead.email or lead.phone or lead.whatsapp:
-                existing_contact = client.contacts.filter(
-                    Q(email__iexact=lead.email)
-                    | Q(phone__iexact=lead.phone)
-                    | Q(whatsapp__iexact=lead.whatsapp)
-                ).first()
-
-                if not existing_contact:
-                    Contact.objects.create(
-                        owner=request.user,
-                        client=client,
-                        first_name=lead.name or "Primary Contact",
-                        email=lead.email or "",
-                        phone=lead.phone or "",
-                        whatsapp=lead.whatsapp or "",
-                        is_primary=not client.contacts.filter(is_primary=True).exists(),
-                    )
-
-        proposal.status = ProposalStatus.ACCEPTED
-        proposal.save(update_fields=["status", "updated_at"])
-
-        messages.success(
-            request,
-            "Client created successfully from accepted proposal.",
-            extra_tags="scope:proposal scope:client",
-        )
+        if skipped_days:
+            messages.warning(
+                request,
+                "No date found for: " + ", ".join(skipped_days) + ". Create those events manually.",
+                extra_tags=_scope_tags("client"),
+            )
 
         return redirect("crm:client_detail", pk=client.pk)
 
@@ -1541,7 +1567,17 @@ class ProposalCreateClientView(SalesAccessMixin, View):
 # Contracts
 # ============================================================
 
-class ContractListView(SalesAccessMixin, ListView):
+def _visible_contracts(qs, user):
+    """
+    Sales sees every contract. The rest of the company sees the digital
+    copy of signed contracts only.
+    """
+    if can_access_sales(user):
+        return qs
+    return qs.filter(status=ContractStatus.SIGNED)
+
+
+class ContractListView(ContractViewAccessMixin, ListView):
     model = Contract
     template_name = "sales/contract_list.html"
     context_object_name = "contracts"
@@ -1554,6 +1590,7 @@ class ContractListView(SalesAccessMixin, ListView):
             .select_related("deal", "proposal", "deal__client", "owner")
             .prefetch_related("invoices")
         )
+        qs = _visible_contracts(qs, self.request.user)
 
         q = (self.request.GET.get("q") or "").strip()
         status = (self.request.GET.get("status") or "").strip()
@@ -1564,6 +1601,7 @@ class ContractListView(SalesAccessMixin, ListView):
                 Q(number__icontains=q)
                 | Q(deal__name__icontains=q)
                 | Q(deal__client__name__icontains=q)
+                | Q(deal__lead__name__icontains=q)
             )
 
         if status:
@@ -1586,14 +1624,14 @@ class ContractListView(SalesAccessMixin, ListView):
         return context
 
 
-class ContractDetailView(SalesReadOnlyAccessMixin, DetailMessageScopeMixin, DetailView):
+class ContractDetailView(ContractViewAccessMixin, DetailMessageScopeMixin, DetailView):
     model = Contract
     template_name = "sales/contract_detail.html"
     context_object_name = "contract"
     detail_message_scope = "scope:contract"
 
     def get_queryset(self):
-        return (
+        return _visible_contracts(
             super()
             .get_queryset()
             .select_related("deal", "deal__client", "proposal", "owner")
@@ -1604,7 +1642,8 @@ class ContractDetailView(SalesReadOnlyAccessMixin, DetailMessageScopeMixin, Deta
                 "event_days__items__package",
                 "event_days__items__deliverables",
                 "invoices",
-            )
+            ),
+            self.request.user,
         )
 
     def get_context_data(self, **kwargs):
@@ -1621,11 +1660,11 @@ class ContractDetailView(SalesReadOnlyAccessMixin, DetailMessageScopeMixin, Deta
 
 
 
-class ContractPDFDownloadView(SalesAccessMixin, DetailView):
+class ContractPDFDownloadView(ContractViewAccessMixin, DetailView):
     model = Contract
 
     def get_queryset(self):
-        return (
+        return _visible_contracts(
             super()
             .get_queryset()
             .select_related(
@@ -1641,7 +1680,8 @@ class ContractPDFDownloadView(SalesAccessMixin, DetailView):
                 "event_days__items__service",
                 "event_days__items__package",
                 "event_days__items__deliverables",
-            )
+            ),
+            self.request.user,
         )
 
     def get(self, request, *args, **kwargs):
@@ -1650,41 +1690,11 @@ class ContractPDFDownloadView(SalesAccessMixin, DetailView):
 
         contract = self.get_object()
 
-        total_amount = get_contract_pdf_total(contract)
-
-        booking_advance = percentage_amount(total_amount, Decimal("10"))
-        on_event_amount = percentage_amount(total_amount, Decimal("80"))
-        after_delivery_amount = total_amount - booking_advance - on_event_amount
-        balance_amount = total_amount - booking_advance
-
-        context = {
-            "contract": contract,
-            "client": get_contract_client(contract),
-            "total_amount": total_amount,
-            "booking_advance": booking_advance,
-            "balance_amount": balance_amount,
-            "on_event_amount": on_event_amount,
-            "after_delivery_amount": after_delivery_amount,
-            "advance_percent": 10,
-            "event_percent": 80,
-            "delivery_percent": 10,
-            "bank_details": get_oceanclouds_bank_details(),
-            "deliverable_rows": get_payment_plan_deliverable_rows(),
-            "client_notes": get_payment_plan_client_notes(),
-            "terms": get_payment_plan_terms(),
-            "important_terms": get_payment_plan_important_terms(),
-        }
-
-        html_string = render_to_string(
+        pdf_file = render_pdf(
             "sales/contract_pdf.html",
-            context,
+            build_contract_document_context(contract),
             request=request,
         )
-
-        pdf_file = HTML(
-            string=html_string,
-            base_url=request.build_absolute_uri("/"),
-        ).write_pdf()
 
         contract_id = _safe_filename_part(contract.number or contract.pk, f"contract-{contract.pk}")
         client_name = _client_filename_part(contract)
@@ -1693,6 +1703,18 @@ class ContractPDFDownloadView(SalesAccessMixin, DetailView):
         response = HttpResponse(pdf_file, content_type="application/pdf")
         response["Content-Disposition"] = f'attachment; filename="{filename}"'
         return response
+
+
+class ContractDocumentView(ContractPDFDownloadView):
+    """
+    The digital contract in the browser: the same document as the PDF.
+    """
+
+    def get(self, request, *args, **kwargs):
+        contract = self.get_object()
+        context = build_contract_document_context(contract)
+        context["screen"] = True
+        return render(request, "sales/contract_pdf.html", context)
 
 
 class ContractCreateView(SalesAccessMixin, OwnerAssignMixin, CreateView):
@@ -1719,7 +1741,7 @@ class ContractCreateView(SalesAccessMixin, OwnerAssignMixin, CreateView):
                         "deal": proposal.deal_id,
                         "proposal": proposal.pk,
                         "proposal_plan": selected_plan.pk if selected_plan else None,
-                        "terms": proposal.notes,
+                        "terms": proposal.terms,
                     }
                 )
 
@@ -1771,6 +1793,14 @@ class ContractUpdateView(SalesAccessMixin, OwnerAssignMixin, UpdateView):
                 clear_existing=True,
             )
 
+        # Marked as signed by staff (e.g. a paper signature).
+        if contract.status == ContractStatus.SIGNED:
+            if not contract.signed_date:
+                contract.signed_date = timezone.localdate()
+                contract.save(update_fields=["signed_date", "updated_at"])
+            if contract.deal.stage != DealStage.WON:
+                mark_deal_won(contract.deal)
+
         messages.success(
             self.request,
             "Contract updated successfully.",
@@ -1818,6 +1848,14 @@ class ContractGenerateInvoiceView(SalesAccessMixin, OwnerAssignMixin, CreateView
             Contract.objects.select_related("deal", "deal__client", "proposal"),
             pk=self.kwargs["pk"],
         )
+
+        if self.contract.status != ContractStatus.SIGNED:
+            messages.error(
+                request,
+                "The invoice can be generated once the contract is signed.",
+                extra_tags=_scope_tags("invoice"),
+            )
+            return redirect("sales:contract_detail", pk=self.contract.pk)
 
         existing_invoice = self.contract.invoices.order_by("-issue_date", "-created_at").first()
         if existing_invoice:
@@ -1937,6 +1975,7 @@ class InvoiceListView(SalesAccessMixin, ListView):
             qs = qs.filter(
                 Q(number__icontains=q)
                 | Q(deal__client__name__icontains=q)
+                | Q(deal__lead__name__icontains=q)
                 | Q(deal__client__display_name__icontains=q)
                 | Q(deal__client__email__icontains=q)
                 | Q(deal__client__phone__icontains=q)
@@ -1996,7 +2035,7 @@ class InvoiceDetailView(SalesReadOnlyAccessMixin, DetailMessageScopeMixin, Detai
 
         context["pdf_download_url"] = reverse("sales:invoice_download", args=[self.object.pk])
         context["payments"] = self.object.payments.all().order_by("-date", "-created_at")
-        context["client"] = self.object.deal.client if self.object.deal_id else None
+        context["client"] = self.object.deal.customer if self.object.deal_id else None
 
         return context
 
@@ -2119,16 +2158,7 @@ class InvoicePDFDownloadView(SalesAccessMixin, DetailView):
 
         invoice = self.get_object()
 
-        html_string = render_to_string(
-            "sales/invoice_pdf.html",
-            {"invoice": invoice},
-            request=request,
-        )
-
-        pdf_file = HTML(
-            string=html_string,
-            base_url=request.build_absolute_uri(),
-        ).write_pdf()
+        pdf_file = render_pdf("sales/invoice_pdf.html", {"invoice": invoice}, request=request)
 
         invoice_id = _safe_filename_part(invoice.number or invoice.pk, f"invoice-{invoice.pk}")
         client_name = _client_filename_part(invoice)
@@ -2171,6 +2201,7 @@ class PaymentListView(SalesAccessMixin, ListView):
             qs = qs.filter(
                 Q(invoice__number__icontains=q)
                 | Q(invoice__deal__client__name__icontains=q)
+                | Q(invoice__deal__lead__name__icontains=q)
                 | Q(invoice__deal__client__display_name__icontains=q)
                 | Q(reference__icontains=q)
             )
@@ -2327,7 +2358,7 @@ class ProposalSendEmailView(SalesAccessMixin, View):
         )
 
         deal = proposal.deal
-        client = deal.client if deal else None
+        client = deal.customer if deal else None
         contact = resolve_primary_contact(client)
         to_email = resolve_client_email(client)
 
@@ -2339,6 +2370,7 @@ class ProposalSendEmailView(SalesAccessMixin, View):
             redirect_url_name="sales:proposal_detail",
             redirect_pk=proposal.pk,
             object_scope="proposal",
+            scope_tags=_scope_tags,
         )
         if blocked:
             return blocked
@@ -2367,8 +2399,13 @@ class ProposalSendEmailView(SalesAccessMixin, View):
             return redirect("sales:proposal_detail", pk=proposal.pk)
 
         if getattr(result, "ok", False):
-            proposal.status = ProposalStatus.SENT
-            proposal.save(update_fields=["status", "updated_at"])
+            if proposal.status == ProposalStatus.DRAFT:
+                proposal.status = ProposalStatus.SENT
+                proposal.save(update_fields=["status", "updated_at"])
+
+            if deal.stage in (DealStage.NEW, DealStage.QUALIFIED):
+                deal.stage = DealStage.PROPOSAL_SENT
+                deal.save(update_fields=["stage", "updated_at"])
 
         flash_send_result(
             request,
@@ -2394,7 +2431,7 @@ class ContractSendEmailView(SalesAccessMixin, View):
         )
 
         deal = contract.deal
-        client = deal.client if deal else None
+        client = deal.customer if deal else None
         contact = resolve_primary_contact(client)
         to_email = resolve_client_email(client)
 
@@ -2406,6 +2443,7 @@ class ContractSendEmailView(SalesAccessMixin, View):
             redirect_url_name="sales:contract_detail",
             redirect_pk=contract.pk,
             object_scope="contract",
+            scope_tags=_scope_tags,
         )
         if blocked:
             return blocked
@@ -2449,6 +2487,9 @@ class ContractSendEmailView(SalesAccessMixin, View):
                 contract.status = ContractStatus.PENDING_SIGNATURE
                 contract.save(update_fields=["status", "updated_at"])
 
+                deal.stage = DealStage.CONTRACT_SENT
+                deal.save(update_fields=["stage", "updated_at"])
+
         flash_send_result(
             request,
             label="Contract",
@@ -2469,7 +2510,7 @@ class InvoiceSendEmailView(SalesAccessMixin, View):
         )
 
         deal = invoice.deal
-        client = deal.client if deal else None
+        client = deal.customer if deal else None
         contact = resolve_primary_contact(client)
         to_email = resolve_client_email(client)
 
@@ -2481,6 +2522,7 @@ class InvoiceSendEmailView(SalesAccessMixin, View):
             redirect_url_name="sales:invoice_detail",
             redirect_pk=invoice.pk,
             object_scope="invoice",
+            scope_tags=_scope_tags,
         )
         if blocked:
             return blocked
@@ -2540,7 +2582,7 @@ class PaymentSendEmailView(SalesAccessMixin, View):
 
         invoice = payment.invoice
         deal = invoice.deal if invoice else None
-        client = deal.client if deal else None
+        client = deal.customer if deal else None
         contact = resolve_primary_contact(client)
         to_email = resolve_client_email(client)
 
@@ -2552,6 +2594,7 @@ class PaymentSendEmailView(SalesAccessMixin, View):
             redirect_url_name="sales:payment_detail",
             redirect_pk=payment.pk,
             object_scope="payment",
+            scope_tags=_scope_tags,
         )
         if blocked:
             return blocked
@@ -2611,6 +2654,7 @@ class ContractPublicSignView(View):
             Contract.objects.select_related(
                 "deal",
                 "deal__client",
+                "deal__lead",
                 "proposal",
                 "proposal_plan",
             ).prefetch_related(
@@ -2624,7 +2668,7 @@ class ContractPublicSignView(View):
         )
 
     def get_context_data(self, contract):
-        client = contract.deal.client if contract.deal and contract.deal.client else None
+        client = contract.deal.customer if contract.deal else None
 
         total_amount = get_contract_public_sign_total(contract)
 
@@ -2731,6 +2775,8 @@ class ContractPublicSignView(View):
                 "updated_at",
             ]
         )
+
+        mark_deal_won(contract.deal)
 
         messages.success(
             request,

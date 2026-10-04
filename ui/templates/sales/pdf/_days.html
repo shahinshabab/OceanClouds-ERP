@@ -1,0 +1,41 @@
+{% load proposal_pdf_filters %}
+{% for day in days %}
+  <div class="day">
+    <div class="day-head">
+      <div class="day-title">{{ day.title|default:"Event" }}</div>
+      <div class="day-when">
+        {% if day.event_date %}<b>{{ day.event_date|date:"l, j F Y" }}</b>{% else %}<b>Date to be confirmed</b>{% endif %}
+        {% if day.start_time %}<br>{{ day.start_time|time:"g:i A" }}{% if day.end_time %} – {{ day.end_time|time:"g:i A" }}{% endif %}{% endif %}
+        {% if day.venue %}<br>{{ day.venue }}{% endif %}
+      </div>
+    </div>
+    {% if day.notes %}<p class="day-notes">{{ day.notes }}</p>{% endif %}
+
+    {% for item in day.items.all %}
+      <div class="item">
+        <div class="item-main">
+          <div class="item-name">{{ item|item_title }}</div>
+          {% with sub=item|item_subtitle %}{% if sub %}<div class="item-sub">{{ sub }}</div>{% endif %}{% endwith %}
+          {% if item.notes %}<div class="item-notes">{{ item.notes|linebreaksbr }}</div>{% endif %}
+          {% with deliverables=item.deliverables|included %}
+            {% if deliverables %}
+              <div class="chips">
+                {% for d in deliverables %}<span class="chip">{% if d.quantity and d.quantity != 1 %}{{ d.quantity|clean_qty }} {% endif %}{{ d.title }}</span>{% endfor %}
+              </div>
+            {% endif %}
+          {% endwith %}
+        </div>
+        {% if show_prices %}
+          <div class="item-price">
+            {% if item.quantity and item.quantity != 1 %}<div class="qty">{{ item.quantity }} × {{ item.unit_price|money }}</div>{% endif %}
+            <div class="amt">{{ item.line_total|money }}</div>
+          </div>
+        {% endif %}
+      </div>
+    {% empty %}
+      <p class="muted small" style="padding: 3mm 0">Coverage details to be confirmed.</p>
+    {% endfor %}
+  </div>
+{% empty %}
+  <p class="muted">The event schedule will be confirmed together.</p>
+{% endfor %}

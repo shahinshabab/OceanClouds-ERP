@@ -10,6 +10,7 @@ class CommonConfig(AppConfig):
 
     def ready(self):
         import common.signals  # noqa
+        import common.live  # noqa
         from common.role_permissions import setup_role_groups
 
         post_migrate.connect(

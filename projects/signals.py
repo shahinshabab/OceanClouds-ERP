@@ -1,5 +1,6 @@
 # projects/signals.py
 
+from django.db import transaction
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 
@@ -7,6 +8,7 @@ from common.models import Notification
 from common.notifications import notify_user
 from todos.models import TodoPriority
 from todos.services import create_todo_once
+from projects.utils import close_event_project_todos, request_project_for_event
 from projects.models import (
     Project,
     Task,
@@ -278,3 +280,33 @@ def notify_and_todo_deliverable_assigned(sender, instance, created, **kwargs):
 
     if instance.project.status == ProjectStatus.ACTIVE:
         create_deliverable_todo(instance, actor=actor)
+
+
+# ============================================================
+# Event -> Project Manager hand-off
+# ============================================================
+
+@receiver(post_save, sender="events.Event")
+def request_project_for_new_event(sender, instance, created, **kwargs):
+    """
+    New event without a project: every Project Manager is notified and gets
+    a to-do. Once a project is linked, those to-dos are closed.
+    """
+    if kwargs.get("raw"):
+        return
+
+    if instance.project_id:
+        close_event_project_todos(instance)
+        return
+
+    if created:
+        actor = getattr(instance, "_notification_actor", None) or instance.owner
+        transaction.on_commit(lambda: request_project_for_event(instance, actor=actor))
+
+
+@receiver(post_save, sender=Project)
+def close_event_todos_when_project_linked(sender, instance, created, **kwargs):
+    if kwargs.get("raw") or not instance.event_id:
+        return
+
+    close_event_project_todos(instance.event)

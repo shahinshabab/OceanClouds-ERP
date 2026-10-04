@@ -1,11 +1,108 @@
 from django.contrib.sessions.models import Session
-from django.test import Client
+from django.test import Client, TestCase
 from django.urls import reverse
 
-from common.models import UserLoginSession
+from common.models import ImportantNotice, UserLoginSession
 from common.test_helpers import AuthenticatedViewTestMixin, make_user
+from projects.models import Project, Task, TaskStatus, WorkSession, WorkSessionStatus
 
 from .forms import ProfileUpdateForm
+
+
+class LogoutTrackingTests(TestCase):
+    def setUp(self):
+        self.user = make_user(username="logout-user", password="secret12345")
+        self.client.post(
+            reverse("ui:login"),
+            {"username": self.user.username, "password": "secret12345"},
+        )
+        self.login_session = UserLoginSession.objects.get(user=self.user)
+        self.project = Project.objects.create(name="Logout project")
+        self.task = Task.objects.create(
+            project=self.project,
+            name="Logout task",
+            status=TaskStatus.IN_PROGRESS,
+        )
+        self.work_session = WorkSession.objects.create(
+            user=self.user,
+            project=self.project,
+            task=self.task,
+        )
+
+    def assert_logout_recorded(self):
+        response = self.client.get(reverse("ui:logout"))
+
+        self.assertRedirects(response, reverse("ui:login"))
+        self.assertNotIn("_auth_user_id", self.client.session)
+        self.login_session.refresh_from_db()
+        self.work_session.refresh_from_db()
+        self.task.refresh_from_db()
+        self.assertIsNotNone(self.login_session.logout_at)
+        self.assertEqual(self.login_session.end_reason, "logout")
+        self.assertEqual(self.login_session.checkout_review_status, "not_required")
+        self.assertFalse(
+            UserLoginSession.objects.filter(user=self.user, logout_at__isnull=True).exists()
+        )
+        self.assertEqual(self.work_session.status, WorkSessionStatus.PAUSED)
+        self.assertEqual(self.task.status, TaskStatus.PAUSED)
+        protected_response = self.client.get(reverse("ui:home"))
+        self.assertEqual(protected_response.status_code, 302)
+        self.assertIn(reverse("ui:login"), protected_response["Location"])
+
+    def test_manual_logout_records_checkout_and_pauses_work(self):
+        self.assert_logout_recorded()
+
+    def test_required_notice_does_not_block_logout(self):
+        ImportantNotice.objects.create(
+            key="logout-policy", title="Required policy", body="Please agree."
+        )
+
+        self.assert_logout_recorded()
+
+    def test_logout_after_password_change_records_checkout(self):
+        self.change_password_and_logout("ui:profile_password", "ui:profile")
+
+    def test_logout_after_admin_password_change_records_checkout(self):
+        self.change_password_and_logout("admin:password_change", "admin:password_change_done")
+
+    def change_password_and_logout(self, password_url_name, success_url_name):
+        original_key = self.login_session.session_key
+        original_login_at = self.login_session.login_at
+        original_expires_at = self.login_session.expires_at
+        response = self.client.post(
+            reverse(password_url_name),
+            {
+                "old_password": "secret12345",
+                "new_password1": "changed-secret12345",
+                "new_password2": "changed-secret12345",
+            },
+        )
+
+        self.assertRedirects(response, reverse(success_url_name))
+        self.assertNotEqual(original_key, self.client.session.session_key)
+        rotated_key = self.client.session.session_key
+        self.assert_logout_recorded()
+        self.assertEqual(self.login_session.session_key, rotated_key)
+        self.assertEqual(self.login_session.login_at, original_login_at)
+        self.assertEqual(self.login_session.expires_at, original_expires_at)
+        self.assertEqual(UserLoginSession.objects.filter(user=self.user).count(), 1)
+
+    def test_logout_from_replaced_browser_keeps_current_login_and_work_active(self):
+        current_browser = Client()
+        current_browser.post(
+            reverse("ui:login"),
+            {"username": self.user.username, "password": "secret12345"},
+        )
+        current_login = UserLoginSession.objects.get(user=self.user, logout_at__isnull=True)
+
+        response = self.client.get(reverse("ui:logout"))
+
+        self.assertRedirects(response, reverse("ui:login"))
+        current_login.refresh_from_db()
+        self.work_session.refresh_from_db()
+        self.assertIsNone(current_login.logout_at)
+        self.assertEqual(self.work_session.status, WorkSessionStatus.ACTIVE)
+        self.assertEqual(current_browser.get(reverse("ui:home")).status_code, 200)
 
 
 class UiTests(AuthenticatedViewTestMixin):

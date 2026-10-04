@@ -25,5 +25,5 @@
   </section>
 {% endblock %}
 
-{% block cancel_url %}{% with cid=form.instance.client_id|default:request.GET.client %}{% if cid %}{% url 'crm:client_detail' cid %}#tab-reviews{% else %}{% url 'crm:client_list' %}{% endif %}{% endwith %}{% endblock %}
+{% block cancel_url %}{% firstof form.instance.client_id request.GET.client as cid %}{% if cid %}{% url 'crm:client_detail' cid %}#tab-reviews{% else %}{% url 'crm:client_list' %}{% endif %}{% endblock %}
 {% block submit_label %}Save review{% endblock %}

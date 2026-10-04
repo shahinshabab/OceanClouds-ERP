@@ -1,325 +1,314 @@
 {% extends "ui/base.html" %}
-{% load roles_tags %}
+{% load roles_tags ui_tags %}
 
-{% block title %}Event – {{ event.name }}{% endblock %}
+{% block title %}{{ event.name }} · Event{% endblock %}
 
 {% block content %}
 {% has_event_manage_access request.user as can_manage_events %}
 {% has_project_access request.user as can_create_project %}
 
-<div class="container py-3 max-w-2xl">
+<div class="container">
 
-  <!-- Header -->
-  <div class="d-flex justify-content-between align-items-start mb-4">
-    <div>
-      <h2 class="fw-semibold mb-2">{{ event.name }}</h2>
-
-      <span class="badge
-        {% if event.status == 'completed' %} bg-success
-        {% elif event.status == 'confirmed' %} bg-primary
-        {% elif event.status == 'in_progress' %} bg-info
-        {% elif event.status == 'cancelled' %} bg-danger
-        {% else %} bg-secondary
-        {% endif %}
-      ">
-        {{ event.get_status_display }}
-      </span>
-
-      <span class="badge bg-light text-dark ms-1">
-        {{ event.get_event_type_display }}
-      </span>
+  <div class="page-header">
+    <div class="d-flex align-items-center gap-3 min-w-0">
+      <div class="date-chip"><b>{{ event.date|date:"j" }}</b><small>{{ event.date|date:"M" }}</small></div>
+      <div class="min-w-0">
+        <div class="page-eyebrow"><a href="{% url 'events:event_list' %}"><i class="bi bi-stars"></i> Events</a></div>
+        <h1 class="page-title">{{ event.name }}</h1>
+        <div class="page-subtitle d-flex flex-wrap align-items-center gap-2">
+          {% status_pill event.status event.get_status_display %}
+          <span class="status status-muted">{{ event.get_event_type_display }}</span>
+          <span><i class="bi bi-calendar3"></i> {{ event.date|date:"D, d M Y" }}</span>
+          {% if event.start_time %}<span class="tabular"><i class="bi bi-clock"></i> {{ event.start_time|time:"H:i" }}{% if event.end_time %} – {{ event.end_time|time:"H:i" }}{% endif %}</span>{% endif %}
+          {% if event.venue %}<span><i class="bi bi-geo-alt"></i> {{ event.venue }}</span>{% endif %}
+          {% if event.client %}<span><i class="bi bi-person"></i> {{ event.client }}</span>{% endif %}
+        </div>
+      </div>
     </div>
 
     {% if can_manage_events %}
-      <div class="d-flex gap-2">
-        <a href="{% url 'events:event_update' event.pk %}" class="btn btn-primary btn-sm">
-          <i class="bi bi-pencil"></i>Edit Event
-        </a>
-        <a href="{% url 'events:event_delete' event.pk %}" class="btn btn-outline-danger btn-sm">
-          <i class="bi bi-trash"></i>Delete
-        </a>
+      <div class="page-actions">
+        <a href="{% url 'events:checklist_detail' checklist.pk %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-list-check"></i>Checklist</a>
+        <a href="{% url 'events:event_update' event.pk %}" class="btn btn-outline-dark btn-sm"><i class="bi bi-pencil"></i>Edit</a>
+        <div class="dropdown">
+          <button class="btn btn-outline-secondary btn-sm btn-icon" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="More actions">
+            <i class="bi bi-three-dots"></i>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><a class="dropdown-item" href="{% url 'events:checklist_item_create' %}?checklist={{ checklist.pk }}"><i class="bi bi-plus-lg"></i>Add checklist item</a></li>
+            {% if not linked_project and can_create_project %}
+              <li><a class="dropdown-item" href="{% url 'projects:project_create' %}?event={{ event.pk }}"><i class="bi bi-kanban"></i>Create project</a></li>
+            {% endif %}
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item text-danger" href="{% url 'events:event_delete' event.pk %}"><i class="bi bi-trash"></i>Delete event</a></li>
+          </ul>
+        </div>
       </div>
     {% endif %}
   </div>
 
-  <!-- Main Info Card -->
-  <div class="card shadow-sm mb-3">
-    <div class="card-body">
+  <div class="row g-4">
+    <div class="col-xl-8">
 
-      <div class="row gy-3">
-
-        <div class="col-md-4">
-          <div class="text-uppercase text-muted small">Project</div>
-          <div class="fw-semibold">
-            {% if linked_project %}
-              <a href="{% url 'projects:project_detail' linked_project.pk %}">
-                {{ linked_project.name }}
-              </a>
-            {% elif can_create_project %}
-              <a href="{% url 'projects:project_create' %}?event={{ event.pk }}" class="btn btn-outline-primary btn-sm">
-                Create Project
-              </a>
-            {% else %}
-              <span class="text-muted">Not created yet</span>
-            {% endif %}
-          </div>
+      <!-- Overview -->
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-info-circle"></i>Overview</h2></div>
+        <div class="card-body">
+          <dl class="info-grid">
+            <div>
+              <dt>Date</dt>
+              <dd>{{ event.date|date:"l, d M Y" }}</dd>
+            </div>
+            <div>
+              <dt>Time</dt>
+              <dd class="tabular">
+                {% if event.start_time %}{{ event.start_time|time:"H:i" }}{% else %}—{% endif %}{% if event.end_time %} – {{ event.end_time|time:"H:i" }}{% endif %}
+              </dd>
+            </div>
+            <div>
+              <dt>Venue</dt>
+              <dd>
+                {% if event.venue %}
+                  <a href="{% url 'events:venue_detail' event.venue.pk %}">{{ event.venue }}</a>
+                  {% if event.venue.city %}<div class="small text-muted fw-normal">{{ event.venue.city }}{% if event.venue.district %}, {{ event.venue.district }}{% endif %}</div>{% endif %}
+                {% else %}—{% endif %}
+              </dd>
+            </div>
+            <div>
+              <dt>Client</dt>
+              <dd>
+                {% if event.client %}
+                  <a href="{% url 'crm:client_detail' event.client.pk %}">{{ event.client }}</a>
+                  {% if event.client.phone or event.client.email %}
+                    <div class="small text-muted fw-normal">{{ event.client.phone }}{% if event.client.phone and event.client.email %} · {% endif %}{{ event.client.email }}</div>
+                  {% endif %}
+                {% else %}—{% endif %}
+              </dd>
+            </div>
+            <div>
+              <dt>Primary contact</dt>
+              <dd>
+                {% with contact=event.contact %}
+                  {% if contact %}
+                    {{ contact }}
+                    {% if contact.phone %}<div class="small text-muted fw-normal"><a href="tel:{{ contact.phone }}">{{ contact.phone }}</a></div>{% endif %}
+                  {% else %}—{% endif %}
+                {% endwith %}
+              </dd>
+            </div>
+            <div>
+              <dt>Contract</dt>
+              <dd>
+                {% if event.contract %}
+                  <a href="{% url 'sales:contract_document' event.contract.pk %}">{{ event.contract.number|default:"View contract" }}</a>
+                  <div class="mt-1">{% status_pill event.contract.status event.contract.get_status_display %}</div>
+                {% else %}—{% endif %}
+              </dd>
+            </div>
+          </dl>
         </div>
-
-        <div class="col-md-4">
-          <div class="text-uppercase text-muted small">Client</div>
-          <div class="fw-semibold">
-            {% if event.client %}
-              {{ event.client }}
-              {% if event.client.phone or event.client.email %}
-                <div class="small text-muted fw-normal">
-                  {{ event.client.phone }}{% if event.client.phone and event.client.email %} · {% endif %}{{ event.client.email }}
-                </div>
-              {% endif %}
-            {% else %}
-              —
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="col-md-4">
-          <div class="text-uppercase text-muted small">Contract</div>
-          <div class="fw-semibold">
-            {% if event.contract %}
-              <a href="{% url 'sales:contract_document' event.contract.pk %}">
-                {{ event.contract.number|default:"View contract" }}
-              </a>
-              <div class="small text-muted fw-normal">{{ event.contract.get_status_display }}</div>
-            {% else %}
-              —
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="col-md-4">
-          <div class="text-uppercase text-muted small">Primary Contact</div>
-          <div class="fw-semibold">
-            {% with contact=event.contact %}
-              {% if contact %}
-                {{ contact }}
-                {% if contact.phone %}<div class="small text-muted fw-normal">{{ contact.phone }}</div>{% endif %}
-              {% else %}
-                —
-              {% endif %}
-            {% endwith %}
-          </div>
-        </div>
-
-        <div class="col-md-4">
-          <div class="text-uppercase text-muted small">Date</div>
-          <div class="fw-semibold">{{ event.date }}</div>
-        </div>
-
-        <div class="col-md-4">
-          <div class="text-uppercase text-muted small">Time</div>
-          <div class="fw-semibold">
-            {% if event.start_time %}
-              {{ event.start_time|time:"H:i" }}
-            {% else %}
-              —
-            {% endif %}
-
-            {% if event.end_time %}
-              – {{ event.end_time|time:"H:i" }}
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="col-md-4">
-          <div class="text-uppercase text-muted small">Venue</div>
-          <div class="fw-semibold">
-            {% if event.venue %}
-              <a href="{% url 'events:venue_detail' event.venue.pk %}">
-                {{ event.venue }}
-              </a>
-            {% else %}
-              —
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="col-12">
-          <div class="text-uppercase text-muted small">Client / General Notes</div>
-          <div>
-            {% if event.notes %}
-              {{ event.notes|linebreaksbr }}
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="col-12">
-          <div class="text-uppercase text-muted small">Internal Notes</div>
-          <div>
-            {% if event.internal_notes %}
-              {{ event.internal_notes|linebreaksbr }}
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
-        </div>
-
       </div>
 
-    </div>
-  </div>
+      <!-- Checklist -->
+      {% with done=checklist.done_items total=checklist.total_items %}
+      <div class="card mb-4">
+        <div class="card-header">
+          <h2 class="section-title"><i class="bi bi-list-check"></i>Checklist <span class="text-muted fw-normal tabular">{{ done }}/{{ total }} done</span></h2>
+          {% if can_manage_events %}
+            <a href="{% url 'events:checklist_item_create' %}?checklist={{ checklist.pk }}" class="btn btn-light btn-sm"><i class="bi bi-plus-lg"></i>Add item</a>
+          {% endif %}
+        </div>
+        {% if checklist_items %}
+          <div class="px-3 pt-3">
+            <div class="progress" role="progressbar" aria-label="Checklist progress" aria-valuenow="{% widthratio done total 100 %}" aria-valuemin="0" aria-valuemax="100" style="height: 6px">
+              <div class="progress-bar bg-dark" style="width: {% widthratio done total 100 %}%"></div>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead>
+                <tr><th>Item</th><th class="d-none d-md-table-cell">Due</th><th class="d-none d-md-table-cell">Assigned to</th><th>Status</th></tr>
+              </thead>
+              <tbody>
+                {% for item in checklist_items %}
+                  <tr>
+                    <td>
+                      <div class="d-flex align-items-start gap-2">
+                        <input class="form-check-input mt-1" type="checkbox" disabled {% if item.is_done %}checked{% endif %} aria-label="Done">
+                        <div class="min-w-0">
+                          {% if can_manage_events %}
+                            <a href="{% url 'events:checklist_item_update' item.pk %}" class="cell-title{% if item.is_done %} text-muted text-decoration-line-through{% endif %}">{{ item.title }}</a>
+                          {% else %}
+                            <span class="cell-title{% if item.is_done %} text-muted text-decoration-line-through{% endif %}">{{ item.title }}</span>
+                          {% endif %}
+                          <span class="cell-sub">{{ item.get_category_display }}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td class="d-none d-md-table-cell text-nowrap">{{ item.due_date|date:"d M Y"|default:"—" }}</td>
+                    <td class="d-none d-md-table-cell">{% if item.assigned_to %}{{ item.assigned_to.get_full_name|default:item.assigned_to.username }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+                    <td>{% if item.is_done %}<span class="status status-solid">Done</span>{% else %}<span class="status status-muted">Pending</span>{% endif %}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <div class="card-footer small"><a href="{% url 'events:checklist_detail' checklist.pk %}">Open full checklist <i class="bi bi-arrow-right"></i></a></div>
+        {% else %}
+          <div class="empty-state">
+            <i class="bi bi-list-check"></i>
+            No checklist items.
+            {% if can_manage_events %}
+              <div><a href="{% url 'events:checklist_item_create' %}?checklist={{ checklist.pk }}" class="btn btn-dark btn-sm"><i class="bi bi-plus-lg"></i>Add the first item</a></div>
+            {% endif %}
+          </div>
+        {% endif %}
+      </div>
+      {% endwith %}
 
-  <!-- Services -->
-  <div class="card mb-3">
-    <div class="card-header bg-white">
-      <span class="fw-semibold small text-uppercase text-muted">Linked Services</span>
+      <!-- Vendors -->
+      {% with vendors=event.vendors.all %}
+      <div class="card mb-4">
+        <div class="card-header">
+          <h2 class="section-title"><i class="bi bi-truck"></i>Vendors &amp; operators <span class="text-muted fw-normal">{{ vendors|length }}</span></h2>
+        </div>
+        {% if vendors %}
+          <ul class="mini-list">
+            {% for vendor in vendors %}
+              <li>
+                <span class="avatar-circle sm light">{{ vendor.company_name|default:vendor.name|initials }}</span>
+                <div class="grow">
+                  <div class="t"><a href="{% url 'services:vendor_detail' vendor.pk %}">{{ vendor.company_name|default:vendor.name }}</a></div>
+                  <div class="m">{{ vendor.get_vendor_type_display }}</div>
+                </div>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <div class="card-body text-muted small">No vendors assigned yet.</div>
+        {% endif %}
+      </div>
+      {% endwith %}
+
+      <!-- Services & packages -->
+      {% with services=event.services.all packages=event.packages.all %}
+      <div class="card mb-4">
+        <div class="card-header">
+          <h2 class="section-title"><i class="bi bi-box-seam"></i>Services &amp; packages</h2>
+        </div>
+        {% if services or packages %}
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead><tr><th>Name</th><th>Kind</th><th class="text-end">Detail</th></tr></thead>
+              <tbody>
+                {% for package in packages %}
+                  <tr>
+                    <td><a href="{% url 'services:package_detail' package.pk %}" class="cell-title">{{ package.name }}</a></td>
+                    <td><span class="status status-outline">Package</span></td>
+                    <td class="text-end tabular">{{ package.total_price|inr }}</td>
+                  </tr>
+                {% endfor %}
+                {% for service in services %}
+                  <tr>
+                    <td><a href="{% url 'services:service_detail' service.pk %}" class="cell-title">{{ service.name }}</a></td>
+                    <td><span class="status status-muted">Service</span></td>
+                    <td class="text-end text-muted small">{{ service.get_category_display }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="card-body text-muted small">No services or packages linked.</div>
+        {% endif %}
+      </div>
+      {% endwith %}
+
+      <!-- Equipment -->
+      {% with equipment=event.inventory_items.all %}
+      <div class="card mb-4">
+        <div class="card-header">
+          <h2 class="section-title"><i class="bi bi-camera"></i>Equipment <span class="text-muted fw-normal">{{ equipment|length }}</span></h2>
+        </div>
+        {% if equipment %}
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead><tr><th>Item</th><th class="text-end">Available</th></tr></thead>
+              <tbody>
+                {% for inv in equipment %}
+                  <tr>
+                    <td><a href="{% url 'services:inventory_detail' inv.pk %}" class="cell-title">{{ inv.name }}</a></td>
+                    <td class="text-end tabular">{{ inv.quantity_available }}/{{ inv.quantity_total }} {{ inv.unit }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="card-body text-muted small">No equipment assigned yet.</div>
+        {% endif %}
+      </div>
+      {% endwith %}
     </div>
-    <div class="card-body">
-      {% if event.services.all %}
-        <ul class="list-group list-group-flush">
-          {% for service in event.services.all %}
-            <li class="list-group-item px-0 d-flex justify-content-between">
-              <a href="{% url 'services:service_detail' service.pk %}">
-                {{ service.name }}
-              </a>
-              <span class="text-muted small">{{ service.get_category_display }}</span>
+
+    <div class="col-xl-4">
+      <!-- Schedule -->
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-calendar-event"></i>Schedule</h2></div>
+        <div class="card-body">
+          <ul class="info-list">
+            <li><span class="k">Date</span><span class="v">{{ event.date|date:"D, d M Y" }}</span></li>
+            <li><span class="k">Starts</span><span class="v tabular">{{ event.start_time|time:"H:i"|default:"—" }}</span></li>
+            <li><span class="k">Ends</span><span class="v tabular">{{ event.end_time|time:"H:i"|default:"—" }}</span></li>
+            <li><span class="k">When</span><span class="v">{% now "Y-m-d" as today %}{% if event.date|date:"Y-m-d" == today %}Today{% elif event.date|date:"Y-m-d" > today %}Upcoming{% else %}Past{% endif %}</span></li>
+            <li><span class="k">Venue</span>
+              <span class="v">{% if event.venue %}<a href="{% url 'events:venue_detail' event.venue.pk %}">{{ event.venue }}</a>{% else %}—{% endif %}</span>
             </li>
-          {% endfor %}
-        </ul>
-      {% else %}
-        <p class="text-muted mb-0">No services linked.</p>
-      {% endif %}
-    </div>
-  </div>
+            {% if event.venue.phone %}
+              <li><span class="k">Venue phone</span><span class="v"><a href="tel:{{ event.venue.phone }}">{{ event.venue.phone }}</a></span></li>
+            {% endif %}
+          </ul>
+        </div>
+      </div>
 
-  <!-- Packages -->
-  <div class="card mb-3">
-    <div class="card-header bg-white">
-      <span class="fw-semibold small text-uppercase text-muted">Linked Packages</span>
-    </div>
-    <div class="card-body">
-      {% if event.packages.all %}
-        <ul class="list-group list-group-flush">
-          {% for package in event.packages.all %}
-            <li class="list-group-item px-0 d-flex justify-content-between">
-              <a href="{% url 'services:package_detail' package.pk %}">
-                {{ package.name }}
-              </a>
-              <span class="text-muted small">{{ package.total_price }}</span>
-            </li>
-          {% endfor %}
-        </ul>
-      {% else %}
-        <p class="text-muted mb-0">No packages linked.</p>
-      {% endif %}
-    </div>
-  </div>
-
-  <!-- Vendors -->
-  <div class="card mb-3">
-    <div class="card-header bg-white">
-      <span class="fw-semibold small text-uppercase text-muted">Linked Vendors / Operators</span>
-    </div>
-    <div class="card-body">
-      {% if event.vendors.all %}
-        <ul class="list-group list-group-flush">
-          {% for vendor in event.vendors.all %}
-            <li class="list-group-item px-0 d-flex justify-content-between">
-              <a href="{% url 'services:vendor_detail' vendor.pk %}">
-                {{ vendor.company_name|default:vendor.name }}
-              </a>
-              <span class="text-muted small">{{ vendor.get_vendor_type_display }}</span>
-            </li>
-          {% endfor %}
-        </ul>
-      {% else %}
-        <p class="text-muted mb-0">No vendors assigned yet.</p>
-      {% endif %}
-    </div>
-  </div>
-
-  <!-- Inventory -->
-  <div class="card mb-3">
-    <div class="card-header bg-white">
-      <span class="fw-semibold small text-uppercase text-muted">Linked Inventory</span>
-    </div>
-    <div class="card-body">
-      {% if event.inventory_items.all %}
-        <ul class="list-group list-group-flush">
-          {% for inv in event.inventory_items.all %}
-            <li class="list-group-item px-0 d-flex justify-content-between">
-              <a href="{% url 'services:inventory_detail' inv.pk %}">
-                {{ inv.name }}
-              </a>
-              <span class="text-muted small">
-                {{ inv.quantity_available }}/{{ inv.quantity_total }} {{ inv.unit }}
+      <!-- Team -->
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-people"></i>Team</h2></div>
+        <div class="card-body">
+          <ul class="info-list">
+            <li><span class="k">Project</span>
+              <span class="v">
+                {% if linked_project %}
+                  <a href="{% url 'projects:project_detail' linked_project.pk %}">{{ linked_project.name }}</a>
+                {% elif can_create_project %}
+                  <a href="{% url 'projects:project_create' %}?event={{ event.pk }}" class="btn btn-outline-dark btn-sm"><i class="bi bi-plus-lg"></i>Create project</a>
+                {% else %}
+                  <span class="text-muted fw-normal">Not created yet</span>
+                {% endif %}
               </span>
             </li>
-          {% endfor %}
-        </ul>
-      {% else %}
-        <p class="text-muted mb-0">No inventory assigned yet.</p>
-      {% endif %}
+            {% if linked_project %}
+              <li><span class="k">Project status</span><span class="v">{% status_pill linked_project.status linked_project.get_status_display %}</span></li>
+              <li><span class="k">Project manager</span><span class="v">{% if linked_project.manager %}{{ linked_project.manager.get_full_name|default:linked_project.manager.username }}{% else %}—{% endif %}</span></li>
+            {% endif %}
+            <li><span class="k">Event owner</span><span class="v">{% if event.owner %}{{ event.owner.get_full_name|default:event.owner.username }}{% else %}—{% endif %}</span></li>
+            <li><span class="k">Vendors</span><span class="v tabular">{{ event.vendors.all|length }}</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Notes -->
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-card-text"></i>Notes</h2></div>
+        <div class="card-body">
+          <div class="info-label">Client / general notes</div>
+          <div class="small mb-3">{% if event.notes %}{{ event.notes|linebreaksbr }}{% else %}<span class="text-muted">—</span>{% endif %}</div>
+          <div class="info-label">Internal notes</div>
+          <div class="small">{% if event.internal_notes %}{{ event.internal_notes|linebreaksbr }}{% else %}<span class="text-muted">—</span>{% endif %}</div>
+          <div class="small text-muted mt-3">Created {{ event.created_at|date:"d M Y, H:i" }} · Updated {{ event.updated_at|date:"d M Y, H:i" }}</div>
+        </div>
+      </div>
     </div>
   </div>
-
-  <!-- Checklist -->
-  <div class="card mb-4">
-    <div class="card-header bg-white d-flex justify-content-between align-items-center">
-      <span class="fw-semibold small text-uppercase text-muted">Checklist</span>
-      <span class="badge bg-light text-dark">
-        {{ event.checklist_done_count }}/{{ event.checklist_total }} done
-      </span>
-    </div>
-
-    <div class="card-body">
-      {% if checklist_items %}
-        <ul class="list-group list-group-flush">
-          {% for item in checklist_items %}
-            <li class="list-group-item px-0 d-flex justify-content-between align-items-center">
-              <div>
-                <input class="form-check-input me-2"
-                       type="checkbox"
-                       disabled
-                       {% if item.is_done %}checked{% endif %}>
-
-                <a href="{% url 'events:checklist_detail' item.pk %}"
-                   {% if item.is_done %}class="text-muted text-decoration-line-through"{% endif %}>
-                  {{ item.title }}
-                </a>
-
-                <div class="small text-muted">
-                  {{ item.get_category_display }}
-                  {% if item.due_date %} · Due: {{ item.due_date }}{% endif %}
-                </div>
-              </div>
-
-              {% if item.is_done %}
-                <span class="badge bg-success">Done</span>
-              {% else %}
-                <span class="badge bg-secondary">Pending</span>
-              {% endif %}
-            </li>
-          {% endfor %}
-        </ul>
-      {% else %}
-        <p class="text-muted mb-0">No checklist items.</p>
-      {% endif %}
-    </div>
-  </div>
-
-  <!-- Actions -->
-  <div class="d-flex justify-content-center gap-2">
-    <a href="{% url 'events:event_list' %}" class="btn btn-outline-secondary">
-      <i class="bi bi-arrow-left"></i>Back to Events
-    </a>
-
-    {% if can_manage_events %}
-      <a href="{% url 'events:event_update' event.pk %}" class="btn btn-primary">
-        <i class="bi bi-pencil"></i>Edit Event
-      </a>
-    {% endif %}
-  </div>
-
 </div>
 {% endblock %}

@@ -1,130 +1,90 @@
 {# messaging/templates/messaging/emailtemplate_preview.html #}
 {% extends "ui/base.html" %}
 
-{% block title %}Preview: {{ template.name }}{% endblock %}
+{% block title %}Preview · {{ template.name }}{% endblock %}
 
 {% block content %}
-<div class="container py-3">
+<div class="container">
+  <div class="page-header">
+    <div class="min-w-0">
+      <div class="page-eyebrow"><a href="{{ back_url }}"><i class="bi bi-envelope"></i> {{ template.name }}</a></div>
+      <h1 class="page-title">Preview</h1>
+      <div class="page-subtitle">Rendered with sample client, proposal, invoice and payment data.</div>
+    </div>
+    {% if perms.messaging.change_emailtemplate %}
+      <div class="page-actions">
+        <a href="{% url 'messaging:template_update' template.pk %}" class="btn btn-outline-dark btn-sm"><i class="bi bi-pencil"></i>Edit template</a>
+      </div>
+    {% endif %}
+  </div>
 
-  <!-- Header -->
-  <div class="d-flex justify-content-between align-items-start mb-3">
-    <div>
-      <h2 class="fw-semibold mb-0">Preview: {{ template.name }}</h2>
-      <div class="text-muted small">
-        Rendered using sample client, proposal, invoice, and payment data.
+  <div class="row g-4">
+    <div class="col-xl-8">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h2 class="section-title"><i class="bi bi-envelope-open"></i>Rendered email</h2>
+          <span class="small text-muted">{{ template.get_type_display }}</span>
+        </div>
+        <div class="card-body border-bottom">
+          <div class="card-title-sm mb-1">Subject</div>
+          <div class="fw-semibold">{{ preview_subject|default:template.subject|default:"—" }}</div>
+        </div>
+        <div class="card-body bg-light">
+          {% comment %}
+            Shown in a sandboxed frame: template HTML is user-written and must
+            not run scripts inside the app.
+          {% endcomment %}
+          {% if preview_html %}
+            <iframe class="border rounded-3 w-100 bg-white" style="min-height: 600px;" sandbox title="Email preview"
+                    srcdoc="{{ preview_html|force_escape }}"></iframe>
+          {% elif template.body_html %}
+            <iframe class="border rounded-3 w-100 bg-white" style="min-height: 600px;" sandbox title="Email preview"
+                    srcdoc="{{ template.body_html|force_escape }}"></iframe>
+          {% else %}
+            <div class="empty-state"><i class="bi bi-code-slash"></i>No HTML body defined for this template.</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-text-left"></i>Plain text</h2></div>
+        <div class="card-body">
+          {% if preview_text %}
+            <pre class="mb-0 border rounded-3 bg-light p-3 small text-wrap text-break">{{ preview_text }}</pre>
+          {% else %}
+            <span class="text-muted">No plain text body defined.</span>
+          {% endif %}
+        </div>
       </div>
     </div>
 
-    <div class="d-flex gap-2">
-      {% if perms.messaging.change_emailtemplate %}
-        <a href="{% url 'messaging:template_update' template.pk %}"
-           class="btn btn-sm btn-outline-primary">
-          <i class="bi bi-pencil"></i>Edit
-        </a>
-      {% endif %}
-
-      <a href="{{ back_url }}" class="btn btn-sm btn-outline-secondary">
-        <i class="bi bi-arrow-left"></i>Back to details
-      </a>
-    </div>
-  </div>
-
-  <!-- Subject -->
-  <div class="card shadow-sm mb-3">
-    <div class="card-header bg-light">
-      <strong>Rendered Subject</strong>
-    </div>
-    <div class="card-body">
-      <div class="fw-semibold">
-        {{ preview_subject|default:template.subject|default:"—" }}
-      </div>
-    </div>
-  </div>
-
-  <!-- Rendered HTML -->
-  <div class="card shadow-sm mb-3">
-    <div class="card-header bg-light d-flex justify-content-between align-items-center">
-      <strong>Rendered HTML Preview</strong>
-      <span class="badge bg-light text-dark">{{ template.get_type_display }}</span>
-    </div>
-
-    <div class="card-body bg-white">
-      {% comment %}
-        Shown in a sandboxed frame: template HTML is user-written and must
-        not run scripts inside the app.
-      {% endcomment %}
-      {% if preview_html %}
-        <iframe class="border rounded w-100" style="min-height: 600px;" sandbox title="Email preview"
-                srcdoc="{{ preview_html }}"></iframe>
-      {% elif template.body_html %}
-        <iframe class="border rounded w-100" style="min-height: 600px;" sandbox title="Email preview"
-                srcdoc="{{ template.body_html }}"></iframe>
-      {% else %}
-        <p class="text-muted mb-0">
-          No HTML body defined for this template.
-        </p>
-      {% endif %}
-    </div>
-  </div>
-
-  <!-- Text preview -->
-  <div class="card shadow-sm mb-3">
-    <div class="card-header bg-light">
-      <strong>Rendered Plain Text</strong>
-    </div>
-
-    <div class="card-body">
-      {% if preview_text %}
-        <pre class="mb-0 border rounded bg-body-tertiary p-3 text-wrap text-break">{{ preview_text }}</pre>
-      {% else %}
-        <p class="text-muted mb-0">
-          No plain text body defined.
-        </p>
-      {% endif %}
-    </div>
-  </div>
-
-  <!-- Sample context -->
-  <div class="card shadow-sm mb-4">
-    <div class="card-header bg-light">
-      <strong>Sample Data Used for Preview</strong>
-    </div>
-
-    <div class="card-body">
-      <div class="row g-3 small">
-        <div class="col-md-3">
-          <h6 class="fw-semibold">Client</h6>
-          <div>Name: Sample Client</div>
-          <div>Email: client@example.com</div>
-        </div>
-
-        <div class="col-md-3">
-          <h6 class="fw-semibold">Proposal</h6>
-          <div>Title: Wedding Photography Proposal</div>
-          <div>Total: 45000</div>
-        </div>
-
-        <div class="col-md-3">
-          <h6 class="fw-semibold">Invoice</h6>
-          <div>Number: INV001</div>
-          <div>Total: 45000</div>
-        </div>
-
-        <div class="col-md-3">
-          <h6 class="fw-semibold">Payment</h6>
-          <div>Amount: 10000</div>
-          <div>Date: 2026-05-07</div>
+    <div class="col-xl-4">
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-database"></i>Sample data</h2></div>
+        <div class="card-body">
+          <div class="card-title-sm mb-1">Client</div>
+          <ul class="info-list mb-3">
+            <li><span class="k">Name</span><span class="v">Sample Client</span></li>
+            <li><span class="k">Email</span><span class="v">client@example.com</span></li>
+          </ul>
+          <div class="card-title-sm mb-1">Proposal</div>
+          <ul class="info-list mb-3">
+            <li><span class="k">Title</span><span class="v">Wedding Photography Proposal</span></li>
+            <li><span class="k">Total</span><span class="v tabular">45000</span></li>
+          </ul>
+          <div class="card-title-sm mb-1">Invoice</div>
+          <ul class="info-list mb-3">
+            <li><span class="k">Number</span><span class="v">INV001</span></li>
+            <li><span class="k">Total</span><span class="v tabular">45000</span></li>
+          </ul>
+          <div class="card-title-sm mb-1">Payment</div>
+          <ul class="info-list">
+            <li><span class="k">Amount</span><span class="v tabular">10000</span></li>
+            <li><span class="k">Date</span><span class="v">2026-05-07</span></li>
+          </ul>
         </div>
       </div>
     </div>
   </div>
-
-  <!-- Actions -->
-  <div class="text-center mb-3">
-    <a href="{{ back_url }}" class="btn btn-outline-secondary">
-      <i class="bi bi-arrow-left"></i>Back to details
-    </a>
-  </div>
-
 </div>
 {% endblock %}

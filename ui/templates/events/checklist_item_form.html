@@ -20,5 +20,5 @@
   </section>
 {% endblock %}
 
-{% block cancel_url %}{% with cid=form.instance.checklist_id|default:request.GET.checklist %}{% if cid %}{% url 'events:checklist_detail' cid %}{% else %}{% url 'events:checklist_list' %}{% endif %}{% endwith %}{% endblock %}
+{% block cancel_url %}{% firstof form.instance.checklist_id request.GET.checklist as cid %}{% if cid %}{% url 'events:checklist_detail' cid %}{% else %}{% url 'events:checklist_list' %}{% endif %}{% endblock %}
 {% block submit_label %}Save item{% endblock %}

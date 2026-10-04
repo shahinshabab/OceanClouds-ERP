@@ -1,150 +1,88 @@
 {% extends "ui/base.html" %}
 {% load static %}
-{% load roles_tags %}
+{% load roles_tags ui_tags %}
+
+{% block title %}Project board{% endblock %}
 
 {% block body_class %}kanban-page{% endblock %}
 
 {% block content %}
-<div class="container-fluid py-4">
+{% is_admin request.user as is_admin %}
+{% is_project_manager request.user as is_project_manager %}
 
-  {% is_admin request.user as is_admin %}
-  {% is_project_manager request.user as is_project_manager %}
-
-  <div class="d-flex justify-content-between align-items-center mb-3">
+<div class="container-fluid">
+  <div class="page-header">
     <div>
-      <h1 class="h3 mb-0">Project Kanban</h1>
-      <small class="text-muted">
+      <div class="page-eyebrow"><a href="{% url 'projects:project_list' %}"><i class="bi bi-kanban"></i> Projects</a></div>
+      <h1 class="page-title">Project board</h1>
+      <div class="page-subtitle">
         {% if is_admin or is_project_manager %}
-          Drag projects between Planned, Active and Completed.
+          Drag a project between Planned, Active and Completed to change its status.
         {% else %}
           View-only project board.
         {% endif %}
-      </small>
+      </div>
     </div>
-
-    <div class="d-flex gap-2">
-      <a href="{% url 'projects:project_list' %}" class="btn btn-outline-secondary btn-sm">
-        Table View
-      </a>
-
+    <div class="page-actions">
+      <div class="segmented" role="group" aria-label="View">
+        <a href="{% url 'projects:project_list' %}"><i class="bi bi-list-ul"></i>List</a>
+        <a href="{% url 'projects:project_kanban' %}" class="active" aria-current="page"><i class="bi bi-kanban"></i>Board</a>
+      </div>
       {% if is_admin or is_project_manager %}
-        <a href="{% url 'projects:project_create' %}" class="btn btn-primary btn-sm">
-          <i class="bi bi-plus-lg"></i>New Project
-        </a>
+        <a href="{% url 'projects:project_create' %}" class="btn btn-dark btn-sm"><i class="bi bi-plus-lg"></i>New project</a>
       {% endif %}
     </div>
   </div>
 
-  <div class="row g-3" id="project-kanban-board">
-
+  <div class="kb-board" id="project-kanban-board">
     {% for status_key, status_label in kanban_status_choices %}
-      <div class="col-lg-4 col-md-6">
-        <div class="card h-100 border-0 shadow-sm">
-
-          <div class="card-header bg-body border-bottom d-flex justify-content-between align-items-center">
-            <strong>{{ status_label }}</strong>
-            <span class="badge bg-light text-muted border">
-              {{ projects_by_status|get_item:status_key|length }}
-            </span>
-          </div>
-
-          <div class="card-body p-2 kanban-column"
-               data-kanban-column
-               data-status="{{ status_key }}"
-               style="min-height: 480px;">
-
-            {% for project in projects_by_status|get_item:status_key %}
-              <div class="card mb-2 shadow-sm kanban-card"
-                   {% if is_admin or is_project_manager %}
-                     draggable="true"
-                     data-update-url="{% url 'projects:project_set_status' project.id %}"
-                   {% endif %}
-                   data-type="project"
-                   data-id="{{ project.id }}">
-
-                <div class="card-body p-2">
-
-                  <div class="fw-semibold small text-truncate">
-                    <a href="{% url 'projects:project_detail' project.pk %}" class="text-decoration-none">
-                      {{ project.name }}
-                    </a>
-                  </div>
-
-                  <div class="small text-muted text-truncate mt-1">
-                    Client:
-                    {% if project.client %}
-                      {{ project.client }}
-                    {% else %}
-                      <span class="text-warning">Not linked</span>
-                    {% endif %}
-                  </div>
-
-                  <div class="small text-muted text-truncate">
-                    Manager:
-                    {% if project.manager %}
-                      {{ project.manager.get_full_name|default:project.manager.username }}
-                    {% else %}
-                      Unassigned
-                    {% endif %}
-                  </div>
-
-                  <div class="d-flex flex-wrap gap-1 mt-2">
-                    <span class="badge bg-secondary">
-                      {{ project.get_status_display }}
-                    </span>
-
-                    <span class="badge
-                      {% if project.priority == 'critical' %}
-                        bg-danger
-                      {% elif project.priority == 'high' %}
-                        bg-warning text-dark
-                      {% else %}
-                        bg-light text-muted border
-                      {% endif %}
-                    ">
-                      {{ project.get_priority_display }}
-                    </span>
-
-                    {% if project.due_date %}
-                      <span class="badge {% if project.is_overdue %}bg-danger{% else %}bg-light text-muted border{% endif %}">
-                        Due: {{ project.due_date }}
-                      </span>
-                    {% endif %}
-                  </div>
-
-                  <div class="mt-2">
-                    <div class="d-flex justify-content-between small text-muted mb-1">
-                      <span>Progress</span>
-                      <span>{{ project.progress_percent }}%</span>
-                    </div>
-
-                    <div class="progress" style="height: 5px;">
-                      <div class="progress-bar
-                        {% if project.progress_percent < 30 %}
-                          bg-danger
-                        {% elif project.progress_percent < 70 %}
-                          bg-warning
-                        {% else %}
-                          bg-success
-                        {% endif %}"
-                        style="width: {{ project.progress_bar_width }}%;">
-                      </div>
-                    </div>
-                  </div>
-
-                </div>
-              </div>
-            {% empty %}
-              <div class="text-muted small px-2 py-3 text-center">
-                No projects.
-              </div>
-            {% endfor %}
-
-          </div>
+      {% with column_items=projects_by_status|get_item:status_key %}
+      <section class="kb-col" aria-label="{{ status_label }}">
+        <div class="kb-col-head">
+          <h2 class="kb-col-title"><span class="kb-dot{% if status_key == 'active' %} is-half{% elif status_key == 'completed' %} is-solid{% endif %}"></span>{{ status_label }}</h2>
+          <span class="kb-count">{{ column_items|length }}</span>
         </div>
-      </div>
-    {% endfor %}
 
+        <div class="kb-col-body kanban-column" data-kanban-column data-status="{{ status_key }}">
+          {% for project in column_items %}
+            <article class="kb-card kanban-card{% if project.is_overdue %} is-overdue{% endif %}"
+                 {% if is_admin or is_project_manager %}
+                   draggable="true"
+                   data-update-url="{% url 'projects:project_set_status' project.id %}"
+                 {% endif %}
+                 data-type="project"
+                 data-id="{{ project.id }}">
+              <div class="kb-card-top">
+                <a href="{% url 'projects:project_detail' project.pk %}" class="kb-card-title">{{ project.name }}</a>
+                {% status_pill project.priority project.get_priority_display %}
+              </div>
+
+              <div class="kb-meta">
+                <span><i class="bi bi-person"></i>{% if project.client %}{{ project.client }}{% else %}<span class="text-warning">Client not linked</span>{% endif %}</span>
+                <span><i class="bi bi-person-badge"></i>{% if project.manager %}{{ project.manager.get_full_name|default:project.manager.username }}{% else %}Unassigned{% endif %}</span>
+              </div>
+
+              <div class="kb-progress">
+                <div class="kb-progress-label"><span>Progress</span><span>{{ project.progress_percent }}%</span></div>
+                <div class="progress"><div class="progress-bar" style="width: {{ project.progress_bar_width }}%;"></div></div>
+              </div>
+
+              <div class="kb-foot">
+                {% if project.due_date %}
+                  <span class="{% if project.is_overdue %}text-danger fw-semibold{% endif %}"><i class="bi bi-calendar-event"></i>{% if project.is_overdue %}Overdue · {% endif %}{{ project.due_date|date:"d M Y" }}</span>
+                {% else %}
+                  <span><i class="bi bi-calendar"></i>No due date</span>
+                {% endif %}
+                <a href="{% url 'projects:project_overview' project.pk %}">Overview</a>
+              </div>
+            </article>
+          {% empty %}
+            <div class="kb-empty">No projects.</div>
+          {% endfor %}
+        </div>
+      </section>
+      {% endwith %}
+    {% endfor %}
   </div>
 </div>
 
@@ -226,16 +164,17 @@ document.querySelectorAll("[data-kanban-column]").forEach((column) => {
   column.addEventListener("dragover", (e) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
-    column.classList.add("bg-light");
+    column.classList.add("is-drop-target");
   });
 
-  column.addEventListener("dragleave", () => {
-    column.classList.remove("bg-light");
+  column.addEventListener("dragleave", (e) => {
+    if (e.relatedTarget && column.contains(e.relatedTarget)) return;
+    column.classList.remove("is-drop-target");
   });
 
   column.addEventListener("drop", (e) => {
     e.preventDefault();
-    column.classList.remove("bg-light");
+    column.classList.remove("is-drop-target");
 
     if (!draggedProjectCard) return;
 
@@ -246,12 +185,15 @@ document.querySelectorAll("[data-kanban-column]").forEach((column) => {
 
     if (!updateUrl) return;
 
+    const emptyNote = column.querySelector(".kb-empty");
+    if (emptyNote) emptyNote.hidden = true;
     column.appendChild(card);
 
     postProjectStatus(updateUrl, newStatus)
       .then((data) => {
         if (!data.success) {
           oldParent.appendChild(card);
+          if (emptyNote) emptyNote.hidden = false;
           alert(data.error || "Could not update project status.");
           return;
         }
@@ -261,6 +203,7 @@ document.querySelectorAll("[data-kanban-column]").forEach((column) => {
       .catch((error) => {
         console.error(error);
         oldParent.appendChild(card);
+        if (emptyNote) emptyNote.hidden = false;
         alert("Error updating project status.");
       });
   });

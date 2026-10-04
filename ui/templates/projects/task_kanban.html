@@ -1,185 +1,106 @@
 {% extends "ui/base.html" %}
-{% load roles_tags %}
+{% load roles_tags ui_tags %}
 {% block live_topics %}task{% endblock %}
+
+{% block title %}Task board{% endblock %}
 
 {% block body_class %}kanban-page{% endblock %}
 
 {% block content %}
-<div class="container-fluid py-4">
+{% is_admin request.user as is_admin %}
+{% is_project_manager request.user as is_project_manager %}
+{% is_employee request.user as is_employee %}
 
-  {% is_admin request.user as is_admin %}
-  {% is_project_manager request.user as is_project_manager %}
-  {% is_employee request.user as is_employee %}
-
-  <div class="d-flex justify-content-between align-items-center mb-3">
+<div class="container-fluid">
+  <div class="page-header">
     <div>
-      <h1 class="h3 mb-0">Task Kanban</h1>
-      <small class="text-muted">
-        Pending, In Progress and Completed only. Other statuses are available in table/detail view.
-      </small>
+      <div class="page-eyebrow"><a href="{% url 'projects:task_list' %}"><i class="bi bi-list-check"></i> Tasks</a></div>
+      <h1 class="page-title">Task board</h1>
+      <div class="page-subtitle">Pending, in progress and completed tasks on active projects. Other statuses are in the list and on each task.</div>
     </div>
-
-    <div class="d-flex gap-2">
-      <a href="{% url 'projects:task_list' %}" class="btn btn-outline-secondary btn-sm">
-        Table View
-      </a>
-
+    <div class="page-actions">
+      <div class="segmented" role="group" aria-label="View">
+        <a href="{% url 'projects:task_list' %}"><i class="bi bi-list-ul"></i>List</a>
+        <a href="{% url 'projects:task_kanban' %}" class="active" aria-current="page"><i class="bi bi-kanban"></i>Board</a>
+      </div>
       {% if is_admin or is_project_manager %}
-        <a href="{% url 'projects:task_create' %}" class="btn btn-primary btn-sm">
-          <i class="bi bi-plus-lg"></i>New Task
-        </a>
+        <a href="{% url 'projects:task_create' %}" class="btn btn-dark btn-sm"><i class="bi bi-plus-lg"></i>New task</a>
       {% endif %}
     </div>
   </div>
 
-  <div class="row g-3" id="task-kanban-board">
-
+  <div class="kb-board" id="task-kanban-board">
     {% for status_key, status_label in kanban_status_choices %}
-      <div class="col-lg-4 col-md-6">
-        <div class="card h-100 border-0 shadow-sm">
-
-          <div class="card-header bg-body border-bottom d-flex justify-content-between align-items-center">
-            <strong>{{ status_label }}</strong>
-            <span class="badge bg-light text-muted border">
-              {{ tasks_by_status|get_item:status_key|length }}
-            </span>
-          </div>
-
-          <div class="card-body p-2 kanban-column"
-               data-kanban-column
-               data-status="{{ status_key }}"
-               style="min-height: 480px;">
-
-            {% for task in tasks_by_status|get_item:status_key %}
-              <div class="card mb-2 shadow-sm kanban-card"
-                   {% if is_admin or is_project_manager or task.assigned_to_id == request.user.id %}
-                     draggable="true"
-                     data-update-url="{% url 'projects:task_set_status' task.id %}"
-                   {% endif %}
-                   data-type="task"
-                   data-id="{{ task.id }}">
-
-                <div class="card-body p-2">
-
-                  <div class="d-flex justify-content-between gap-2">
-                    <div class="fw-semibold small">
-                      <a href="{% url 'projects:task_detail' task.pk %}" class="text-decoration-none">
-                        {{ task.name }}
-                      </a>
-                    </div>
-
-                    {% if task.status == "paused" %}
-                      <span class="badge bg-warning text-dark">Paused</span>
-                    {% elif task.status == "in_progress" %}
-                      <span class="badge bg-success">Working</span>
-                    {% endif %}
-                  </div>
-
-                  <div class="small text-muted mt-1">
-                    Project:
-                      {% if is_admin or is_project_manager %}
-                        <a href="{% url 'projects:project_detail' task.project.pk %}" class="text-decoration-none">
-                          {{ task.project.name }}
-                        </a>
-                      {% else %}
-                        {{ task.project.name }}
-                      {% endif %}
-                  </div>
-
-                  <div class="small text-muted">
-                    Assignee:
-                    {% if task.assigned_to %}
-                      {{ task.assigned_to.get_full_name|default:task.assigned_to.username }}
-                    {% else %}
-                      <span class="text-warning">Unassigned</span>
-                    {% endif %}
-                  </div>
-
-                  <div class="d-flex flex-wrap gap-1 mt-2">
-                    <span class="badge bg-light text-dark border">
-                      {{ task.get_department_display }}
-                    </span>
-
-                    <span class="badge bg-light text-dark border">
-                      {{ task.get_category_display }}
-                    </span>
-
-                    <span class="badge
-                      {% if task.priority == 'critical' %}
-                        bg-danger
-                      {% elif task.priority == 'high' %}
-                        bg-warning text-dark
-                      {% elif task.priority == 'medium' %}
-                        bg-info text-dark
-                      {% else %}
-                        bg-light text-muted border
-                      {% endif %}
-                    ">
-                      {{ task.get_priority_display }}
-                    </span>
-                  </div>
-
-                  {% if task.directory %}
-                    <div class="small text-muted mt-2 text-truncate">
-                      Folder: {{ task.directory }}
-                    </div>
-                  {% endif %}
-
-                  {% if task.count %}
-                    <div class="small text-muted">
-                      Count: {{ task.count }}
-                    </div>
-                  {% endif %}
-
-                  <div class="d-flex flex-wrap gap-1 mt-2">
-                    {% if task.due_date %}
-                      <span class="badge {% if task.is_overdue %}bg-danger{% else %}bg-light text-muted border{% endif %}">
-                        Due: {{ task.due_date }}
-                      </span>
-                    {% endif %}
-
-                    {% if task.total_work_seconds %}
-                      <span class="badge bg-light text-muted border">
-                        Work: {{ task.total_work_hm }}
-                      </span>
-                    {% endif %}
-                  </div>
-
-                  {% if status_key == "in_progress" %}
-                    {% if is_admin or is_project_manager or task.assigned_to_id == request.user.id %}
-                      <div class="mt-2">
-                        {% if task.status == "paused" %}
-                          <button type="button"
-                                  class="btn btn-success btn-sm w-100 js-status-button"
-                                  data-update-url="{% url 'projects:task_set_status' task.id %}"
-                                  data-status="in_progress">
-                            Continue
-                          </button>
-                        {% else %}
-                          <button type="button"
-                                  class="btn btn-outline-warning btn-sm w-100 js-status-button"
-                                  data-update-url="{% url 'projects:task_set_status' task.id %}"
-                                  data-status="paused">
-                            Pause
-                          </button>
-                        {% endif %}
-                      </div>
-                    {% endif %}
-                  {% endif %}
-
-                </div>
-              </div>
-            {% empty %}
-              <div class="text-muted small px-2 py-3 text-center">
-                No tasks.
-              </div>
-            {% endfor %}
-
-          </div>
+      {% with column_items=tasks_by_status|get_item:status_key %}
+      <section class="kb-col" aria-label="{{ status_label }}">
+        <div class="kb-col-head">
+          <h2 class="kb-col-title"><span class="kb-dot{% if status_key == 'in_progress' %} is-half{% elif status_key == 'completed' %} is-solid{% endif %}"></span>{{ status_label }}</h2>
+          <span class="kb-count">{{ column_items|length }}</span>
         </div>
-      </div>
-    {% endfor %}
 
+        <div class="kb-col-body kanban-column" data-kanban-column data-status="{{ status_key }}">
+          {% for task in column_items %}
+            <article class="kb-card kanban-card{% if task.is_overdue %} is-overdue{% endif %}"
+                 {% if is_admin or is_project_manager or task.assigned_to_id == request.user.id %}
+                   draggable="true"
+                   data-update-url="{% url 'projects:task_set_status' task.id %}"
+                 {% endif %}
+                 data-type="task"
+                 data-id="{{ task.id }}">
+              <div class="kb-card-top">
+                <a href="{% url 'projects:task_detail' task.pk %}" class="kb-card-title">{{ task.name }}</a>
+                {% if task.status == "paused" %}
+                  <span class="status status-warning">Paused</span>
+                {% elif task.status == "in_progress" %}
+                  <span class="status status-solid">Working</span>
+                {% endif %}
+              </div>
+
+              <div class="kb-meta">
+                <span><i class="bi bi-kanban"></i>{% if is_admin or is_project_manager %}<a href="{% url 'projects:project_detail' task.project.pk %}">{{ task.project.name }}</a>{% else %}{{ task.project.name }}{% endif %}</span>
+                <span><i class="bi bi-person"></i>{% if task.assigned_to %}{{ task.assigned_to.get_full_name|default:task.assigned_to.username }}{% else %}<span class="text-warning">Unassigned</span>{% endif %}</span>
+                {% if task.directory %}<span title="{{ task.directory }}"><i class="bi bi-folder2"></i>{{ task.directory }}</span>{% endif %}
+                {% if task.count %}<span><i class="bi bi-hash"></i>{{ task.count }}</span>{% endif %}
+              </div>
+
+              <div class="kb-tags">
+                <span class="kb-tag">{{ task.get_department_display }}</span>
+                <span class="kb-tag">{{ task.get_category_display }}</span>
+                <span class="kb-tag{% if task.priority == 'critical' %} is-danger{% elif task.priority == 'high' %} is-warning{% endif %}">{{ task.get_priority_display }}</span>
+              </div>
+
+              {% if task.due_date or task.total_work_seconds %}
+                <div class="kb-foot">
+                  {% if task.due_date %}
+                    <span class="{% if task.is_overdue %}text-danger fw-semibold{% endif %}"><i class="bi bi-calendar-event"></i>{% if task.is_overdue %}Overdue · {% endif %}{{ task.due_date|date:"d M Y" }}</span>
+                  {% else %}<span></span>{% endif %}
+                  {% if task.total_work_seconds %}<span class="tabular"><i class="bi bi-stopwatch"></i>{{ task.total_work_hm }}</span>{% endif %}
+                </div>
+              {% endif %}
+
+              {% if status_key == "in_progress" %}
+                {% if is_admin or is_project_manager or task.assigned_to_id == request.user.id %}
+                  {% if task.status == "paused" %}
+                    <button type="button"
+                            class="btn btn-dark btn-sm w-100 js-status-button"
+                            data-update-url="{% url 'projects:task_set_status' task.id %}"
+                            data-status="in_progress"><i class="bi bi-play-fill"></i>Continue</button>
+                  {% else %}
+                    <button type="button"
+                            class="btn btn-outline-warning btn-sm w-100 js-status-button"
+                            data-update-url="{% url 'projects:task_set_status' task.id %}"
+                            data-status="paused"><i class="bi bi-pause-fill"></i>Pause</button>
+                  {% endif %}
+                {% endif %}
+              {% endif %}
+            </article>
+          {% empty %}
+            <div class="kb-empty">No tasks.</div>
+          {% endfor %}
+        </div>
+      </section>
+      {% endwith %}
+    {% endfor %}
   </div>
 </div>
 
@@ -256,16 +177,17 @@ document.querySelectorAll("[data-kanban-column]").forEach((column) => {
   column.addEventListener("dragover", (e) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
-    column.classList.add("bg-light");
+    column.classList.add("is-drop-target");
   });
 
-  column.addEventListener("dragleave", () => {
-    column.classList.remove("bg-light");
+  column.addEventListener("dragleave", (e) => {
+    if (e.relatedTarget && column.contains(e.relatedTarget)) return;
+    column.classList.remove("is-drop-target");
   });
 
   column.addEventListener("drop", (e) => {
     e.preventDefault();
-    column.classList.remove("bg-light");
+    column.classList.remove("is-drop-target");
 
     if (!draggedTaskCard) return;
 
@@ -276,12 +198,15 @@ document.querySelectorAll("[data-kanban-column]").forEach((column) => {
 
     if (!updateUrl) return;
 
+    const emptyNote = column.querySelector(".kb-empty");
+    if (emptyNote) emptyNote.hidden = true;
     column.appendChild(card);
 
     postStatus(updateUrl, newStatus)
       .then((data) => {
         if (!data.success) {
           oldParent.appendChild(card);
+          if (emptyNote) emptyNote.hidden = false;
           alert(data.error || "Could not update task status.");
           return;
         }
@@ -291,6 +216,7 @@ document.querySelectorAll("[data-kanban-column]").forEach((column) => {
       .catch((error) => {
         console.error(error);
         oldParent.appendChild(card);
+        if (emptyNote) emptyNote.hidden = false;
         alert("Error updating task status.");
       });
   });

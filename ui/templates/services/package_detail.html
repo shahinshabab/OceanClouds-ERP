@@ -1,200 +1,152 @@
 {% extends "ui/base.html" %}
-{% load roles_tags %}
+{% load roles_tags ui_tags %}
 
 {% block title %}Package – {{ package.name }}{% endblock %}
 
 {% block content %}
 {% has_services_manage_access request.user as can_manage_services %}
 
-<div class="container py-4">
-
-  <!-- Header -->
-  <div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
-      <h2 class="fw-semibold mb-1">{{ package.name }}</h2>
-
-      {% if package.code %}
-        <div class="text-muted small">Code: {{ package.code }}</div>
-      {% endif %}
-
-      {% if package.is_active %}
-        <span class="badge bg-success mt-1">Active</span>
-      {% else %}
-        <span class="badge bg-secondary mt-1">Inactive</span>
-      {% endif %}
+<div class="container">
+  <div class="page-header">
+    <div class="min-w-0">
+      <div class="page-eyebrow"><a href="{% url 'services:package_list' %}"><i class="bi bi-collection"></i> Packages</a></div>
+      <h1 class="page-title">{{ package.name }}</h1>
+      <div class="page-subtitle d-flex flex-wrap align-items-center gap-2">
+        {% if package.is_active %}{% status_pill "active" "Active" %}{% else %}{% status_pill "inactive" "Inactive" %}{% endif %}
+        {% if package.code %}<span class="tabular">{{ package.code }}</span>{% endif %}
+        <span class="tabular">{{ package.selling_price|inr }}</span>
+        {% if package.tagline %}<span class="text-muted">{{ package.tagline }}</span>{% endif %}
+      </div>
     </div>
 
     {% if can_manage_services %}
-      <div class="d-flex gap-2">
-        <a href="{% url 'services:package_update' package.pk %}" class="btn btn-primary btn-sm">
-          <i class="bi bi-pencil"></i>Edit Package
-        </a>
-        <a href="{% url 'services:package_delete' package.pk %}" class="btn btn-outline-danger btn-sm">
-          <i class="bi bi-trash"></i>Delete
-        </a>
+      <div class="page-actions">
+        <a href="{% url 'services:package_update' package.pk %}" class="btn btn-outline-dark btn-sm"><i class="bi bi-pencil"></i>Edit</a>
+        <div class="dropdown">
+          <button class="btn btn-outline-secondary btn-sm btn-icon" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="More actions">
+            <i class="bi bi-three-dots"></i>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><a class="dropdown-item text-danger" href="{% url 'services:package_delete' package.pk %}"><i class="bi bi-trash"></i>Delete package</a></li>
+          </ul>
+        </div>
       </div>
     {% endif %}
   </div>
 
-  <!-- Summary -->
-  <div class="card mb-3">
-    <div class="card-body">
-      <div class="row gy-3">
+  <div class="row g-4">
+    <div class="col-xl-8">
 
-        <div class="col-md-4">
-          <div class="text-uppercase text-muted small">Selling Price</div>
-          <div class="fw-semibold">
-            {{ package.selling_price }}
-            {% if package.price is not None %}
-              <div class="small text-muted fw-normal">Bundle price · services add up to {{ package.total_price }}{% if package.savings %} (saves {{ package.savings }}){% endif %}</div>
-            {% endif %}
+      {% with items=package.items.all %}
+      <div class="card mb-4">
+        <div class="card-header">
+          <h2 class="section-title"><i class="bi bi-list-check"></i>Package items <span class="text-muted fw-normal">{{ items|length }}</span></h2>
+        </div>
+        {% if items %}
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Service / description</th>
+                  <th class="text-end">Qty</th>
+                  <th class="text-end">Unit price</th>
+                  <th class="text-end">Line total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in items %}
+                  <tr>
+                    <td>
+                      {% if item.service %}
+                        <a href="{% url 'services:service_detail' item.service.pk %}" class="cell-title">{{ item.service.name }}</a>
+                      {% endif %}
+                      {% if item.description %}<span class="cell-sub">{{ item.description }}</span>{% endif %}
+                    </td>
+                    <td class="text-end tabular">{{ item.quantity }}</td>
+                    <td class="text-end tabular">{{ item.unit_price|inr }}</td>
+                    <td class="text-end tabular">{{ item.line_total|inr }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <th colspan="3" class="text-end">Services total</th>
+                  <th class="text-end tabular">{{ package.total_price|inr }}</th>
+                </tr>
+              </tfoot>
+            </table>
           </div>
-        </div>
-
-        {% if package.tagline %}
-        <div class="col-md-8">
-          <div class="text-uppercase text-muted small">Tagline</div>
-          <div>{{ package.tagline }}</div>
-        </div>
+        {% else %}
+          <div class="empty-state"><i class="bi bi-list-check"></i>No items added to this package.</div>
         {% endif %}
+      </div>
+      {% endwith %}
 
-        <div class="col-12">
-          <div class="text-uppercase text-muted small">Description</div>
-          <div>
-            {% if package.description %}
-              {{ package.description|linebreaksbr }}
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
+      {% with deliverables=package.deliverables.all %}
+      <div class="card mb-4">
+        <div class="card-header">
+          <h2 class="section-title"><i class="bi bi-box-seam"></i>Package deliverables <span class="text-muted fw-normal">{{ deliverables|length }}</span></h2>
         </div>
-
-        <div class="col-12">
-          <div class="text-uppercase text-muted small">Notes</div>
-          <div>
-            {% if package.notes %}
-              {{ package.notes|linebreaksbr }}
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
+        {% if deliverables %}
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead>
+                <tr><th>Deliverable</th><th class="text-end">Qty</th><th>Unit</th><th>Status</th></tr>
+              </thead>
+              <tbody>
+                {% for deliverable in deliverables %}
+                  <tr>
+                    <td>
+                      <span class="cell-title">{{ deliverable.title }}</span>
+                      {% if deliverable.description %}<span class="cell-sub">{{ deliverable.description }}</span>{% endif %}
+                    </td>
+                    <td class="text-end tabular">{{ deliverable.quantity }}</td>
+                    <td>{{ deliverable.get_unit_display }}</td>
+                    <td>{% if deliverable.is_active %}{% status_pill "active" "Active" %}{% else %}{% status_pill "inactive" "Inactive" %}{% endif %}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
           </div>
-        </div>
+        {% else %}
+          <div class="empty-state"><i class="bi bi-box-seam"></i>No package deliverables added.</div>
+        {% endif %}
+      </div>
+      {% endwith %}
 
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-card-text"></i>Description</h2></div>
+        <div class="card-body">
+          {% if package.description %}{{ package.description|linebreaksbr }}{% else %}<span class="text-muted">No description.</span>{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-4">
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-currency-rupee"></i>Pricing</h2></div>
+        <div class="card-body">
+          <ul class="info-list">
+            <li><span class="k">Selling price</span><span class="v tabular">{{ package.selling_price|inr }}</span></li>
+            <li><span class="k">Services add up to</span><span class="v tabular">{{ package.total_price|inr }}</span></li>
+            {% if package.price is not None and package.savings %}
+              <li><span class="k">Customer saves</span><span class="v tabular">{{ package.savings|inr }}</span></li>
+            {% endif %}
+            <li><span class="k">Code</span><span class="v">{{ package.code|default:"—" }}</span></li>
+          </ul>
+          {% if package.price is not None %}
+            <div class="small text-muted mt-3">A bundle price is set, so the selling price overrides the sum of services.</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-journal-text"></i>Notes</h2></div>
+        <div class="card-body">
+          {% if package.notes %}{{ package.notes|linebreaksbr }}{% else %}<span class="text-muted">No notes.</span>{% endif %}
+        </div>
       </div>
     </div>
   </div>
-
-  <!-- Package Items -->
-  <div class="card mb-4">
-    <div class="card-header">
-      <span class="fw-semibold small text-uppercase text-muted">Package Items</span>
-    </div>
-
-    <div class="card-body p-0">
-      {% if package.items.all %}
-        <div class="table-responsive">
-        <table class="table table-sm mb-0 align-middle">
-          <thead class="table-light">
-          <tr>
-            <th>Service / Description</th>
-            <th class="text-end">Qty</th>
-            <th class="text-end">Unit Price</th>
-            <th class="text-end">Line Total</th>
-          </tr>
-          </thead>
-
-          <tbody>
-          {% for item in package.items.all %}
-            <tr>
-              <td>
-                {% if item.service %}
-                  <div class="fw-semibold">
-                    <a href="{% url 'services:service_detail' item.service.pk %}">
-                      {{ item.service.name }}
-                    </a>
-                  </div>
-                {% endif %}
-                <div class="text-muted small">{{ item.description }}</div>
-              </td>
-              <td class="text-end">{{ item.quantity }}</td>
-              <td class="text-end">{{ item.unit_price }}</td>
-              <td class="text-end">{{ item.line_total }}</td>
-            </tr>
-          {% endfor %}
-          </tbody>
-
-          <tfoot>
-          <tr>
-            <th colspan="3" class="text-end">Services total</th>
-            <th class="text-end fw-semibold">
-              {{ package.total_price }}
-            </th>
-          </tr>
-          </tfoot>
-        </table>
-        </div>
-      {% else %}
-        <p class="text-muted mb-0 p-3">No items added to this package.</p>
-      {% endif %}
-    </div>
-  </div>
-
-  <!-- Package Deliverables -->
-  <div class="card mb-4">
-    <div class="card-header">
-      <span class="fw-semibold small text-uppercase text-muted">Package Deliverables</span>
-    </div>
-
-    <div class="card-body p-0">
-      {% if package.deliverables.all %}
-        <div class="table-responsive">
-        <table class="table table-sm mb-0 align-middle">
-          <thead class="table-light">
-          <tr>
-            <th>Title</th>
-            <th>Description</th>
-            <th class="text-end">Qty</th>
-            <th>Unit</th>
-            <th>Status</th>
-          </tr>
-          </thead>
-          <tbody>
-          {% for deliverable in package.deliverables.all %}
-            <tr>
-              <td class="fw-semibold">{{ deliverable.title }}</td>
-              <td>{{ deliverable.description|default:"—" }}</td>
-              <td class="text-end">{{ deliverable.quantity }}</td>
-              <td>{{ deliverable.get_unit_display }}</td>
-              <td>
-                {% if deliverable.is_active %}
-                  <span class="badge bg-success">Active</span>
-                {% else %}
-                  <span class="badge bg-secondary">Inactive</span>
-                {% endif %}
-              </td>
-            </tr>
-          {% endfor %}
-          </tbody>
-        </table>
-        </div>
-      {% else %}
-        <p class="text-muted mb-0 p-3">No package deliverables added.</p>
-      {% endif %}
-    </div>
-  </div>
-
-  <!-- Actions -->
-  <div class="text-center">
-    <a href="{% url 'services:package_list' %}" class="btn btn-outline-secondary me-2">
-      <i class="bi bi-arrow-left"></i>Back to Packages
-    </a>
-
-    {% if can_manage_services %}
-      <a href="{% url 'services:package_update' package.pk %}" class="btn btn-primary">
-        <i class="bi bi-pencil"></i>Edit Package
-      </a>
-    {% endif %}
-  </div>
-
 </div>
 {% endblock %}

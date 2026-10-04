@@ -1,154 +1,84 @@
 {% extends "ui/base.html" %}
 {% load roles_tags %}
 
-{% block title %}Preview WhatsApp Template – {{ template.name }}{% endblock %}
+{% block title %}Preview · {{ template.name }}{% endblock %}
 
 {% block content %}
 {% has_sales_access request.user as can_manage_messaging %}
 
-<div class="container py-3 max-w-3xl">
-
-  <!-- Header -->
-  <div class="d-flex justify-content-between align-items-start mb-4">
-    <div>
-      <h2 class="fw-semibold mb-1">Preview WhatsApp Template</h2>
-      <div class="text-muted small">
-        {{ template.name }} · {{ template.get_type_display }} · {{ template.get_provider_display }}
-      </div>
+<div class="container">
+  <div class="page-header">
+    <div class="min-w-0">
+      <div class="page-eyebrow"><a href="{{ back_url }}"><i class="bi bi-whatsapp"></i> {{ template.name }}</a></div>
+      <h1 class="page-title">Preview</h1>
+      <div class="page-subtitle">Rendered with sample client, vendor, venue and event data.</div>
     </div>
-
-    <div class="d-flex gap-2">
-      <a href="{% url 'messaging:whatsapp_template_detail' template.pk %}"
-         class="btn btn-outline-secondary btn-sm">
-        <i class="bi bi-arrow-left"></i>Back to Template
-      </a>
-
-      {% if can_manage_messaging %}
-        <a href="{% url 'messaging:whatsapp_template_update' template.pk %}"
-           class="btn btn-primary btn-sm">
-          <i class="bi bi-pencil"></i>Edit
-        </a>
-      {% endif %}
-    </div>
-  </div>
-
-  <!-- Template Info -->
-  <div class="card shadow-sm mb-3">
-    <div class="card-body">
-      <div class="row gy-3">
-
-        <div class="col-md-4">
-          <div class="text-uppercase text-muted small">Provider Template</div>
-          <div class="fw-semibold">
-            <code>{{ template.provider_template_name }}</code>
-          </div>
-        </div>
-
-        <div class="col-md-4">
-          <div class="text-uppercase text-muted small">Language</div>
-          <div class="fw-semibold">{{ template.language_code }}</div>
-        </div>
-
-        <div class="col-md-4">
-          <div class="text-uppercase text-muted small">Category</div>
-          <div class="fw-semibold">{{ template.get_category_display }}</div>
-        </div>
-
-      </div>
-    </div>
-  </div>
-
-  <!-- WhatsApp Style Preview -->
-  <div class="card shadow-sm mb-3">
-    <div class="card-header bg-white">
-      <span class="fw-semibold small text-uppercase text-muted">
-        Rendered Message Preview
-      </span>
-    </div>
-
-    <div class="card-body">
-      <div class="col-sm-10 col-md-8 col-lg-6 mx-auto">
-        <div class="border rounded-4 p-3 bg-light">
-
-          <div class="small text-muted mb-2">
-            WhatsApp Preview
-          </div>
-
-          <div class="bg-white rounded-3 p-3 shadow-sm">
-            {% if template.header_text %}
-              <div class="fw-semibold mb-2">
-                {{ template.header_text }}
-              </div>
-            {% endif %}
-
-            <div class="text-break">{{ preview_text|linebreaksbr }}</div>
-
-            {% if template.footer_text %}
-              <div class="small text-muted mt-2">
-                {{ template.footer_text }}
-              </div>
-            {% endif %}
-          </div>
-
-          <div class="text-end small text-muted mt-2">
-            Sample preview only
-          </div>
-
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Variable Order -->
-  <div class="card shadow-sm mb-3">
-    <div class="card-header bg-white">
-      <span class="fw-semibold small text-uppercase text-muted">
-        Variable Order
-      </span>
-    </div>
-
-    <div class="card-body">
-      {% if template.variable_order %}
-        <ol class="mb-0">
-          {% for variable in template.variable_order %}
-            <li>
-              <code>{{ variable }}</code>
-            </li>
-          {% endfor %}
-        </ol>
-      {% else %}
-        <p class="text-muted mb-0">
-          No variables configured.
-        </p>
-      {% endif %}
-    </div>
-  </div>
-
-  <!-- Sample Context -->
-  <div class="card shadow-sm mb-4">
-    <div class="card-header bg-white">
-      <span class="fw-semibold small text-uppercase text-muted">
-        Sample Context
-      </span>
-    </div>
-
-    <div class="card-body">
-      <pre class="bg-light p-3 rounded-3 small mb-0 text-wrap text-break">{{ sample_variables }}</pre>
-    </div>
-  </div>
-
-  <!-- Actions -->
-  <div class="d-flex justify-content-center gap-2">
-    <a href="{{ back_url }}" class="btn btn-outline-secondary">
-      <i class="bi bi-arrow-left"></i>Back
-    </a>
-
     {% if can_manage_messaging %}
-      <a href="{% url 'messaging:whatsapp_template_update' template.pk %}" class="btn btn-primary">
-        <i class="bi bi-pencil"></i>Edit Template
-      </a>
+      <div class="page-actions">
+        <a href="{% url 'messaging:whatsapp_template_update' template.pk %}" class="btn btn-outline-dark btn-sm"><i class="bi bi-pencil"></i>Edit template</a>
+      </div>
     {% endif %}
   </div>
 
+  <div class="row g-4">
+    <div class="col-xl-8">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h2 class="section-title"><i class="bi bi-phone"></i>Rendered message</h2>
+          <span class="small text-muted">Sample preview only</span>
+        </div>
+        <div class="card-body bg-light">
+          <div class="col-sm-10 col-md-8 mx-auto">
+            <div class="bg-white border rounded-3 p-3 shadow-sm">
+              {% if template.header_text %}
+                <div class="fw-semibold mb-2">{{ template.header_text }}</div>
+              {% endif %}
+              <div class="text-break">{{ preview_text|linebreaksbr }}</div>
+              {% if template.footer_text %}
+                <div class="small text-muted mt-2">{{ template.footer_text }}</div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-database"></i>Sample context</h2></div>
+        <div class="card-body">
+          <pre class="bg-light border rounded-3 p-3 small mb-0 text-wrap text-break">{{ sample_variables }}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-4">
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-info-circle"></i>Template</h2></div>
+        <div class="card-body">
+          <ul class="info-list">
+            <li><span class="k">Type</span><span class="v">{{ template.get_type_display }}</span></li>
+            <li><span class="k">Provider</span><span class="v">{{ template.get_provider_display }}</span></li>
+            <li><span class="k">Provider template</span><span class="v"><code>{{ template.provider_template_name }}</code></span></li>
+            <li><span class="k">Language</span><span class="v">{{ template.language_code }}</span></li>
+            <li><span class="k">Category</span><span class="v">{{ template.get_category_display }}</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-braces"></i>Variable order</h2></div>
+        <div class="card-body">
+          {% if template.variable_order %}
+            <ol class="mb-0 ps-3">
+              {% for variable in template.variable_order %}
+                <li class="mb-1"><code>{{ variable }}</code></li>
+              {% endfor %}
+            </ol>
+          {% else %}
+            <span class="text-muted">No variables configured.</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 {% endblock %}

@@ -13,11 +13,11 @@ STATUS_TONES = {
         "in_progress", "sent", "pending_signature", "issued", "partially_paid",
         "proposal_sent", "negotiation", "advance_received", "contract_sent",
         "qualified", "contacted", "planned", "active", "review", "in_review", "running",
-        "scheduled", "open",
+        "scheduled", "open", "internal_review", "client_review", "ready_to_deliver",
     },
-    "status-warning": {"overdue", "on_hold", "expired", "pending", "paused", "high", "urgent"},
-    "status-danger": {"lost", "cancelled", "canceled", "rejected", "failed", "critical"},
-    "status-muted": {"draft", "new", "closed", "inactive", "low", "archived"},
+    "status-warning": {"overdue", "on_hold", "expired", "pending", "paused", "high", "urgent", "revision", "revision_requested"},
+    "status-danger": {"lost", "cancelled", "canceled", "rejected", "failed", "critical", "blocked"},
+    "status-muted": {"draft", "new", "closed", "inactive", "low", "archived", "waiting_for_tasks"},
 }
 
 _LOOKUP = {value: tone for tone, values in STATUS_TONES.items() for value in values}
@@ -162,3 +162,10 @@ def permission_matrix(bound):
             rows.append(m)
         result.append({"label": app["label"], "rows": rows})
     return result
+
+
+@register.filter
+def verbose_name(obj):
+    """The model's verbose name, e.g. "deal", for generic pages."""
+    meta = getattr(obj, "_meta", None)
+    return str(meta.verbose_name) if meta else ""

@@ -1,5 +1,6 @@
 {# templates/common/notification_list.html #}
 {% extends "ui/base.html" %}
+{% load ui_tags %}
 
 {% block title %}Notifications{% endblock %}
 {% block live_topics %}notification{% endblock %}
@@ -7,188 +8,84 @@
 <script>
   document.body.dataset.page = "notification-list";
 </script>
-<div class="container py-3">
-
-  <!-- Header Row -->
-  <div class="d-flex justify-content-between align-items-center mb-3">
+<div class="container">
+  <div class="page-header">
     <div>
-      <h1 class="h3 mb-0">Notifications</h1>
+      <div class="page-eyebrow"><i class="bi bi-bell"></i> Inbox</div>
+      <h1 class="page-title">Notifications</h1>
+      <div class="page-subtitle">Updates on records you own or follow, newest first.</div>
     </div>
   </div>
 
-  <!-- Search + Filters Row -->
-  <form method="get" class="row g-2 mb-3">
-    <!-- Search -->
-    <div class="col-md-4">
-      <input type="text"
-             name="q"
-             value="{{ q }}"
-             class="form-control"
-             placeholder="Search by message or actor">
-    </div>
-
-    <!-- Category filter -->
-    <div class="col-md-3">
-      <select name="category" class="form-select">
-        {% for value, label in category_choices %}
-          <option value="{{ value }}" {% if category == value %}selected{% endif %}>
-            {{ label }}
-          </option>
-        {% endfor %}
-      </select>
-    </div>
-
-    <!-- Status filter -->
-    <div class="col-md-3">
-      <select name="status" class="form-select">
-        {% for value, label in status_choices %}
-          <option value="{{ value }}" {% if status == value %}selected{% endif %}>
-            {{ label }}
-          </option>
-        {% endfor %}
-      </select>
-    </div>
-
-    <!-- Apply button -->
-    <div class="col-md-2 d-grid">
-      <button type="submit" class="btn btn-outline-secondary">
-        Apply
-      </button>
-    </div>
-  </form>
-
-  {% if notifications %}
-    <div class="d-flex flex-column gap-3">
-      {% for note in notifications %}
-        <div class="card border-0 shadow-sm {% if not note.is_read %}border-start border-4 border-primary{% endif %}">
-          <div class="card-body">
-
-            <!-- Top row: heading + date -->
-            <div class="d-flex justify-content-between align-items-start mb-1">
-              <div>
-                <div class="text-uppercase text-muted small">
-                  {{ note.get_notif_type_display }}
-                </div>
-              </div>
-              <div class="small text-muted ms-3">
-                {{ note.created_at|date:"M j, Y · H:i" }}
-              </div>
-            </div>
-
-            <!-- Subheading row -->
-            <div class="mb-2">
-              <div class="small">
-                {% if note.actor %}
-                  {{ note.actor.get_full_name|default:note.actor.username }}
-                {% else %}
-                  <span class="text-muted">System notification</span>
-                {% endif %}
-              </div>
-              {% if note.target %}
-                <div class="small">
-                  <a href="{{ note.get_target_url }}" class="text-decoration-none">
-                    View related item
-                  </a>
-                </div>
-              {% endif %}
-            </div>
-
-            <!-- Message row -->
-            <div class="mb-3">
-              {% if note.message %}
-                <p class="mb-0">
-                  {{ note.message }}
-                </p>
-              {% else %}
-                <p class="mb-0 text-muted small">
-                  (No message text provided)
-                </p>
-              {% endif %}
-            </div>
-
-            <!-- Bottom row: status (left) + buttons (right) -->
-            <div class="d-flex justify-content-between align-items-center">
-              <div>
-                {% if note.is_read %}
-                  <span class="badge bg-light text-muted border">Read</span>
-                {% else %}
-                  <span class="badge bg-primary">Unread</span>
-                {% endif %}
-              </div>
-
-
-              <div class="d-flex gap-2">
-                {% if note.target %}
-                  <a href="{{ note.get_target_url }}"
-                     class="btn btn-sm btn-outline-primary">
-                    Open
-                  </a>
-                {% endif %}
-
-                {% if not note.is_read %}
-                  <button type="button"
-                          class="btn btn-sm btn-outline-secondary js-mark-notification-read"
-                          data-id="{{ note.id }}"
-                          data-url="{% url 'common:notification_mark_read' note.id %}">
-                    Mark as read
-                  </button>
-                {% else %}
-                  <button type="button"
-                          class="btn btn-sm btn-outline-secondary disabled"
-                          disabled>
-                    Read
-                  </button>
-                {% endif %}
-              </div>
-            </div>
-
-          </div>
-        </div>
+  <div class="card">
+    <div class="list-tabs">
+      {% for value, label in status_choices %}
+        <a href="?q={{ q|urlencode }}&amp;category={{ category }}&amp;status={{ value }}" class="{% if status == value %}active{% endif %}">{{ label }}</a>
       {% endfor %}
     </div>
+    <form method="get" class="filter-bar">
+      <input type="hidden" name="status" value="{{ status }}">
+      <div class="search-input" style="flex-basis: 280px">
+        <i class="bi bi-search"></i>
+        <input type="search" name="q" value="{{ q }}" placeholder="Message or person" class="form-control form-control-sm" aria-label="Search">
+      </div>
+      <select name="category" class="form-select form-select-sm" aria-label="Category" onchange="this.form.submit()">
+        {% for value, label in category_choices %}
+          <option value="{{ value }}" {% if category == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <div class="filter-actions">
+        <button type="submit" class="btn btn-dark btn-sm"><i class="bi bi-funnel"></i>Filter</button>
+        {% if q or category != "all" or status != "all" %}<a href="?" class="btn btn-light btn-sm">Clear</a>{% endif %}
+      </div>
+    </form>
 
-    <!-- Pagination -->
-    {% if is_paginated %}
-      <div class="mt-3 d-flex justify-content-between align-items-center">
-        <div class="small text-muted">
-          Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
-        </div>
-        <nav>
-          <ul class="pagination pagination-sm mb-0">
-            {% if page_obj.has_previous %}
-              <li class="page-item">
-                <a class="page-link"
-                   href="?page={{ page_obj.previous_page_number }}&q={{ q }}&category={{ category }}&status={{ status }}">
-                  Previous
-                </a>
-              </li>
-            {% else %}
-              <li class="page-item disabled">
-                <span class="page-link">Previous</span>
-              </li>
-            {% endif %}
-
-            {% if page_obj.has_next %}
-              <li class="page-item">
-                <a class="page-link"
-                   href="?page={{ page_obj.next_page_number }}&q={{ q }}&category={{ category }}&status={{ status }}">
-                  Next
-                </a>
-              </li>
-            {% else %}
-              <li class="page-item disabled">
-                <span class="page-link">Next</span>
-              </li>
-            {% endif %}
-          </ul>
-        </nav>
+    {% if notifications %}
+      <ul class="mini-list">
+        {% for note in notifications %}
+          <li class="notification-item{% if not note.is_read %} unread{% endif %}" data-notif-id="{{ note.id }}">
+            <span class="avatar-circle {% if note.is_read %}light{% endif %}" aria-hidden="true">
+              {% if note.actor %}{{ note.actor|initials }}{% else %}<i class="bi bi-bell"></i>{% endif %}
+            </span>
+            <div class="grow">
+              <div class="t text-wrap">
+                {% if note.message %}
+                  {% if note.target %}<a href="{{ note.get_target_url }}">{{ note.message }}</a>{% else %}{{ note.message }}{% endif %}
+                {% else %}
+                  <span class="text-muted fw-normal">(No message text provided)</span>
+                {% endif %}
+              </div>
+              <div class="m text-wrap">
+                {{ note.get_notif_type_display }} ·
+                {% if note.actor %}{{ note.actor.get_full_name|default:note.actor.username }}{% else %}System{% endif %} ·
+                {{ note.created_at|date:"d M Y, H:i" }}
+              </div>
+            </div>
+            <div class="d-flex align-items-center gap-1 flex-none">
+              {% if note.is_read %}
+                <span class="status status-muted d-none d-sm-inline-flex">Read</span>
+              {% else %}
+                <button type="button" class="btn btn-light btn-sm js-mark-notification-read"
+                        data-id="{{ note.id }}"
+                        data-url="{% url 'common:notification_mark_read' note.id %}"
+                        title="Mark as read">
+                  <i class="bi bi-check2"></i><span class="d-none d-sm-inline">Mark read</span>
+                </button>
+              {% endif %}
+              {% if note.target %}
+                <a href="{{ note.get_target_url }}" class="btn btn-light btn-sm" title="Open" aria-label="Open"><i class="bi bi-arrow-right"></i></a>
+              {% endif %}
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+      {% include "ui/partials/pagination.html" %}
+    {% else %}
+      <div class="empty-state">
+        <i class="bi bi-bell-slash"></i>
+        {% if q or category != "all" or status != "all" %}No notifications match these filters.{% else %}You're all caught up.{% endif %}
       </div>
     {% endif %}
-  {% else %}
-    <div class="text-center text-muted py-5">
-      No notifications found for the selected filters.
-    </div>
-  {% endif %}
+  </div>
 </div>
-
 {% endblock %}

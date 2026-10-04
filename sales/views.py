@@ -60,6 +60,9 @@ from .models import (
     InvoiceStatus,
 )
 from .utils import (
+    ADVANCE_PERCENT,
+    DELIVERY_PERCENT,
+    EVENT_PERCENT,
     build_common_email_context,
     build_contract_document_context,
     build_proposal_document_context,
@@ -1438,7 +1441,7 @@ class DealRecordAdvanceView(SalesAccessMixin, View):
 
         total = self.proposal.total if self.proposal else self.deal.amount
         if total:
-            initial["amount"] = percentage_amount(total, Decimal("10"))
+            initial["amount"] = percentage_amount(total, ADVANCE_PERCENT)
 
         return self._render(request, AdvancePaymentForm(initial=initial))
 
@@ -2672,8 +2675,8 @@ class ContractPublicSignView(View):
 
         total_amount = get_contract_public_sign_total(contract)
 
-        booking_advance = percentage_amount(total_amount, Decimal("10"))
-        on_event_amount = percentage_amount(total_amount, Decimal("80"))
+        booking_advance = percentage_amount(total_amount, ADVANCE_PERCENT)
+        on_event_amount = percentage_amount(total_amount, EVENT_PERCENT)
         after_delivery_amount = total_amount - booking_advance - on_event_amount
         balance_amount = total_amount - booking_advance
 
@@ -2689,9 +2692,9 @@ class ContractPublicSignView(View):
             "on_event_amount": on_event_amount,
             "after_delivery_amount": after_delivery_amount,
 
-            "advance_percent": 10,
-            "event_percent": 80,
-            "delivery_percent": 10,
+            "advance_percent": ADVANCE_PERCENT,
+            "event_percent": EVENT_PERCENT,
+            "delivery_percent": DELIVERY_PERCENT,
 
             "client_notes": get_payment_plan_client_notes(),
             "terms": get_payment_plan_terms(),

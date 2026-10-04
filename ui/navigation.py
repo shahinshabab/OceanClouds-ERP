@@ -57,7 +57,6 @@ NAVIGATION = [
             _item("Proposals", "sales:proposal_list", "bi-file-earmark-richtext", SALES, match=("/sales/proposals/",)),
             # Production staff open a contract from its event, not from the sales list.
             _item("Contracts", "sales:contract_list", "bi-file-earmark-check", SALES, match=("/sales/contracts/",)),
-            _item("Document template", "sales:document_template", "bi-file-earmark-text", SALES, match=("/sales/templates/",)),
         ],
     },
     {
@@ -142,6 +141,8 @@ NAVIGATION = [
                 SALES,
                 match=("/messaging/whatsapp/templates/",),
             ),
+            # Notes and terms used when proposals and contracts are generated.
+            _item("Document template", "sales:document_template", "bi-file-earmark-text", SALES, match=("/sales/templates/",)),
             _item("Email logs", "messaging:email_log_list", "bi-envelope-check", SALES, exclude=("/messaging/logs/whatsapp",)),
             _item("WhatsApp logs", "messaging:whatsapp_log_list", "bi-journal-text", SALES),
         ],

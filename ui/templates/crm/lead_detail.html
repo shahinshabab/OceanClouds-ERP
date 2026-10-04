@@ -73,8 +73,9 @@
             <div><dt>Phone</dt><dd>{% if lead.phone %}<a href="tel:{{ lead.phone }}">{{ lead.phone }}</a>{% else %}—{% endif %}</dd></div>
             <div><dt>WhatsApp</dt><dd>{{ lead.whatsapp|default:"—" }}</dd></div>
             <div><dt>Wedding date</dt><dd>{{ lead.wedding_date|date:"d M Y"|default:"—" }}</dd></div>
-            <div><dt>Location</dt>
-              <dd>{% if lead.wedding_city or lead.wedding_district or lead.wedding_state %}{{ lead.wedding_city }}{% if lead.wedding_district %}{% if lead.wedding_city %}, {% endif %}{{ lead.wedding_district }}{% endif %}{% if lead.wedding_state %}, {{ lead.wedding_state }}{% endif %}{% else %}—{% endif %}</dd>
+            <div><dt>Lives in</dt><dd>{% if lead.state %}{{ lead.state }}, {% endif %}{{ lead.country|default:"—" }}</dd></div>
+            <div><dt>Wedding place</dt>
+              <dd>{% if lead.wedding_city or lead.wedding_country %}{{ lead.wedding_city }}{% if lead.wedding_city and lead.wedding_country %}, {% endif %}{{ lead.wedding_country }}{% else %}—{% endif %}</dd>
             </div>
             <div><dt>Budget</dt>
               <dd class="tabular">{% if lead.budget_min or lead.budget_max %}{{ lead.budget_min|inr }} – {{ lead.budget_max|inr }}{% else %}—{% endif %}</dd>

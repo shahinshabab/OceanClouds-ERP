@@ -97,11 +97,22 @@ class TodoListView(TodoAccessMixin, TodoQuerysetMixin, ListView):
     context_object_name = "todos"
     paginate_by = 25
 
+    # The list opens on pending to-dos; ?status=all shows every status.
+    DEFAULT_STATUS = TodoStatus.PENDING
+
+    def selected_status(self):
+        if "status" not in self.request.GET:
+            return self.DEFAULT_STATUS
+        status = (self.request.GET.get("status") or "").strip()
+        return status or "all"
+
     def get_queryset(self):
         qs = super().get_queryset()
 
         q = (self.request.GET.get("q") or "").strip()
-        status = (self.request.GET.get("status") or "").strip()
+        status = self.selected_status()
+        if status == "all":
+            status = ""
         priority = (self.request.GET.get("priority") or "").strip()
         assigned = (self.request.GET.get("assigned") or "").strip()
         due = (self.request.GET.get("due") or "").strip()
@@ -160,7 +171,7 @@ class TodoListView(TodoAccessMixin, TodoQuerysetMixin, ListView):
 
         context.update({
             "q": self.request.GET.get("q", ""),
-            "selected_status": self.request.GET.get("status", ""),
+            "selected_status": self.selected_status(),
             "selected_priority": self.request.GET.get("priority", ""),
             "selected_assigned": self.request.GET.get("assigned", ""),
             "selected_due": self.request.GET.get("due", ""),

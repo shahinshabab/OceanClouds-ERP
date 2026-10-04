@@ -27,11 +27,10 @@ from projects.models import (
 )
 from datetime import timedelta
 
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.urls import reverse
 from django.utils import timezone
 
-from common.roles import can_manage_events
 from events.models import Event, EventStatus
 from sales.models import Deal, DealStage
 
@@ -39,6 +38,14 @@ from .forms import ProfileUpdateForm
 from .utils import _get_month_info, _monthly_card, _simple_card
 
 User = get_user_model()
+
+# Work still to be done: everything but finished or cancelled.
+OPEN_TASK_STATUSES = [
+    s for s in TaskStatus.values if s not in (TaskStatus.COMPLETED, TaskStatus.CANCELLED)
+]
+OPEN_DELIVERABLE_STATUSES = [
+    s for s in DeliverableStatus.values if s not in (DeliverableStatus.DELIVERED, DeliverableStatus.CANCELLED)
+]
 
 
 @login_required
@@ -88,11 +95,11 @@ def home(request):
         ).count()
 
         pending_tasks_count = Task.objects.filter(
-            status__in=[TaskStatus.PENDING, TaskStatus.IN_PROGRESS]
+            status__in=OPEN_TASK_STATUSES
         ).count()
 
         pending_deliverables_count = Deliverable.objects.filter(
-            status__in=[DeliverableStatus.PENDING, DeliverableStatus.IN_PROGRESS]
+            status__in=OPEN_DELIVERABLE_STATUSES
         ).count()
 
         open_inquiries_count = Inquiry.objects.filter(
@@ -110,14 +117,14 @@ def home(request):
             _simple_card(
                 "Open Tasks",
                 pending_tasks_count,
-                "Pending and in-progress tasks",
+                "Tasks not completed yet",
                 "bi-list-check",
                 "bg-warning-subtle",
             ),
             _simple_card(
                 "Open Deliverables",
                 pending_deliverables_count,
-                "Pending and in-progress deliverables",
+                "Deliverables not delivered yet",
                 "bi-box-seam",
                 "bg-info-subtle",
             ),
@@ -177,7 +184,7 @@ def home(request):
 
         pending_tasks_list = (
             Task.objects.filter(
-                status__in=[TaskStatus.PENDING, TaskStatus.IN_PROGRESS]
+                status__in=OPEN_TASK_STATUSES
             )
             .select_related("project", "assigned_to")
             .order_by("due_date", "priority")[:10]
@@ -185,7 +192,7 @@ def home(request):
 
         pending_deliverables_list = (
             Deliverable.objects.filter(
-                status__in=[DeliverableStatus.PENDING, DeliverableStatus.IN_PROGRESS]
+                status__in=OPEN_DELIVERABLE_STATUSES
             )
             .select_related("project", "assigned_to")
             .order_by("due_date", "name")[:10]
@@ -286,14 +293,18 @@ def home(request):
             status__in=[ProjectStatus.COMPLETED, ProjectStatus.CANCELLED]
         ).count()
 
+        # Work in the projects they manage, plus anything assigned to them
+        # (self-assigned work often sits in someone else's project).
+        pm_work = Q(project__manager=user) | Q(assigned_to=user)
+
         pending_tasks_count = Task.objects.filter(
-            project__manager=user,
-            status__in=[TaskStatus.PENDING, TaskStatus.IN_PROGRESS],
+            pm_work,
+            status__in=OPEN_TASK_STATUSES,
         ).count()
 
         pending_deliverables_count = Deliverable.objects.filter(
-            project__manager=user,
-            status__in=[DeliverableStatus.PENDING, DeliverableStatus.IN_PROGRESS],
+            pm_work,
+            status__in=OPEN_DELIVERABLE_STATUSES,
         ).count()
 
         open_inquiries_count = Inquiry.objects.filter(
@@ -312,14 +323,14 @@ def home(request):
             _simple_card(
                 "Project Tasks",
                 pending_tasks_count,
-                "Pending and in-progress tasks",
+                "Tasks not completed yet",
                 "bi-list-check",
                 "bg-warning-subtle",
             ),
             _simple_card(
                 "Project Deliverables",
                 pending_deliverables_count,
-                "Pending and in-progress deliverables",
+                "Deliverables not delivered yet",
                 "bi-box-seam",
                 "bg-info-subtle",
             ),
@@ -399,8 +410,8 @@ def home(request):
 
         pending_tasks_list = (
             Task.objects.filter(
-                project__manager=user,
-                status__in=[TaskStatus.PENDING, TaskStatus.IN_PROGRESS],
+                pm_work,
+                status__in=OPEN_TASK_STATUSES,
             )
             .select_related("project", "assigned_to")
             .order_by("due_date", "priority")[:10]
@@ -408,8 +419,8 @@ def home(request):
 
         pending_deliverables_list = (
             Deliverable.objects.filter(
-                project__manager=user,
-                status__in=[DeliverableStatus.PENDING, DeliverableStatus.IN_PROGRESS],
+                pm_work,
+                status__in=OPEN_DELIVERABLE_STATUSES,
             )
             .select_related("project", "assigned_to")
             .order_by("due_date", "name")[:10]
@@ -423,12 +434,12 @@ def home(request):
 
         my_pending_tasks_count = Task.objects.filter(
             assigned_to=user,
-            status__in=[TaskStatus.PENDING, TaskStatus.IN_PROGRESS],
+            status__in=OPEN_TASK_STATUSES,
         ).count()
 
         my_pending_deliverables_count = Deliverable.objects.filter(
             assigned_to=user,
-            status__in=[DeliverableStatus.PENDING, DeliverableStatus.IN_PROGRESS],
+            status__in=OPEN_DELIVERABLE_STATUSES,
         ).count()
 
         my_open_inquiries_count = Inquiry.objects.filter(
@@ -440,14 +451,14 @@ def home(request):
             _simple_card(
                 "My Tasks",
                 my_pending_tasks_count,
-                "Pending and in-progress tasks",
+                "Tasks not completed yet",
                 "bi-list-check",
                 "bg-warning-subtle",
             ),
             _simple_card(
                 "My Deliverables",
                 my_pending_deliverables_count,
-                "Pending and in-progress deliverables",
+                "Deliverables not delivered yet",
                 "bi-box-seam",
                 "bg-info-subtle",
             ),
@@ -523,7 +534,7 @@ def home(request):
         my_pending_tasks_list = (
             Task.objects.filter(
                 assigned_to=user,
-                status__in=[TaskStatus.PENDING, TaskStatus.IN_PROGRESS],
+                status__in=OPEN_TASK_STATUSES,
             )
             .select_related("project")
             .order_by("due_date", "priority")[:10]
@@ -532,11 +543,25 @@ def home(request):
         my_pending_deliverables_list = (
             Deliverable.objects.filter(
                 assigned_to=user,
-                status__in=[DeliverableStatus.PENDING, DeliverableStatus.IN_PROGRESS],
+                status__in=OPEN_DELIVERABLE_STATUSES,
             )
             .select_related("project")
             .order_by("due_date", "name")[:10]
         )
+
+    # Managers also do production work themselves: show what is assigned to them.
+    if (is_admin or is_project_manager) and my_pending_tasks_list is None:
+        my_pending_tasks_list = list(
+            Task.objects.filter(assigned_to=user, status__in=OPEN_TASK_STATUSES)
+            .select_related("project")
+            .order_by("due_date", "priority")[:10]
+        )
+        my_pending_deliverables_list = list(
+            Deliverable.objects.filter(assigned_to=user, status__in=OPEN_DELIVERABLE_STATUSES)
+            .select_related("project")
+            .order_by("due_date", "name")[:10]
+        )
+        show_employee_section = bool(is_project_manager or my_pending_tasks_list or my_pending_deliverables_list)
 
     # Next two weeks of events, for everyone (the event calendar is open to all).
     today = timezone.localdate()
@@ -546,7 +571,6 @@ def home(request):
         .select_related("client", "venue")
         .order_by("date", "start_time", "name")[:8]
     )
-    can_open_events = can_manage_events(user)
 
     # Open deals by stage, in the order a sale moves.
     deal_pipeline = []
@@ -579,7 +603,6 @@ def home(request):
     context = {
         "today": today,
         "upcoming_events": upcoming_events,
-        "can_open_events": can_open_events,
         "deal_pipeline": deal_pipeline,
         "role_label": role_label,
         "is_admin": is_admin,

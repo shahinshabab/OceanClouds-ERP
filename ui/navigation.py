@@ -55,7 +55,9 @@ NAVIGATION = [
             _item("Leads", "crm:lead_list", "bi-person-lines-fill", SALES, match=("/crm/leads/",)),
             _item("Deals", "sales:deal_list", "bi-briefcase", SALES, match=("/sales/deals/",)),
             _item("Proposals", "sales:proposal_list", "bi-file-earmark-richtext", SALES, match=("/sales/proposals/",)),
-            _item("Contracts", "sales:contract_list", "bi-file-earmark-check", match=("/sales/contracts/",)),
+            # Production staff open a contract from its event, not from the sales list.
+            _item("Contracts", "sales:contract_list", "bi-file-earmark-check", SALES, match=("/sales/contracts/",)),
+            _item("Document template", "sales:document_template", "bi-file-earmark-text", SALES, match=("/sales/templates/",)),
         ],
     },
     {
@@ -113,10 +115,10 @@ NAVIGATION = [
         ],
     },
     {
-        "title": "Calendars",
+        "title": "Schedule",
         "items": [
-            _item("Event calendar", "events:event_calendar", "bi-calendar-event"),
-            _item("Work calendar", "projects:project_calendar", "bi-calendar-week", WORK),
+            # One calendar for everyone: events, plus scheduled work by role.
+            _item("Calendar", "events:event_calendar", "bi-calendar-event", match=("/projects/calendar/",)),
         ],
     },
     {

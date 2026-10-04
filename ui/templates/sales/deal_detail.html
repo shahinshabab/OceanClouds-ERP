@@ -46,6 +46,16 @@
 
   <div class="row g-4">
     <div class="col-xl-8">
+      {% if deal.next_action and deal.is_open %}
+        {% now "Y-m-d" as today_iso %}
+        <div class="alert {% if deal.next_action_date and deal.next_action_date|date:'Y-m-d' < today_iso %}alert-warning{% else %}alert-info{% endif %} d-flex mb-4">
+          <i class="bi bi-alarm"></i>
+          <div>
+            <strong>Next action: {{ deal.get_next_action_display }}{% if deal.next_action_date %} · {{ deal.next_action_date|date:"D, d M Y" }}{% endif %}</strong>
+            {% if deal.next_action_note %}<div>{{ deal.next_action_note }}</div>{% endif %}
+          </div>
+        </div>
+      {% endif %}
 
       <!-- Proposals -->
       <div class="card mb-4">
@@ -178,6 +188,7 @@
             <li><span class="k">Amount</span><span class="v tabular">{{ deal.amount|inr }}</span></li>
             <li><span class="k">Advance received</span><span class="v tabular">{{ deal.advance_paid|inr }}</span></li>
             <li><span class="k">Expected close</span><span class="v">{{ deal.expected_close_date|date:"d M Y"|default:"—" }}</span></li>
+            <li><span class="k">Next action</span><span class="v">{% if deal.next_action %}{{ deal.get_next_action_display }}{% if deal.next_action_date %} · {{ deal.next_action_date|date:"d M" }}{% endif %}{% else %}—{% endif %}</span></li>
             <li><span class="k">Closed on</span><span class="v">{{ deal.closed_on|date:"d M Y"|default:"—" }}</span></li>
             <li><span class="k">Owner</span><span class="v">{% if deal.owner %}{{ deal.owner.get_full_name|default:deal.owner.username }}{% else %}—{% endif %}</span></li>
           </ul>

@@ -41,7 +41,7 @@
             <li><a class="dropdown-item" href="{% url 'projects:deliverable_create_for_project' project.pk %}"><i class="bi bi-box-seam"></i>Add deliverable</a></li>
             <li><hr class="dropdown-divider"></li>
           {% endif %}
-          <li><a class="dropdown-item" href="{% url 'projects:project_calendar' %}?project={{ project.pk }}"><i class="bi bi-calendar3"></i>Calendar</a></li>
+          <li><a class="dropdown-item" href="{% url 'events:event_calendar' %}?project={{ project.pk }}"><i class="bi bi-calendar3"></i>Calendar</a></li>
           <li><a class="dropdown-item" href="{% url 'projects:project_kanban' %}"><i class="bi bi-kanban"></i>Project board</a></li>
         </ul>
       </div>

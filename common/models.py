@@ -265,6 +265,7 @@ class Notification(models.Model):
         DEAL_EXPECTED_CLOSE = "deal_expected_close", "Deal expected close"
         PROPOSAL_DUE = "proposal_due", "Proposal due"
         CONTRACT_ENDING = "contract_ending", "Contract ending"
+        CONTRACT_SIGNED = "contract_signed", "Contract signed - approval needed"
         INVOICE_DUE = "invoice_due", "Invoice due"
 
         # Projects

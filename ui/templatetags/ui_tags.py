@@ -169,3 +169,11 @@ def verbose_name(obj):
     """The model's verbose name, e.g. "deal", for generic pages."""
     meta = getattr(obj, "_meta", None)
     return str(meta.verbose_name) if meta else ""
+
+
+@register.simple_tag
+def phone_rules():
+    """Country -> dialling code and digit counts, for phone hints in forms."""
+    from common.geo import phone_rules as rules
+
+    return rules()

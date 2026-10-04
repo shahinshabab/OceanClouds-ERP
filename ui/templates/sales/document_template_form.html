@@ -1,0 +1,43 @@
+{% extends "ui/form_page.html" %}
+{% load ui_tags %}
+
+{% block title %}Proposal & contract template{% endblock %}
+
+{% block form_eyebrow %}<i class="bi bi-file-earmark-text"></i> Sales pipeline · Templates{% endblock %}
+{% block form_title %}Proposal &amp; contract template{% endblock %}
+{% block form_subtitle %}The wording every proposal and contract is generated with. A proposal or contract with its own note or terms keeps those.{% endblock %}
+
+{% block form_body %}
+  {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors|join:" " }}</div>{% endif %}
+
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-file-earmark-richtext"></i>Proposal</h2>
+    <div class="row g-3">
+      {% field form.proposal_note "col-12" label="Personal note" %}
+      {% field form.proposal_terms "col-12" label="Terms" %}
+    </div>
+  </section>
+
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-cash-stack"></i>Payment criteria</h2>
+    <p class="text-muted small mb-3">How the contract amount is split. Proposals, contracts, the signing page and the advance amount all follow this.</p>
+    <div class="row g-3">
+      {% field form.advance_percent "col-md-4" suffix="%" %}
+      {% field form.event_percent "col-md-4" suffix="%" %}
+      {% field form.delivery_percent "col-md-4" suffix="%" %}
+      {% field form.payment_terms "col-12" %}
+    </div>
+  </section>
+
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-file-earmark-check"></i>Contract</h2>
+    <div class="row g-3">
+      {% field form.contract_note "col-12" %}
+      {% field form.contract_terms "col-12" label="Terms" %}
+      {% field form.good_to_know "col-12" %}
+    </div>
+  </section>
+{% endblock %}
+
+{% block cancel_url %}{% url 'sales:proposal_list' %}{% endblock %}
+{% block submit_label %}Save template{% endblock %}

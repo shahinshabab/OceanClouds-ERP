@@ -32,6 +32,19 @@ class DealStage(models.TextChoices):
     ON_HOLD = "on_hold", _("On Hold")
 
 
+class DealNextAction(models.TextChoices):
+    CALL = "call", _("Call")
+    WHATSAPP = "whatsapp", _("WhatsApp")
+    EMAIL = "email", _("Email")
+    MEETING = "meeting", _("Meeting")
+    VIDEO_CALL = "video_call", _("Video call")
+    SEND_PROPOSAL = "send_proposal", _("Send proposal")
+    COLLECT_ADVANCE = "collect_advance", _("Collect advance")
+    SEND_CONTRACT = "send_contract", _("Send contract")
+    FOLLOW_UP = "follow_up", _("Follow up")
+    OTHER = "other", _("Other")
+
+
 # Stages before the advance; later steps only move a deal forward from here.
 OPEN_DEAL_STAGES = (
     DealStage.NEW,
@@ -122,8 +135,8 @@ class LeadCustomer:
         self.whatsapp = lead.whatsapp or ""
         self.city = lead.wedding_city or ""
         self.district = lead.wedding_district or ""
-        self.state = lead.wedding_state or ""
-        self.country = lead.wedding_country or ""
+        self.state = lead.state or lead.wedding_state or ""
+        self.country = lead.country or lead.wedding_country or ""
 
     def __str__(self):
         return self.display_name or self.name or "Lead"
@@ -163,6 +176,11 @@ class Deal(TimeStamped, Owned):
 
     expected_close_date = models.DateField(null=True, blank=True)
 
+    # Next step with the customer; a to-do is kept for it (sales.signals).
+    next_action = models.CharField(max_length=32, choices=DealNextAction.choices, blank=True)
+    next_action_date = models.DateField(null=True, blank=True)
+    next_action_note = models.CharField(max_length=255, blank=True)
+
     description = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
     closed_on = models.DateField(null=True, blank=True)
@@ -189,6 +207,10 @@ class Deal(TimeStamped, Owned):
             return LeadCustomer(self.lead)
 
         return None
+
+    @property
+    def is_open(self):
+        return self.stage not in (DealStage.WON, DealStage.LOST)
 
     @property
     def advance_invoices(self):
@@ -702,6 +724,17 @@ class Contract(TimeStamped, Owned):
     signed_ip_address = models.GenericIPAddressField(null=True, blank=True)
     signed_user_agent = models.TextField(blank=True)
 
+    # After signing, a CRM manager approves before the invoice, client and
+    # events are created.
+    approved_at = models.DateTimeField(null=True, blank=True)
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="approved_contracts",
+    )
+
     start_date = models.DateField(null=True, blank=True)
     end_date = models.DateField(null=True, blank=True)
 
@@ -1154,6 +1187,24 @@ class Invoice(TimeStamped, Owned):
         return taxable_amount + (self.tax or Decimal("0.00"))
 
     @transaction.atomic
+    def advance_received(self):
+        """Booking advance kept on the deal's advance invoices."""
+        return net_paid_amount(
+            Payment.objects.filter(invoice__deal_id=self.deal_id, invoice__is_advance=True)
+            .exclude(invoice_id=self.pk)
+        )
+
+    def refresh_advance_adjustment(self):
+        """An advance recorded after the contract invoice still comes off it."""
+        if self.is_advance or self.status in (InvoiceStatus.PAID, InvoiceStatus.CANCELLED):
+            return
+        advance = self.advance_received()
+        if advance != (self.advance_adjustment or Decimal("0.00")):
+            self.advance_adjustment = advance
+            self.save(update_fields=["advance_adjustment", "updated_at"])
+            self.recalculate_totals(save=True)
+            self.refresh_payment_status()
+
     def populate_from_contract(self, contract, clear_existing=False):
         """
         Creates invoice from all contract items.
@@ -1170,10 +1221,7 @@ class Invoice(TimeStamped, Owned):
         # The booking advance was billed on its own invoice before the
         # contract, so the contract invoice only asks for the remainder.
         if not self.is_advance:
-            self.advance_adjustment = net_paid_amount(
-                Payment.objects.filter(invoice__deal_id=self.deal_id, invoice__is_advance=True)
-                .exclude(invoice_id=self.pk)
-            )
+            self.advance_adjustment = self.advance_received()
 
         self.save(
             update_fields=[
@@ -1369,3 +1417,82 @@ class Payment(TimeStamped, Owned):
         result = super().delete(*args, **kwargs)
         invoice.refresh_payment_status()
         return result
+
+
+# -------------------------------------------------------------------
+# Proposal & contract template
+# -------------------------------------------------------------------
+
+class SalesDocumentTemplate(TimeStamped):
+    """
+    The wording every proposal and contract starts from: the personal note,
+    terms, payment terms and payment split. One row, edited by admins and
+    CRM managers. A proposal or contract with its own note or terms keeps
+    those; otherwise the template is used when the document is generated.
+    """
+
+    proposal_note = models.TextField(
+        _("proposal personal note"),
+        blank=True,
+        help_text=_("Opening letter of every proposal. A proposal's own note replaces it."),
+    )
+    proposal_terms = models.TextField(
+        _("proposal terms"),
+        blank=True,
+        help_text=_("One condition per line. The payment split line is added for you."),
+    )
+    contract_note = models.TextField(
+        _("contract note"),
+        blank=True,
+        help_text=_("Short paragraph under the parties on the first page."),
+    )
+    contract_terms = models.TextField(
+        _("contract terms"),
+        blank=True,
+        help_text=_("One condition per line. A contract's own terms replace these."),
+    )
+    good_to_know = models.TextField(
+        _("good to know"),
+        blank=True,
+        help_text=_("Practical notes for the couple, one per line."),
+    )
+    payment_terms = models.TextField(
+        _("payment terms"),
+        blank=True,
+        help_text=_("One per line, shown with the payment schedule."),
+    )
+    advance_percent = models.PositiveSmallIntegerField(_("booking advance %"), default=10)
+    event_percent = models.PositiveSmallIntegerField(_("on the event day %"), default=30)
+    delivery_percent = models.PositiveSmallIntegerField(_("on delivery %"), default=60)
+
+    class Meta:
+        verbose_name = _("proposal & contract template")
+        verbose_name_plural = _("proposal & contract template")
+
+    def __str__(self):
+        return "Proposal & contract template"
+
+    def clean(self):
+        total = (self.advance_percent or 0) + (self.event_percent or 0) + (self.delivery_percent or 0)
+        if total != 100:
+            raise ValidationError(_("The three payment percentages must add up to 100 (now %(total)s).") % {"total": total})
+
+    @classmethod
+    def load(cls):
+        template = cls.objects.order_by("pk").first()
+        if template:
+            return template
+
+        from . import document_defaults as d
+
+        return cls.objects.create(
+            proposal_note=d.PROPOSAL_NOTE,
+            proposal_terms="\n".join(d.PROPOSAL_TERMS),
+            contract_note=d.CONTRACT_NOTE,
+            contract_terms="\n".join(d.CONTRACT_TERMS),
+            good_to_know="\n".join(d.GOOD_TO_KNOW),
+            payment_terms="\n".join(d.PAYMENT_TERMS),
+            advance_percent=d.ADVANCE_PERCENT,
+            event_percent=d.EVENT_PERCENT,
+            delivery_percent=d.DELIVERY_PERCENT,
+        )

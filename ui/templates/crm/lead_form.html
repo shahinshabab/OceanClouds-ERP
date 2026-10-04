@@ -24,6 +24,8 @@
     <div class="row g-3">
       {% field form.name "col-md-8" %}
       {% field form.status "col-md-4" %}
+      {% field form.country "col-md-6" %}
+      {% field form.state "col-md-6" %}
       {% field form.phone "col-md-4" %}
       {% field form.whatsapp "col-md-4" %}
       {% field form.email "col-md-4" %}
@@ -35,9 +37,7 @@
     <div class="row g-3">
       {% field form.wedding_date "col-md-4" %}
       {% field form.wedding_city "col-md-4" %}
-      {% field form.wedding_district "col-md-4" %}
-      {% field form.wedding_state "col-md-6" %}
-      {% field form.wedding_country "col-md-6" %}
+      {% field form.wedding_country "col-md-4" %}
       {% field form.budget_min "col-md-6" prefix="₹" %}
       {% field form.budget_max "col-md-6" prefix="₹" %}
     </div>
@@ -58,3 +58,35 @@
 
 {% block cancel_url %}{% if source_inquiry %}{% url 'crm:inquiry_detail' source_inquiry.pk %}{% elif form.instance.pk %}{% url 'crm:lead_detail' form.instance.pk %}{% else %}{% url 'crm:lead_list' %}{% endif %}{% endblock %}
 {% block submit_label %}{% if is_conversion %}Create lead{% else %}Save lead{% endif %}{% endblock %}
+
+{% block extra_js %}
+{% phone_rules as rules %}{{ rules|json_script:"phoneRules" }}
+<script>
+// The state list is India's; the phone hint follows the chosen country.
+(function () {
+  const country = document.getElementById("id_country");
+  const state = document.getElementById("id_state");
+  const rules = JSON.parse(document.getElementById("phoneRules").textContent || "{}");
+  if (!country) return;
+  function update() {
+    const isIndia = country.value === "India";
+    if (state) {
+      const wrap = state.closest("[class*='col-']") || state.parentElement;
+      wrap.style.display = isIndia ? "" : "none";
+      if (!isIndia) state.value = "";
+    }
+    const rule = rules[country.value];
+    ["id_phone", "id_whatsapp"].forEach(function (id) {
+      const input = document.getElementById(id);
+      if (!input || !rule) return;
+      const hint = input.closest("[class*='col-']").querySelector(".form-text");
+      const text = rule.lengths.join(" or ") + " digits, country code +" + rule.code + " is added for you.";
+      if (hint) hint.textContent = text;
+      input.placeholder = "+" + rule.code + " " + "9".repeat(rule.lengths[0]);
+    });
+  }
+  country.addEventListener("change", update);
+  update();
+})();
+</script>
+{% endblock %}

@@ -411,3 +411,19 @@ class ProposalDocumentTests(TestCase):
         result = local_url_fetcher("http://testserver/static/sales/brand/logo.png")
         self.assertEqual(result["mime_type"], "image/png")
         self.assertTrue(result["string"].startswith(b"\x89PNG"))
+
+
+class PaymentSplitTests(TestCase):
+    def test_contract_schedule_uses_10_30_60(self):
+        from .utils import build_contract_document_context, get_payment_plan_terms, get_proposal_terms
+
+        deal = Deal.objects.create(name="Split Deal", client=Client.objects.create(name="Split"))
+        contract = Contract.objects.create(deal=deal)
+        day = ContractEventDay.objects.create(contract=contract, title="Wedding")
+        ContractItem.objects.create(contract_event_day=day, description="Coverage", unit_price=Decimal("100000"))
+
+        payments = build_contract_document_context(contract)["payments"]
+        self.assertEqual([p["percent"] for p in payments], [10, 30, 60])
+        self.assertEqual([p["amount"] for p in payments], [Decimal("10000"), Decimal("30000"), Decimal("60000.00")])
+        for terms in (get_proposal_terms(), get_payment_plan_terms()):
+            self.assertTrue(any("10%" in t and "30%" in t and "60%" in t for t in terms))

@@ -212,12 +212,8 @@ class ProjectOverviewView(ProjectAccessMixin, DetailMessageScopeMixin, DetailVie
                 proposals_qs = deal.proposals.all().order_by("-created_at")
 
             if hasattr(deal, "contracts"):
-                contracts_qs = deal.contracts.all().annotate(
-                    total_amount=Coalesce(
-                        Sum("items__line_total"),
-                        Decimal("0.00"),
-                    )
-                )
+                # Contract stores its own total; it has no line items to sum.
+                contracts_qs = deal.contracts.all()
 
             if hasattr(deal, "invoices"):
                 invoices_qs = deal.invoices.all().select_related("deal")

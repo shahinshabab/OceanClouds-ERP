@@ -1,217 +1,44 @@
-{% extends "ui/base.html" %}
+{% extends "ui/form_page.html" %}
+{% load ui_tags %}
 
-{% block title %}
-  {% if object %}Edit To-Do{% else %}New To-Do{% endif %}
+{% block title %}{% if object %}Edit to-do{% else %}New to-do{% endif %}{% endblock %}
+{% block form_eyebrow %}<i class="bi bi-check2-square"></i> Work · To-dos{% endblock %}
+{% block form_title %}{% if object %}Edit {{ object.title }}{% else %}New to-do{% endif %}{% endblock %}
+{% block form_subtitle %}Reminders, follow-ups, pending work and due-date actions.{% endblock %}
+
+{% block form_body %}
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-card-text"></i>To-do</h2>
+    <div class="row g-3">
+      {% field form.title "col-md-8" %}
+      {% field form.assigned_to "col-md-4" %}
+      {% field form.status "col-md-4" %}
+      {% field form.priority "col-md-4" %}
+      {% field form.due_date "col-md-4" %}
+      {% field form.description "col-12" %}
+    </div>
+  </section>
+
+  {% with i=form.instance %}
+  <details class="form-section form-collapse" {% if form.errors or i.project_id or i.task_id or i.deliverable_id or i.client_id or i.lead_id or i.deal_id or i.proposal_id or i.contract_id or i.invoice_id or i.event_id or i.checklist_item_id %}open{% endif %}>
+    <summary class="form-section-title"><i class="bi bi-link-45deg"></i>Link to a record <span class="text-muted fw-normal small">optional</span><i class="bi bi-chevron-down collapse-caret"></i></summary>
+    <p class="form-section-note">Connect this to-do to a client, sale, project or event so it shows up there.</p>
+    <div class="row g-3">
+      {% field form.client "col-md-4" %}
+      {% field form.lead "col-md-4" %}
+      {% field form.deal "col-md-4" %}
+      {% field form.proposal "col-md-4" %}
+      {% field form.contract "col-md-4" %}
+      {% field form.invoice "col-md-4" %}
+      {% field form.project "col-md-4" %}
+      {% field form.task "col-md-4" %}
+      {% field form.deliverable "col-md-4" %}
+      {% field form.event "col-md-6" %}
+      {% field form.checklist_item "col-md-6" %}
+    </div>
+  </details>
+  {% endwith %}
 {% endblock %}
 
-{% block content %}
-<div class="container py-3">
-
-  <!-- Page header -->
-  <div class="d-flex justify-content-between align-items-start mb-3">
-    <div>
-      <h2 class="fw-semibold mb-1">
-        {% if object %}Edit To-Do{% else %}New To-Do{% endif %}
-      </h2>
-      <div class="text-muted small">
-        Create reminders, follow-ups, pending work, and due-date actions.
-      </div>
-    </div>
-
-    <a href="{% url 'todos:todo_list' %}" class="btn btn-outline-secondary btn-sm">
-      <i class="bi bi-arrow-left"></i>Back
-    </a>
-  </div>
-
-  <form method="post" class="card shadow-sm border-0">
-    {% csrf_token %}
-
-    <div class="card-body">
-
-      {% if form.non_field_errors %}
-        <div class="alert alert-danger mb-3">
-          {{ form.non_field_errors }}
-        </div>
-      {% endif %}
-
-      <!-- Main details -->
-      <div class="mb-3">
-        <h6 class="fw-semibold mb-1">To-Do Details</h6>
-        <div class="text-muted small">
-          Basic information about the work item.
-        </div>
-      </div>
-
-      <div class="row g-3">
-
-        <div class="col-md-8">
-          <label class="form-label">Title</label>
-          {{ form.title }}
-          {% if form.title.errors %}
-            <div class="text-danger small mt-1">{{ form.title.errors }}</div>
-          {% endif %}
-        </div>
-
-        <div class="col-md-4">
-          <label class="form-label">Assigned To</label>
-          {{ form.assigned_to }}
-          {% if form.assigned_to.errors %}
-            <div class="text-danger small mt-1">{{ form.assigned_to.errors }}</div>
-          {% endif %}
-        </div>
-
-        <div class="col-md-4">
-          <label class="form-label">Status</label>
-          {{ form.status }}
-          {% if form.status.errors %}
-            <div class="text-danger small mt-1">{{ form.status.errors }}</div>
-          {% endif %}
-        </div>
-
-        <div class="col-md-4">
-          <label class="form-label">Priority</label>
-          {{ form.priority }}
-          {% if form.priority.errors %}
-            <div class="text-danger small mt-1">{{ form.priority.errors }}</div>
-          {% endif %}
-        </div>
-
-        <div class="col-md-4">
-          <label class="form-label">Due Date</label>
-          {{ form.due_date }}
-          {% if form.due_date.errors %}
-            <div class="text-danger small mt-1">{{ form.due_date.errors }}</div>
-          {% endif %}
-        </div>
-
-        <div class="col-12">
-          <label class="form-label">Description</label>
-          {{ form.description }}
-          {% if form.description.errors %}
-            <div class="text-danger small mt-1">{{ form.description.errors }}</div>
-          {% endif %}
-        </div>
-
-      </div>
-
-      <hr class="my-4">
-
-      <!-- Linked records -->
-      <div class="mb-3">
-        <h6 class="fw-semibold mb-1">Optional Links</h6>
-        <div class="text-muted small">
-          Link this to-do to CRM, sales, project, or event records if needed.
-        </div>
-      </div>
-
-      <div class="row g-3">
-
-        <div class="col-md-4">
-          <label class="form-label">Project</label>
-          {{ form.project }}
-          {% if form.project.errors %}
-            <div class="text-danger small mt-1">{{ form.project.errors }}</div>
-          {% endif %}
-        </div>
-
-        <div class="col-md-4">
-          <label class="form-label">Task</label>
-          {{ form.task }}
-          {% if form.task.errors %}
-            <div class="text-danger small mt-1">{{ form.task.errors }}</div>
-          {% endif %}
-        </div>
-
-        <div class="col-md-4">
-          <label class="form-label">Deliverable</label>
-          {{ form.deliverable }}
-          {% if form.deliverable.errors %}
-            <div class="text-danger small mt-1">{{ form.deliverable.errors }}</div>
-          {% endif %}
-        </div>
-
-        <div class="col-md-4">
-          <label class="form-label">Client</label>
-          {{ form.client }}
-          {% if form.client.errors %}
-            <div class="text-danger small mt-1">{{ form.client.errors }}</div>
-          {% endif %}
-        </div>
-
-        <div class="col-md-4">
-          <label class="form-label">Lead</label>
-          {{ form.lead }}
-          {% if form.lead.errors %}
-            <div class="text-danger small mt-1">{{ form.lead.errors }}</div>
-          {% endif %}
-        </div>
-
-        <div class="col-md-4">
-          <label class="form-label">Deal</label>
-          {{ form.deal }}
-          {% if form.deal.errors %}
-            <div class="text-danger small mt-1">{{ form.deal.errors }}</div>
-          {% endif %}
-        </div>
-
-        <div class="col-md-4">
-          <label class="form-label">Proposal</label>
-          {{ form.proposal }}
-          {% if form.proposal.errors %}
-            <div class="text-danger small mt-1">{{ form.proposal.errors }}</div>
-          {% endif %}
-        </div>
-
-        <div class="col-md-4">
-          <label class="form-label">Contract</label>
-          {{ form.contract }}
-          {% if form.contract.errors %}
-            <div class="text-danger small mt-1">{{ form.contract.errors }}</div>
-          {% endif %}
-        </div>
-
-        <div class="col-md-4">
-          <label class="form-label">Invoice</label>
-          {{ form.invoice }}
-          {% if form.invoice.errors %}
-            <div class="text-danger small mt-1">{{ form.invoice.errors }}</div>
-          {% endif %}
-        </div>
-
-        {% if form.event %}
-          <div class="col-md-4">
-            <label class="form-label">Event</label>
-            {{ form.event }}
-            {% if form.event.errors %}
-              <div class="text-danger small mt-1">{{ form.event.errors }}</div>
-            {% endif %}
-          </div>
-        {% endif %}
-
-        {% if form.checklist_item %}
-          <div class="col-md-4">
-            <label class="form-label">Checklist Item</label>
-            {{ form.checklist_item }}
-            {% if form.checklist_item.errors %}
-              <div class="text-danger small mt-1">{{ form.checklist_item.errors }}</div>
-            {% endif %}
-          </div>
-        {% endif %}
-
-      </div>
-
-    </div>
-
-    <div class="card-footer bg-white d-flex justify-content-end gap-2">
-      <a href="{% url 'todos:todo_list' %}" class="btn btn-outline-secondary">
-        Cancel
-      </a>
-
-      <button type="submit" class="btn btn-primary">
-        Save To-Do
-      </button>
-    </div>
-  </form>
-
-</div>
-{% endblock %}
+{% block cancel_url %}{% if object %}{% url 'todos:todo_detail' object.pk %}{% else %}{% url 'todos:todo_list' %}{% endif %}{% endblock %}
+{% block submit_label %}Save to-do{% endblock %}

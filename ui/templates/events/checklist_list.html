@@ -1,200 +1,94 @@
 {% extends "ui/base.html" %}
-{% load roles_tags %}
+{% load roles_tags ui_tags %}
 
-{% block title %}Event Checklists{% endblock %}
+{% block title %}Event checklists{% endblock %}
 
 {% block content %}
 {% has_event_manage_access request.user as can_manage_events %}
 
-<div class="container py-3">
-
-  <!-- Header Row -->
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2 class="fw-semibold mb-0">Event Checklists</h2>
-
+<div class="container">
+  <div class="page-header">
+    <div>
+      <div class="page-eyebrow"><i class="bi bi-list-check"></i> Events</div>
+      <h1 class="page-title">Checklists</h1>
+      <div class="page-subtitle">One checklist per event: setup, vendors, venue and client communication.</div>
+    </div>
     {% if can_manage_events %}
-      <a href="{% url 'events:checklist_create' %}" class="btn btn-success btn-sm">
-        <i class="bi bi-plus-lg"></i>New Checklist
-      </a>
+      <div class="page-actions">
+        <a href="{% url 'events:checklist_create' %}" class="btn btn-dark btn-sm"><i class="bi bi-plus-lg"></i>New checklist</a>
+      </div>
     {% endif %}
   </div>
 
-  <!-- Search + Filters Row -->
-  <form method="get" class="row g-2 align-items-end mb-3">
-
-    <div class="col-md-5">
-      <label class="form-label small text-muted">Search</label>
-      <input type="text"
-             name="q"
-             value="{{ q }}"
-             class="form-control form-control-sm"
-             placeholder="Search by checklist, event, client, or project">
-    </div>
-
-    <div class="col-md-5">
-      <label class="form-label small text-muted">Checklist Status</label>
-      <select name="status" class="form-select form-select-sm">
-        <option value="">All checklists</option>
-        <option value="pending" {% if status == "pending" %}selected{% endif %}>
-          Pending items
-        </option>
-        <option value="completed" {% if status == "completed" %}selected{% endif %}>
-          Fully completed
-        </option>
-      </select>
-    </div>
-
-    <div class="col-md-2">
-      <button type="submit" class="btn btn-outline-secondary btn-sm w-100">
-        Apply
-      </button>
-    </div>
-
-  </form>
-
-  <!-- Table -->
   <div class="card">
+    <div class="list-tabs">
+      <a href="?q={{ q|urlencode }}" class="{% if not status %}active{% endif %}">All</a>
+      <a href="?q={{ q|urlencode }}&amp;status=pending" class="{% if status == 'pending' %}active{% endif %}">Pending items</a>
+      <a href="?q={{ q|urlencode }}&amp;status=completed" class="{% if status == 'completed' %}active{% endif %}">Fully completed</a>
+    </div>
+    <form method="get" class="filter-bar">
+      <input type="hidden" name="status" value="{{ status }}">
+      <div class="search-input" style="flex-basis: 320px">
+        <i class="bi bi-search"></i>
+        <input type="search" name="q" value="{{ q }}" placeholder="Checklist, event, client or project" class="form-control form-control-sm" aria-label="Search">
+      </div>
+      <div class="filter-actions">
+        <button type="submit" class="btn btn-dark btn-sm"><i class="bi bi-funnel"></i>Filter</button>
+        {% if q or status %}<a href="?" class="btn btn-light btn-sm">Clear</a>{% endif %}
+      </div>
+    </form>
+
     <div class="table-responsive">
       <table class="table table-hover align-middle mb-0">
-        <thead class="table-light">
+        <thead>
           <tr>
             <th>Checklist</th>
-            <th>Event</th>
-            <th>Client</th>
-            <th>Project</th>
-            <th>Event Date</th>
+            <th class="d-none d-md-table-cell">Event date</th>
+            <th class="d-none d-lg-table-cell">Client</th>
+            <th class="d-none d-lg-table-cell">Project</th>
             <th>Progress</th>
-            <th class="text-end">Actions</th>
+            <th></th>
           </tr>
         </thead>
-
         <tbody>
           {% for checklist in checklists %}
-            <tr>
+            {% with total=checklist.total_items done=checklist.done_items %}
+            <tr data-href="{% url 'events:checklist_detail' checklist.pk %}">
               <td>
-                <a href="{% url 'events:checklist_detail' checklist.pk %}">
-                  {{ checklist.title }}
-                </a>
+                <a href="{% url 'events:checklist_detail' checklist.pk %}" class="cell-title">{{ checklist.title }}</a>
+                <span class="cell-sub">
+                  {% if checklist.event %}<a href="{% url 'events:event_detail' checklist.event.pk %}" class="fw-normal">{{ checklist.event.name }}</a>{% else %}—{% endif %}
+                </span>
               </td>
-
-              <td>
-                {% if checklist.event %}
-                  <a href="{% url 'events:event_detail' checklist.event.pk %}">
-                    {{ checklist.event.name }}
-                  </a>
+              <td class="d-none d-md-table-cell text-nowrap">{{ checklist.event.date|date:"d M Y"|default:"—" }}</td>
+              <td class="d-none d-lg-table-cell">{% if checklist.event.client %}{{ checklist.event.client }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+              <td class="d-none d-lg-table-cell">{% if checklist.event.project %}{{ checklist.event.project.name }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+              <td class="text-nowrap">
+                {% if total %}
+                  {% if done == total %}<span class="status status-solid">Completed</span>{% else %}<span class="status status-outline">Pending</span>{% endif %}
+                  <span class="small text-muted tabular ms-1">{{ done }}/{{ total }}</span>
                 {% else %}
-                  —
+                  <span class="status status-warning">No items</span>
                 {% endif %}
               </td>
-
-              <td>
-                {% if checklist.event.client %}
-                  {{ checklist.event.client }}
-                {% else %}
-                  —
-                {% endif %}
-              </td>
-
-              <td>
-                {% if checklist.event.project %}
-                  {{ checklist.event.project.name }}
-                {% else %}
-                  —
-                {% endif %}
-              </td>
-
-              <td>
-                {% if checklist.event.date %}
-                  {{ checklist.event.date }}
-                {% else %}
-                  —
-                {% endif %}
-              </td>
-
-              <td>
-                {% if checklist.total_items %}
-                  <span class="badge bg-light text-dark">
-                    {{ checklist.done_items }}/{{ checklist.total_items }} done
-                  </span>
-
-                  {% if checklist.pending_items == 0 %}
-                    <span class="badge bg-success ms-1">Completed</span>
-                  {% else %}
-                    <span class="badge bg-secondary ms-1">Pending</span>
-                  {% endif %}
-                {% else %}
-                  <span class="badge bg-warning text-dark">No items</span>
-                {% endif %}
-              </td>
-
-              <td class="text-end">
-                <a href="{% url 'events:checklist_detail' checklist.pk %}"
-                   class="btn btn-sm btn-outline-primary">
-                  View
-                </a>
-
+              <td class="row-actions">
                 {% if can_manage_events %}
-                  <a href="{% url 'events:checklist_update' checklist.pk %}"
-                     class="btn btn-sm btn-outline-secondary">
-                    <i class="bi bi-pencil"></i>Edit
-                  </a>
-
-                  <a href="{% url 'events:checklist_delete' checklist.pk %}"
-                     class="btn btn-sm btn-outline-danger">
-                    <i class="bi bi-trash"></i>Delete
-                  </a>
+                  <a href="{% url 'events:checklist_update' checklist.pk %}" class="btn btn-light btn-sm" title="Edit" aria-label="Edit"><i class="bi bi-pencil"></i></a>
+                  <a href="{% url 'events:checklist_delete' checklist.pk %}" class="btn btn-light btn-sm text-danger" title="Delete" aria-label="Delete"><i class="bi bi-trash"></i></a>
                 {% endif %}
+                <a href="{% url 'events:checklist_detail' checklist.pk %}" class="btn btn-light btn-sm" title="Open" aria-label="Open"><i class="bi bi-arrow-right"></i></a>
               </td>
             </tr>
+            {% endwith %}
           {% empty %}
-            <tr>
-              <td colspan="7" class="text-center text-muted py-4">
-                No checklists found.
-              </td>
-            </tr>
+            <tr><td colspan="6">
+              <div class="empty-state"><i class="bi bi-list-check"></i>{% if q or status %}No checklists match these filters.{% else %}No checklists yet.{% endif %}</div>
+            </td></tr>
           {% endfor %}
         </tbody>
-
       </table>
     </div>
+    {% include "ui/partials/pagination.html" %}
   </div>
-
-  <!-- Pagination -->
-  {% if is_paginated %}
-    <nav aria-label="Checklist pagination" class="mt-3">
-      <ul class="pagination pagination-sm justify-content-between mb-0">
-
-        <li class="page-item {% if not page_obj.has_previous %}disabled{% endif %}">
-          {% if page_obj.has_previous %}
-            <a class="page-link"
-               href="?page={{ page_obj.previous_page_number }}&q={{ q }}&status={{ status }}">
-              Previous
-            </a>
-          {% else %}
-            <span class="page-link">Previous</span>
-          {% endif %}
-        </li>
-
-        <li class="page-item disabled">
-          <span class="page-link">
-            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
-          </span>
-        </li>
-
-        <li class="page-item {% if not page_obj.has_next %}disabled{% endif %}">
-          {% if page_obj.has_next %}
-            <a class="page-link"
-               href="?page={{ page_obj.next_page_number }}&q={{ q }}&status={{ status }}">
-              Next
-            </a>
-          {% else %}
-            <span class="page-link">Next</span>
-          {% endif %}
-        </li>
-
-      </ul>
-    </nav>
-  {% endif %}
-
 </div>
 {% endblock %}

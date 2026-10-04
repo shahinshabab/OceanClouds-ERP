@@ -1,287 +1,133 @@
 {% extends "ui/base.html" %}
-{% load roles_tags %}
+{% load roles_tags ui_tags %}
 {% block live_topics %}task{% endblock %}
 
+{% block title %}Tasks{% endblock %}
+
 {% block content %}
-<div class="container-fluid py-4">
+{% is_admin request.user as is_admin %}
+{% is_project_manager request.user as is_project_manager %}
+{% is_employee request.user as is_employee %}
 
-  {% is_admin request.user as is_admin %}
-  {% is_project_manager request.user as is_project_manager %}
-  {% is_employee request.user as is_employee %}
-
-  <!-- Header Row -->
-  <div class="d-flex justify-content-between align-items-center mb-3">
+<div class="container">
+  <div class="page-header">
     <div>
-      <h1 class="h3 mb-0">Tasks</h1>
-      <small class="text-muted">
+      <div class="page-eyebrow"><i class="bi bi-kanban"></i> Production</div>
+      <h1 class="page-title">Tasks</h1>
+      <div class="page-subtitle">
         {% if is_admin or is_project_manager %}
-          Viewing all active project tasks.
+          All tasks on active projects.
         {% elif is_employee %}
           Tasks assigned to you.
         {% else %}
           Task list.
         {% endif %}
-      </small>
+      </div>
     </div>
-
-    <div class="d-flex gap-2">
-      <a href="{% url 'projects:task_kanban' %}" class="btn btn-outline-secondary btn-sm">
-        Kanban View
-      </a>
-
+    <div class="page-actions">
+      <div class="segmented" role="group" aria-label="View">
+        <a href="{% url 'projects:task_list' %}" class="active" aria-current="page"><i class="bi bi-list-ul"></i>List</a>
+        <a href="{% url 'projects:task_kanban' %}"><i class="bi bi-kanban"></i>Board</a>
+      </div>
       {% if is_admin or is_project_manager %}
-        <a href="{% url 'projects:task_create' %}" class="btn btn-success btn-sm">
-          <i class="bi bi-plus-lg"></i>New Task
-        </a>
+        <a href="{% url 'projects:task_create' %}" class="btn btn-dark btn-sm"><i class="bi bi-plus-lg"></i>New task</a>
       {% endif %}
     </div>
   </div>
 
-  <!-- Search + Two Filters Only -->
-  <form method="get" class="row g-2 align-items-end mb-3">
-
-    <div class="col-lg-4 col-md-6">
-      <label class="form-label small text-muted text-uppercase mb-1">Search</label>
-      <input type="text"
-            name="q"
-            value="{{ q }}"
-            class="form-control"
-            placeholder="Search by task or project">
+  <div class="card">
+    <div class="list-tabs">
+      <a href="?q={{ q|urlencode }}&amp;due={{ due_filter }}&amp;employee={{ employee_filter }}" class="{% if not status_filter %}active{% endif %}">All</a>
+      {% for value, label in status_choices %}
+        <a href="?q={{ q|urlencode }}&amp;due={{ due_filter }}&amp;employee={{ employee_filter }}&amp;status={{ value }}" class="{% if status_filter == value %}active{% endif %}">{{ label }}</a>
+      {% endfor %}
     </div>
-
-    <div class="col-lg-2 col-md-3">
-      <label class="form-label small text-muted text-uppercase mb-1">Status</label>
-      <select name="status" class="form-select">
-        <option value="">All statuses</option>
-        {% for value, label in status_choices %}
-          <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>
-            {{ label }}
-          </option>
-        {% endfor %}
-      </select>
-    </div>
-
-    <div class="col-lg-2 col-md-3">
-      <label class="form-label small text-muted text-uppercase mb-1">Due</label>
-      <select name="due" class="form-select">
+    <form method="get" class="filter-bar">
+      <input type="hidden" name="status" value="{{ status_filter }}">
+      <div class="search-input" style="flex-basis: 280px">
+        <i class="bi bi-search"></i>
+        <input type="search" name="q" value="{{ q }}" placeholder="Task or project" class="form-control form-control-sm" aria-label="Search">
+      </div>
+      <select name="due" class="form-select form-select-sm" aria-label="Due" onchange="this.form.submit()">
         <option value="">All due dates</option>
         <option value="overdue" {% if due_filter == "overdue" %}selected{% endif %}>Overdue</option>
         <option value="today" {% if due_filter == "today" %}selected{% endif %}>Today</option>
         <option value="upcoming" {% if due_filter == "upcoming" %}selected{% endif %}>Upcoming</option>
         <option value="no_due" {% if due_filter == "no_due" %}selected{% endif %}>No due date</option>
       </select>
-    </div>
-
-    {% if is_admin or is_project_manager %}
-      <div class="col-lg-2 col-md-3">
-        <label class="form-label small text-muted text-uppercase mb-1">Employee</label>
-        <select name="employee" class="form-select">
+      {% if is_admin or is_project_manager %}
+        <select name="employee" class="form-select form-select-sm" aria-label="Employee" onchange="this.form.submit()">
           <option value="">All employees</option>
           {% for employee in employee_choices %}
-            <option value="{{ employee.id }}" {% if employee_filter|add:'' == employee.id|add:'' %}selected{% endif %}>
-              {{ employee.get_full_name|default:employee.username }}
-            </option>
+            <option value="{{ employee.id }}" {% if employee_filter|add:'' == employee.id|add:'' %}selected{% endif %}>{{ employee.get_full_name|default:employee.username }}</option>
           {% endfor %}
         </select>
+      {% endif %}
+      <div class="filter-actions">
+        <button type="submit" class="btn btn-dark btn-sm"><i class="bi bi-funnel"></i>Filter</button>
+        {% if q or status_filter or due_filter or employee_filter %}<a href="{% url 'projects:task_list' %}" class="btn btn-light btn-sm">Clear</a>{% endif %}
       </div>
-    {% endif %}
+    </form>
 
-    <div class="col-lg-2 col-md-12 d-flex gap-2">
-      <button class="btn btn-primary w-100" type="submit">
-        Apply
-      </button>
-      <a href="{% url 'projects:task_list' %}" class="btn btn-outline-secondary w-100">
-        Reset
-      </a>
-    </div>
-
-  </form>
-
-  <!-- Data Table -->
-  <div class="card border-0 shadow-sm">
-    <div class="card-body p-0">
-      <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-          <thead class="table-light">
-            <tr>
-              <th>Task</th>
-              <th>Project</th>
-              <th>Category</th>
-              <th>Assigned To</th>
-              <th>Status</th>
-              <th>Priority</th>
-              <th>Start</th>
-              <th class="text-end">Work</th>
-              <th class="text-end">Actions</th>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Task</th>
+            <th class="d-none d-lg-table-cell">Project</th>
+            <th class="d-none d-xl-table-cell">Assigned to</th>
+            <th>Status</th>
+            <th class="d-none d-md-table-cell">Priority</th>
+            <th class="d-none d-md-table-cell">Start</th>
+            <th class="text-end d-none d-sm-table-cell">Work</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for task in tasks %}
+            <tr data-href="{% url 'projects:task_detail' task.pk %}">
+              <td>
+                <a href="{% url 'projects:task_detail' task.pk %}" class="cell-title">{{ task.name }}</a>
+                <span class="cell-sub">{{ task.get_category_display }} · {{ task.get_department_display }}{% if task.count %} · {{ task.count }}{% endif %}</span>
+                {% if task.directory %}<span class="cell-sub text-truncate" style="max-width: 320px;" title="{{ task.directory }}"><i class="bi bi-folder2"></i> {{ task.directory }}</span>{% endif %}
+              </td>
+              <td class="d-none d-lg-table-cell">
+                {% if is_admin or is_project_manager %}
+                  <a href="{% url 'projects:project_detail' task.project.pk %}">{{ task.project.name }}</a>
+                {% else %}
+                  {{ task.project.name }}
+                {% endif %}
+                <span class="cell-sub">{% if task.project.client %}{{ task.project.client }}{% else %}No client{% endif %}</span>
+              </td>
+              <td class="d-none d-xl-table-cell">
+                {% if task.assigned_to %}{{ task.assigned_to.get_full_name|default:task.assigned_to.username }}{% else %}<span class="text-muted">Unassigned</span>{% endif %}
+              </td>
+              <td><span class="status {% if task.status == 'blocked' %}status-danger{% elif task.status == 'revision' %}status-warning{% elif task.status == 'pending' %}status-muted{% else %}{{ task.status|status_tone }}{% endif %}">{{ task.get_status_display }}</span></td>
+              <td class="d-none d-md-table-cell">{% status_pill task.priority task.get_priority_display %}</td>
+              <td class="d-none d-md-table-cell text-nowrap">
+                {{ task.start_date|date:"d M Y"|default:"—" }}
+                {% if task.due_date %}<span class="cell-sub{% if task.is_overdue %} text-danger fw-semibold{% endif %}">Due {{ task.due_date|date:"d M" }}</span>{% endif %}
+              </td>
+              <td class="text-end tabular d-none d-sm-table-cell">
+                <span class="fw-semibold">{{ task.total_work_hm }}</span>
+                {% if task.estimated_minutes %}<span class="cell-sub">Est. {{ task.estimated_minutes }} min</span>{% endif %}
+              </td>
+              <td class="row-actions">
+                {% if is_admin or is_project_manager %}
+                  <a href="{% url 'projects:task_update' task.pk %}" class="btn btn-light btn-sm" title="Edit" aria-label="Edit"><i class="bi bi-pencil"></i></a>
+                {% endif %}
+                <a href="{% url 'projects:task_detail' task.pk %}" class="btn btn-light btn-sm" title="Open" aria-label="Open"><i class="bi bi-arrow-right"></i></a>
+              </td>
             </tr>
-          </thead>
-
-          <tbody>
-            {% for task in tasks %}
-              <tr>
-                <td>
-                  <a href="{% url 'projects:task_detail' task.pk %}"
-                     class="fw-semibold text-decoration-none">
-                    {{ task.name }}
-                  </a>
-
-                  {% if task.directory %}
-                    <div class="small text-muted text-truncate">
-                      {{ task.directory }}
-                    </div>
-                  {% endif %}
-
-                  {% if task.count %}
-                    <div class="small text-muted">
-                      {{ task.count }}
-                    </div>
-                  {% endif %}
-                </td>
-
-                <td>
-                  <a href="{% url 'projects:project_detail' task.project.pk %}"
-                     class="text-decoration-none">
-                    {{ task.project.name }}
-                  </a>
-
-                  <div class="small text-muted">
-                    Client:
-                    {% if task.project.client %}
-                      {{ task.project.client }}
-                    {% else %}
-                      —
-                    {% endif %}
-                  </div>
-                </td>
-
-                <td>
-                  <span class="badge bg-light text-dark border">
-                    {{ task.get_category_display }}
-                  </span>
-                  <div class="small text-muted mt-1">
-                    {{ task.get_department_display }}
-                  </div>
-                </td>
-
-                <td>
-                  {% if task.assigned_to %}
-                    {{ task.assigned_to.get_full_name|default:task.assigned_to.username }}
-                  {% else %}
-                    <span class="text-muted">Unassigned</span>
-                  {% endif %}
-                </td>
-
-                <td>
-                  {% if task.status == "completed" %}
-                    <span class="badge bg-success">{{ task.get_status_display }}</span>
-                  {% elif task.status == "in_progress" %}
-                    <span class="badge bg-primary">{{ task.get_status_display }}</span>
-                  {% elif task.status == "paused" %}
-                    <span class="badge bg-warning text-dark">{{ task.get_status_display }}</span>
-                  {% elif task.status == "review" %}
-                    <span class="badge bg-info text-dark">{{ task.get_status_display }}</span>
-                  {% elif task.status == "revision" %}
-                    <span class="badge bg-warning text-dark">{{ task.get_status_display }}</span>
-                  {% elif task.status == "blocked" %}
-                    <span class="badge bg-danger">{{ task.get_status_display }}</span>
-                  {% elif task.status == "cancelled" %}
-                    <span class="badge bg-dark">{{ task.get_status_display }}</span>
-                  {% else %}
-                    <span class="badge bg-secondary">{{ task.get_status_display }}</span>
-                  {% endif %}
-                </td>
-
-                <td>
-                  {% if task.priority == "critical" %}
-                    <span class="badge bg-danger">{{ task.get_priority_display }}</span>
-                  {% elif task.priority == "high" %}
-                    <span class="badge bg-warning text-dark">{{ task.get_priority_display }}</span>
-                  {% elif task.priority == "medium" %}
-                    <span class="badge bg-info text-dark">{{ task.get_priority_display }}</span>
-                  {% else %}
-                    <span class="badge bg-light text-muted border">{{ task.get_priority_display }}</span>
-                  {% endif %}
-                </td>
-
-                <td>
-                  {% if task.start_date %}
-                    {{ task.start_date }}
-                  {% else %}
-                    —
-                  {% endif %}
-                </td>
-
-                <td class="text-end">
-                  <span class="fw-semibold">{{ task.total_work_hm }}</span>
-                  {% if task.estimated_minutes %}
-                    <div class="small text-muted">
-                      Est: {{ task.estimated_minutes }} min
-                    </div>
-                  {% endif %}
-                </td>
-
-                <td class="text-end">
-                  <div class="btn-group btn-group-sm">
-                    <a href="{% url 'projects:task_detail' task.pk %}"
-                       class="btn btn-outline-secondary">
-                      View
-                    </a>
-
-                    {% if is_admin or is_project_manager %}
-                      <a href="{% url 'projects:task_update' task.pk %}"
-                         class="btn btn-outline-primary">
-                        <i class="bi bi-pencil"></i>Edit
-                      </a>
-                    {% endif %}
-                  </div>
-                </td>
-              </tr>
-            {% empty %}
-              <tr>
-                <td colspan="9" class="text-center text-muted py-4">
-                  No tasks found.
-                </td>
-              </tr>
-            {% endfor %}
-          </tbody>
-
-        </table>
-      </div>
+          {% empty %}
+            <tr><td colspan="8">
+              <div class="empty-state"><i class="bi bi-list-check"></i><p class="mb-0">No tasks match these filters.</p></div>
+            </td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
+    {% include "ui/partials/pagination.html" %}
   </div>
-
-  <!-- Pagination -->
-  {% if is_paginated %}
-    <nav aria-label="Task pagination" class="mt-3">
-      <ul class="pagination mb-0">
-
-        {% if page_obj.has_previous %}
-          <li class="page-item">
-            <a class="page-link"
-               href="?page={{ page_obj.previous_page_number }}&q={{ q }}&status={{ status_filter }}&due={{ due_filter }}&employee={{ employee_filter }}">
-              Previous
-            </a>
-          </li>
-        {% endif %}
-
-        <li class="page-item disabled">
-          <span class="page-link">
-            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
-          </span>
-        </li>
-
-        {% if page_obj.has_next %}
-          <li class="page-item">
-            <a class="page-link"
-               href="?page={{ page_obj.next_page_number }}&q={{ q }}&status={{ status_filter }}&due={{ due_filter }}&employee={{ employee_filter }}">
-              Next
-            </a>
-          </li>
-        {% endif %}
-
-      </ul>
-    </nav>
-  {% endif %}
-
 </div>
 {% endblock %}

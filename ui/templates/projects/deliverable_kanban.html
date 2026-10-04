@@ -1,232 +1,127 @@
 {% extends "ui/base.html" %}
-{% load roles_tags %}
+{% load roles_tags ui_tags %}
+
+{% block title %}Deliverable board{% endblock %}
 
 {% block body_class %}kanban-page{% endblock %}
 
 {% block content %}
-<div class="container-fluid py-4">
+{% is_admin request.user as is_admin %}
+{% is_project_manager request.user as is_project_manager %}
+{% is_employee request.user as is_employee %}
 
-  {% is_admin request.user as is_admin %}
-  {% is_project_manager request.user as is_project_manager %}
-  {% is_employee request.user as is_employee %}
-
-  <div class="d-flex justify-content-between align-items-center mb-3">
+<div class="container-fluid">
+  <div class="page-header">
     <div>
-      <h1 class="h3 mb-0">Deliverable Kanban</h1>
-      <small class="text-muted">
-        Pending, In Progress and Delivered only. Review/revision statuses are available in table/detail view.
-      </small>
+      <div class="page-eyebrow"><a href="{% url 'projects:deliverable_list' %}"><i class="bi bi-box-seam"></i> Deliverables</a></div>
+      <h1 class="page-title">Deliverable board</h1>
+      <div class="page-subtitle">Pending, in progress and delivered. Review and revision statuses are in the list and on each deliverable.</div>
     </div>
-
-    <div class="d-flex gap-2">
-      <a href="{% url 'projects:deliverable_list' %}" class="btn btn-outline-secondary btn-sm">
-        Table View
-      </a>
-
+    <div class="page-actions">
+      <div class="segmented" role="group" aria-label="View">
+        <a href="{% url 'projects:deliverable_list' %}"><i class="bi bi-list-ul"></i>List</a>
+        <a href="{% url 'projects:deliverable_kanban' %}" class="active" aria-current="page"><i class="bi bi-kanban"></i>Board</a>
+      </div>
       {% if is_admin or is_project_manager %}
-        <a href="{% url 'projects:deliverable_create' %}" class="btn btn-primary btn-sm">
-          <i class="bi bi-plus-lg"></i>New Deliverable
-        </a>
+        <a href="{% url 'projects:deliverable_create' %}" class="btn btn-dark btn-sm"><i class="bi bi-plus-lg"></i>New deliverable</a>
       {% endif %}
     </div>
   </div>
 
-  <div class="row g-3" id="deliverable-kanban-board">
-
+  <div class="kb-board" id="deliverable-kanban-board">
     {% for status_key, status_label in kanban_status_choices %}
-      <div class="col-lg-4 col-md-6">
-        <div class="card h-100 border-0 shadow-sm">
-
-          <div class="card-header bg-body border-bottom d-flex justify-content-between align-items-center">
-            <strong>{{ status_label }}</strong>
-            <span class="badge bg-light text-muted border">
-              {{ deliverables_by_status|get_item:status_key|length }}
-            </span>
-          </div>
-
-          <div class="card-body p-2 kanban-column"
-               data-kanban-column
-               data-status="{{ status_key }}"
-               style="min-height: 480px;">
-
-            {% for d in deliverables_by_status|get_item:status_key %}
-              <div class="card mb-2 shadow-sm kanban-card"
-                   {% if is_admin or is_project_manager or d.assigned_to_id == request.user.id %}
-                     draggable="true"
-                     data-update-url="{% url 'projects:deliverable_set_status' d.id %}"
-                   {% endif %}
-                   data-type="deliverable"
-                   data-id="{{ d.id }}">
-
-                <div class="card-body p-2">
-
-                  <div class="d-flex justify-content-between gap-2">
-                    <div class="fw-semibold small">
-                      <a href="{% url 'projects:deliverable_detail' d.pk %}" class="text-decoration-none">
-                        {{ d.name }}
-                      </a>
-                    </div>
-
-                    {% if d.status == "paused" %}
-                      <span class="badge bg-warning text-dark">Paused</span>
-                    {% elif d.status == "in_progress" %}
-                      <span class="badge bg-success">Working</span>
-                    {% elif d.status == "waiting_for_tasks" %}
-                      <span class="badge bg-secondary">Waiting</span>
-                    {% endif %}
-                  </div>
-
-                  <div class="small text-muted mt-1">
-                    Project:
-                      {% if is_admin or is_project_manager %}
-                        <a href="{% url 'projects:project_detail' d.project.pk %}" class="text-decoration-none">
-                          {{ d.project.name }}
-                        </a>
-                      {% else %}
-                        {{ d.project.name }}
-                      {% endif %}
-                  </div>
-
-                  <div class="small text-muted">
-                    Assignee:
-                    {% if d.assigned_to %}
-                      {{ d.assigned_to.get_full_name|default:d.assigned_to.username }}
-                    {% else %}
-                      <span class="text-warning">Unassigned</span>
-                    {% endif %}
-                  </div>
-
-                  <div class="d-flex flex-wrap gap-1 mt-2">
-                    <span class="badge bg-light text-dark border">
-                      {{ d.get_category_display }}
-                    </span>
-
-                    <span class="badge bg-light text-dark border">
-                      {{ d.get_department_display }}
-                    </span>
-                    {% if d.version %}
-                      <span class="badge bg-light text-muted border">
-                        v{{ d.version }}
-                      </span>
-                    {% endif %}
-                    <span class="badge
-                      {% if d.priority == 'critical' %}
-                        bg-danger
-                      {% elif d.priority == 'high' %}
-                        bg-warning text-dark
-                      {% elif d.priority == 'medium' %}
-                        bg-info text-dark
-                      {% else %}
-                        bg-light text-muted border
-                      {% endif %}
-                    ">
-                      {{ d.get_priority_display }}
-                    </span>
-                  </div>
-
-                  {% if d.directory %}
-                    <div class="small text-muted mt-2 text-truncate">
-                      Folder: {{ d.directory }}
-                    </div>
-                  {% endif %}
-
-                  {% if d.linked_task_count %}
-                    <div class="mt-2">
-                      <div class="d-flex justify-content-between small text-muted mb-1">
-                        <span>Tasks</span>
-                        <span>{{ d.completed_task_count }}/{{ d.linked_task_count }}</span>
-                      </div>
-
-                      <div class="progress" style="height: 5px;">
-                        <div class="progress-bar
-                          {% if d.task_progress_percent < 30 %}
-                            bg-danger
-                          {% elif d.task_progress_percent < 70 %}
-                            bg-warning
-                          {% else %}
-                            bg-success
-                          {% endif %}"
-                          style="width: {{ d.task_progress_percent }}%;">
-                        </div>
-                      </div>
-                    </div>
-                  {% else %}
-                    <div class="small text-muted mt-2">
-                      No linked tasks
-                    </div>
-                  {% endif %}
-
-                  {% if d.preview_link or d.file_link %}
-                    <div class="small mt-2 d-flex flex-wrap gap-2">
-                      {% if d.preview_link %}
-                        <a href="{{ d.preview_link }}" target="_blank" class="text-decoration-none">
-                          Preview
-                        </a>
-                      {% endif %}
-
-                      {% if d.file_link %}
-                        <a href="{{ d.file_link }}" target="_blank" class="text-decoration-none">
-                          Final File
-                        </a>
-                      {% endif %}
-                    </div>
-                  {% endif %}
-
-                  <div class="d-flex flex-wrap gap-1 mt-2">
-                    {% if d.due_date %}
-                      <span class="badge {% if d.is_overdue %}bg-danger{% else %}bg-light text-muted border{% endif %}">
-                        Due: {{ d.due_date }}
-                      </span>
-                    {% endif %}
-
-                    {% if d.delivered_at %}
-                      <span class="badge bg-success">
-                        Delivered
-                      </span>
-                    {% endif %}
-
-                    {% if d.total_work_seconds %}
-                      <span class="badge bg-light text-muted border">
-                        Work: {{ d.total_work_hm }}
-                      </span>
-                    {% endif %}
-                  </div>
-
-                  {% if status_key == "in_progress" %}
-                    {% if is_admin or is_project_manager or d.assigned_to_id == request.user.id %}
-                      <div class="mt-2">
-                        {% if d.status == "paused" %}
-                          <button type="button"
-                                  class="btn btn-success btn-sm w-100 js-status-button"
-                                  data-update-url="{% url 'projects:deliverable_set_status' d.id %}"
-                                  data-status="in_progress">
-                            Continue
-                          </button>
-                        {% else %}
-                          <button type="button"
-                                  class="btn btn-outline-warning btn-sm w-100 js-status-button"
-                                  data-update-url="{% url 'projects:deliverable_set_status' d.id %}"
-                                  data-status="paused">
-                            Pause
-                          </button>
-                        {% endif %}
-                      </div>
-                    {% endif %}
-                  {% endif %}
-
-                </div>
-              </div>
-            {% empty %}
-              <div class="text-muted small px-2 py-3 text-center">
-                No deliverables.
-              </div>
-            {% endfor %}
-
-          </div>
+      {% with column_items=deliverables_by_status|get_item:status_key %}
+      <section class="kb-col" aria-label="{{ status_label }}">
+        <div class="kb-col-head">
+          <h2 class="kb-col-title"><span class="kb-dot{% if status_key == 'in_progress' %} is-half{% elif status_key == 'delivered' %} is-solid{% endif %}"></span>{{ status_label }}</h2>
+          <span class="kb-count">{{ column_items|length }}</span>
         </div>
-      </div>
-    {% endfor %}
 
+        <div class="kb-col-body kanban-column" data-kanban-column data-status="{{ status_key }}">
+          {% for d in column_items %}
+            <article class="kb-card kanban-card{% if d.is_overdue %} is-overdue{% endif %}"
+                 {% if is_admin or is_project_manager or d.assigned_to_id == request.user.id %}
+                   draggable="true"
+                   data-update-url="{% url 'projects:deliverable_set_status' d.id %}"
+                 {% endif %}
+                 data-type="deliverable"
+                 data-id="{{ d.id }}">
+              <div class="kb-card-top">
+                <a href="{% url 'projects:deliverable_detail' d.pk %}" class="kb-card-title">{{ d.name }}</a>
+                {% if d.status == "paused" %}
+                  <span class="status status-warning">Paused</span>
+                {% elif d.status == "in_progress" %}
+                  <span class="status status-solid">Working</span>
+                {% elif d.status == "waiting_for_tasks" %}
+                  <span class="status status-muted">Waiting</span>
+                {% elif d.delivered_at %}
+                  <span class="status status-solid">Delivered</span>
+                {% endif %}
+              </div>
+
+              <div class="kb-meta">
+                <span><i class="bi bi-kanban"></i>{% if is_admin or is_project_manager %}<a href="{% url 'projects:project_detail' d.project.pk %}">{{ d.project.name }}</a>{% else %}{{ d.project.name }}{% endif %}</span>
+                <span><i class="bi bi-person"></i>{% if d.assigned_to %}{{ d.assigned_to.get_full_name|default:d.assigned_to.username }}{% else %}<span class="text-warning">Unassigned</span>{% endif %}</span>
+                {% if d.directory %}<span title="{{ d.directory }}"><i class="bi bi-folder2"></i>{{ d.directory }}</span>{% endif %}
+              </div>
+
+              <div class="kb-tags">
+                <span class="kb-tag">{{ d.get_category_display }}</span>
+                <span class="kb-tag">{{ d.get_department_display }}</span>
+                {% if d.version %}<span class="kb-tag">v{{ d.version }}</span>{% endif %}
+                <span class="kb-tag{% if d.priority == 'critical' %} is-danger{% elif d.priority == 'high' %} is-warning{% endif %}">{{ d.get_priority_display }}</span>
+              </div>
+
+              {% if d.linked_task_count %}
+                <div class="kb-progress">
+                  <div class="kb-progress-label"><span>Tasks</span><span>{{ d.completed_task_count }}/{{ d.linked_task_count }}</span></div>
+                  <div class="progress"><div class="progress-bar" style="width: {{ d.task_progress_percent }}%;"></div></div>
+                </div>
+              {% else %}
+                <div class="kb-meta"><span><i class="bi bi-list-check"></i>No linked tasks</span></div>
+              {% endif %}
+
+              <div class="kb-foot">
+                {% if d.due_date %}
+                  <span class="{% if d.is_overdue %}text-danger fw-semibold{% endif %}"><i class="bi bi-calendar-event"></i>{% if d.is_overdue %}Overdue · {% endif %}{{ d.due_date|date:"d M Y" }}</span>
+                {% elif d.total_work_seconds %}
+                  <span class="tabular"><i class="bi bi-stopwatch"></i>{{ d.total_work_hm }}</span>
+                {% else %}
+                  <span><i class="bi bi-calendar"></i>No due date</span>
+                {% endif %}
+                {% if d.due_date and d.total_work_seconds %}<span class="tabular"><i class="bi bi-stopwatch"></i>{{ d.total_work_hm }}</span>{% endif %}
+                {% if d.preview_link or d.file_link %}
+                  <span>
+                    {% if d.preview_link %}<a href="{{ d.preview_link }}" target="_blank" rel="noopener">Preview</a>{% endif %}
+                    {% if d.preview_link and d.file_link %}·{% endif %}
+                    {% if d.file_link %}<a href="{{ d.file_link }}" target="_blank" rel="noopener">Final file</a>{% endif %}
+                  </span>
+                {% endif %}
+              </div>
+
+              {% if status_key == "in_progress" %}
+                {% if is_admin or is_project_manager or d.assigned_to_id == request.user.id %}
+                  {% if d.status == "paused" %}
+                    <button type="button"
+                            class="btn btn-dark btn-sm w-100 js-status-button"
+                            data-update-url="{% url 'projects:deliverable_set_status' d.id %}"
+                            data-status="in_progress"><i class="bi bi-play-fill"></i>Continue</button>
+                  {% else %}
+                    <button type="button"
+                            class="btn btn-outline-warning btn-sm w-100 js-status-button"
+                            data-update-url="{% url 'projects:deliverable_set_status' d.id %}"
+                            data-status="paused"><i class="bi bi-pause-fill"></i>Pause</button>
+                  {% endif %}
+                {% endif %}
+              {% endif %}
+            </article>
+          {% empty %}
+            <div class="kb-empty">No deliverables.</div>
+          {% endfor %}
+        </div>
+      </section>
+      {% endwith %}
+    {% endfor %}
   </div>
 </div>
 
@@ -303,16 +198,17 @@ document.querySelectorAll("[data-kanban-column]").forEach((column) => {
   column.addEventListener("dragover", (e) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
-    column.classList.add("bg-light");
+    column.classList.add("is-drop-target");
   });
 
-  column.addEventListener("dragleave", () => {
-    column.classList.remove("bg-light");
+  column.addEventListener("dragleave", (e) => {
+    if (e.relatedTarget && column.contains(e.relatedTarget)) return;
+    column.classList.remove("is-drop-target");
   });
 
   column.addEventListener("drop", (e) => {
     e.preventDefault();
-    column.classList.remove("bg-light");
+    column.classList.remove("is-drop-target");
 
     if (!draggedDeliverableCard) return;
 
@@ -323,12 +219,15 @@ document.querySelectorAll("[data-kanban-column]").forEach((column) => {
 
     if (!updateUrl) return;
 
+    const emptyNote = column.querySelector(".kb-empty");
+    if (emptyNote) emptyNote.hidden = true;
     column.appendChild(card);
 
     postStatus(updateUrl, newStatus)
       .then((data) => {
         if (!data.success) {
           oldParent.appendChild(card);
+          if (emptyNote) emptyNote.hidden = false;
           alert(data.error || "Could not update deliverable status.");
           return;
         }
@@ -338,6 +237,7 @@ document.querySelectorAll("[data-kanban-column]").forEach((column) => {
       .catch((error) => {
         console.error(error);
         oldParent.appendChild(card);
+        if (emptyNote) emptyNote.hidden = false;
         alert("Error updating deliverable status.");
       });
   });

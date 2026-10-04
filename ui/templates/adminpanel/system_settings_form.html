@@ -1,65 +1,31 @@
-{% extends "ui/base.html" %}
+{% extends "ui/form_page.html" %}
+{% load ui_tags %}
 
-{% block content %}
-<div class="container-fluid py-3">
+{% block title %}System settings{% endblock %}
+{% block form_eyebrow %}<i class="bi bi-shield-lock"></i> Admin{% endblock %}
+{% block form_title %}System settings{% endblock %}
+{% block form_subtitle %}Global configuration for the whole app.{% endblock %}
 
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <div>
-      <h4 class="mb-0">System Settings</h4>
-      <div class="text-muted small">Manage global application configuration.</div>
+{% block form_body %}
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-building"></i>Company</h2>
+    <div class="row g-3">
+      {% field form.site_name "col-md-6" %}
+      {% field form.company_name "col-md-6" %}
+      {% field form.support_email "col-md-6" %}
     </div>
-  </div>
+  </section>
 
-  <div class="card border-0 shadow-sm">
-    <div class="card-body">
-      <form method="post" novalidate>
-        {% csrf_token %}
-
-        {% if form.non_field_errors %}
-          <div class="alert alert-danger">
-            {{ form.non_field_errors }}
-          </div>
-        {% endif %}
-
-        <div class="row g-3">
-          {% for field in form %}
-            <div class="col-12 col-md-6">
-              {% if field.field.widget.input_type == "checkbox" %}
-                <div class="form-check mt-4">
-                  {{ field }}
-                  <label class="form-check-label" for="{{ field.id_for_label }}">
-                    {{ field.label }}
-                  </label>
-                </div>
-              {% else %}
-                <label class="form-label" for="{{ field.id_for_label }}">
-                  {{ field.label }}
-                </label>
-                {{ field }}
-              {% endif %}
-
-              {% if field.help_text %}
-                <div class="form-text">{{ field.help_text }}</div>
-              {% endif %}
-
-              {% if field.errors %}
-                <div class="text-danger small mt-1">
-                  {{ field.errors|striptags }}
-                </div>
-              {% endif %}
-            </div>
-          {% endfor %}
-        </div>
-
-        <div class="d-flex justify-content-end gap-2 mt-4">
-          <button type="submit" class="btn btn-dark">
-            Save Settings
-          </button>
-        </div>
-
-      </form>
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-globe2"></i>Regional</h2>
+    <div class="row g-3">
+      {% field form.default_currency "col-md-6" %}
+      {% field form.timezone "col-md-6" %}
+      {% field form.allow_self_registration "col-12" %}
     </div>
-  </div>
+  </section>
+{% endblock %}
 
-</div>
+{% block form_actions %}
+  <button type="submit" class="btn btn-dark"><i class="bi bi-check2"></i>Save settings</button>
 {% endblock %}

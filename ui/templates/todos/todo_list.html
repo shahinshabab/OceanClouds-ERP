@@ -1,309 +1,168 @@
 {% extends "ui/base.html" %}
-{% load roles_tags %}
+{% load roles_tags ui_tags %}
 
 {% block title %}To-Dos{% endblock %}
 {% block live_topics %}todo{% endblock %}
 
 {% block content %}
-<div class="container py-3">
-
-  <div class="d-flex justify-content-between align-items-start mb-3">
+<div class="container">
+  <div class="page-header">
     <div>
-      <h2 class="fw-semibold mb-1">To-Dos</h2>
-      <div class="text-muted small">
-        Manage follow-ups, project reminders, and personal tasks.
-      </div>
+      <div class="page-eyebrow"><i class="bi bi-check2-square"></i> Work</div>
+      <h1 class="page-title">To-dos</h1>
+      <div class="page-subtitle">Follow-ups, project reminders and personal tasks.</div>
     </div>
-
-    <a href="{% url 'todos:todo_create' %}" class="btn btn-success btn-sm">
-      <i class="bi bi-plus-lg"></i>New To-Do
-    </a>
+    <div class="page-actions">
+      <a href="{% url 'todos:todo_create' %}" class="btn btn-dark btn-sm"><i class="bi bi-plus-lg"></i>New to-do</a>
+    </div>
   </div>
 
   <div class="row g-3 mb-4">
-    <div class="col-md-2">
-      <div class="card shadow-sm border-0">
-        <div class="card-body">
-          <div class="text-muted small">Total</div>
-          <div class="fs-5 fw-semibold">{{ summary.total }}</div>
-        </div>
+    <div class="col-6 col-md-4 col-xl-2">
+      <div class="card stat-card dark">
+        <div class="stat-label">Total <i class="bi bi-list-check"></i></div>
+        <div class="stat-value">{{ summary.total }}</div>
       </div>
     </div>
-
-    <div class="col-md-2">
-      <div class="card shadow-sm border-0">
-        <div class="card-body">
-          <div class="text-muted small">Pending</div>
-          <div class="fs-5 fw-semibold">{{ summary.pending }}</div>
-        </div>
+    <div class="col-6 col-md-4 col-xl-2">
+      <div class="card stat-card">
+        <div class="stat-label">Pending <i class="bi bi-hourglass"></i></div>
+        <div class="stat-value">{{ summary.pending }}</div>
       </div>
     </div>
-
-    <div class="col-md-2">
-      <div class="card shadow-sm border-0">
-        <div class="card-body">
-          <div class="text-muted small">In Progress</div>
-          <div class="fs-5 fw-semibold">{{ summary.in_progress }}</div>
-        </div>
+    <div class="col-6 col-md-4 col-xl-2">
+      <div class="card stat-card">
+        <div class="stat-label">In progress <i class="bi bi-arrow-repeat"></i></div>
+        <div class="stat-value">{{ summary.in_progress }}</div>
       </div>
     </div>
-
-    <div class="col-md-2">
-      <div class="card shadow-sm border-0">
-        <div class="card-body">
-          <div class="text-muted small">Today</div>
-          <div class="fs-5 fw-semibold">{{ summary.today }}</div>
-        </div>
+    <div class="col-6 col-md-4 col-xl-2">
+      <div class="card stat-card">
+        <div class="stat-label">Due today <i class="bi bi-calendar-event"></i></div>
+        <div class="stat-value">{{ summary.today }}</div>
       </div>
     </div>
-
-    <div class="col-md-2">
-      <div class="card shadow-sm border-0">
-        <div class="card-body">
-          <div class="text-muted small">Overdue</div>
-          <div class="fs-5 fw-semibold text-danger">{{ summary.overdue }}</div>
-        </div>
+    <div class="col-6 col-md-4 col-xl-2">
+      <div class="card stat-card">
+        <div class="stat-label">Overdue <i class="bi bi-exclamation-circle"></i></div>
+        <div class="stat-value">{{ summary.overdue }}</div>
       </div>
     </div>
-
-    <div class="col-md-2">
-      <div class="card shadow-sm border-0">
-        <div class="card-body">
-          <div class="text-muted small">Completed</div>
-          <div class="fs-5 fw-semibold text-success">{{ summary.completed }}</div>
-        </div>
+    <div class="col-6 col-md-4 col-xl-2">
+      <div class="card stat-card">
+        <div class="stat-label">Completed <i class="bi bi-check2-circle"></i></div>
+        <div class="stat-value">{{ summary.completed }}</div>
       </div>
     </div>
   </div>
 
-  <form method="get" class="card shadow-sm border-0 mb-4">
-    <div class="card-body">
-      <div class="row g-2 align-items-end">
-
-        <div class="col-md-3">
-          <label class="form-label small text-muted mb-1">Search</label>
-          <input
-            type="text"
-            name="q"
-            value="{{ q }}"
-            class="form-control form-control-sm"
-            placeholder="Search to-dos..."
-          >
-        </div>
-
-        <div class="col-md-2">
-          <label class="form-label small text-muted mb-1">Status</label>
-          <select name="status" class="form-select form-select-sm">
-            <option value="">All</option>
-            {% for value, label in status_choices %}
-              <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>
-                {{ label }}
-              </option>
-            {% endfor %}
-          </select>
-        </div>
-
-        <div class="col-md-2">
-          <label class="form-label small text-muted mb-1">Priority</label>
-          <select name="priority" class="form-select form-select-sm">
-            <option value="">All</option>
-            {% for value, label in priority_choices %}
-              <option value="{{ value }}" {% if selected_priority == value %}selected{% endif %}>
-                {{ label }}
-              </option>
-            {% endfor %}
-          </select>
-        </div>
-
-        <div class="col-md-2">
-          <label class="form-label small text-muted mb-1">Assigned</label>
-          <select name="assigned" class="form-select form-select-sm">
-            <option value="">All</option>
-            <option value="me" {% if selected_assigned == "me" %}selected{% endif %}>
-              Assigned to me
-            </option>
-          </select>
-        </div>
-
-        <div class="col-md-2">
-          <label class="form-label small text-muted mb-1">Due</label>
-          <select name="due" class="form-select form-select-sm">
-            <option value="">All</option>
-            <option value="today" {% if selected_due == "today" %}selected{% endif %}>Today</option>
-            <option value="overdue" {% if selected_due == "overdue" %}selected{% endif %}>Overdue</option>
-            <option value="upcoming" {% if selected_due == "upcoming" %}selected{% endif %}>Upcoming</option>
-          </select>
-        </div>
-
-        <div class="col-md-1 d-grid">
-          <button type="submit" class="btn btn-primary btn-sm">
-            Apply
-          </button>
-        </div>
-
-      </div>
+  <div class="card">
+    <div class="list-tabs">
+      <a href="?q={{ q|urlencode }}&amp;priority={{ selected_priority }}&amp;assigned={{ selected_assigned }}&amp;due={{ selected_due }}" class="{% if not selected_status %}active{% endif %}">All</a>
+      {% for value, label in status_choices %}
+        <a href="?q={{ q|urlencode }}&amp;priority={{ selected_priority }}&amp;assigned={{ selected_assigned }}&amp;due={{ selected_due }}&amp;status={{ value }}" class="{% if selected_status == value %}active{% endif %}">{{ label }}</a>
+      {% endfor %}
     </div>
-  </form>
+    <form method="get" class="filter-bar">
+      <input type="hidden" name="status" value="{{ selected_status }}">
+      <div class="search-input" style="flex-basis: 260px">
+        <i class="bi bi-search"></i>
+        <input type="search" name="q" value="{{ q }}" placeholder="Title, project, client or deal" class="form-control form-control-sm" aria-label="Search">
+      </div>
+      <select name="priority" class="form-select form-select-sm" aria-label="Priority" onchange="this.form.submit()">
+        <option value="">Any priority</option>
+        {% for value, label in priority_choices %}
+          <option value="{{ value }}" {% if selected_priority == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <select name="assigned" class="form-select form-select-sm" aria-label="Assigned" onchange="this.form.submit()">
+        <option value="">Anyone</option>
+        <option value="me" {% if selected_assigned == "me" %}selected{% endif %}>Assigned to me</option>
+      </select>
+      <select name="due" class="form-select form-select-sm" aria-label="Due" onchange="this.form.submit()">
+        <option value="">Any due date</option>
+        <option value="today" {% if selected_due == "today" %}selected{% endif %}>Due today</option>
+        <option value="overdue" {% if selected_due == "overdue" %}selected{% endif %}>Overdue</option>
+        <option value="upcoming" {% if selected_due == "upcoming" %}selected{% endif %}>Upcoming</option>
+      </select>
+      <div class="filter-actions">
+        <button type="submit" class="btn btn-dark btn-sm"><i class="bi bi-funnel"></i>Filter</button>
+        {% if q or selected_status or selected_priority or selected_assigned or selected_due %}<a href="?" class="btn btn-light btn-sm">Clear</a>{% endif %}
+      </div>
+    </form>
 
-  <div class="card shadow-sm border-0">
     <div class="table-responsive">
-      <table class="table table-sm align-middle mb-0">
-        <thead class="table-light">
+      <table class="table table-hover align-middle mb-0">
+        <thead>
           <tr>
-            <th>Title</th>
-            <th>Assigned</th>
+            <th>To-do</th>
             <th>Status</th>
-            <th>Priority</th>
-            <th>Due Date</th>
-            <th>Linked To</th>
-            <th class="text-end">Actions</th>
+            <th class="d-none d-md-table-cell">Priority</th>
+            <th class="d-none d-md-table-cell">Due</th>
+            <th class="d-none d-lg-table-cell">Assigned</th>
+            <th></th>
           </tr>
         </thead>
-
         <tbody>
           {% for todo in todos %}
-            <tr>
+            <tr data-href="{% url 'todos:todo_detail' todo.pk %}">
               <td>
-                <a href="{% url 'todos:todo_detail' todo.pk %}" class="text-decoration-none fw-semibold">
-                  {{ todo.title }}
-                </a>
-
-                {% if todo.is_overdue %}
-                  <span class="badge bg-danger-subtle text-danger-emphasis ms-1">
-                    Overdue
-                  </span>
-                {% endif %}
+                <a href="{% url 'todos:todo_detail' todo.pk %}" class="cell-title">{{ todo.title }}</a>
+                <span class="cell-sub">
+                  {% if todo.project %}Project · {{ todo.project }}
+                  {% elif todo.task %}Task · {{ todo.task }}
+                  {% elif todo.deliverable %}Deliverable · {{ todo.deliverable }}
+                  {% elif todo.event %}Event · {{ todo.event }}
+                  {% elif todo.checklist_item %}Checklist · {{ todo.checklist_item }}
+                  {% elif todo.client %}Client · {{ todo.client }}
+                  {% elif todo.lead %}Lead · {{ todo.lead }}
+                  {% elif todo.deal %}Deal · {{ todo.deal }}
+                  {% elif todo.proposal %}Proposal · {{ todo.proposal }}
+                  {% elif todo.contract %}Contract · {{ todo.contract }}
+                  {% elif todo.invoice %}Invoice · {{ todo.invoice }}
+                  {% else %}Not linked{% endif %}
+                </span>
               </td>
-
-              <td>{{ todo.assigned_to|default:"-" }}</td>
-
-              <td>
-                {% if todo.status == "completed" %}
-                  <span class="badge bg-success-subtle text-success-emphasis">
-                    {{ todo.get_status_display }}
-                  </span>
-                {% elif todo.status == "cancelled" %}
-                  <span class="badge bg-secondary-subtle text-secondary-emphasis">
-                    {{ todo.get_status_display }}
-                  </span>
-                {% elif todo.status == "in_progress" %}
-                  <span class="badge bg-primary-subtle text-primary-emphasis">
-                    {{ todo.get_status_display }}
-                  </span>
+              <td>{% status_pill todo.status todo.get_status_display %}</td>
+              <td class="d-none d-md-table-cell">{% status_pill todo.priority todo.get_priority_display %}</td>
+              <td class="d-none d-md-table-cell text-nowrap">
+                {{ todo.due_date|date:"d M Y"|default:"—" }}
+                {% if todo.is_overdue %}<span class="cell-sub">{% status_pill "overdue" "Overdue" %}</span>{% endif %}
+              </td>
+              <td class="d-none d-lg-table-cell">{{ todo.assigned_to|default:"—" }}</td>
+              <td class="row-actions">
+                {% if todo.status != "completed" %}
+                  <form method="post" action="{% url 'todos:todo_complete' todo.pk %}" class="d-inline m-0">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-outline-secondary btn-sm" title="Mark completed"><i class="bi bi-check2"></i>Done</button>
+                  </form>
                 {% else %}
-                  <span class="badge bg-warning-subtle text-warning-emphasis">
-                    {{ todo.get_status_display }}
-                  </span>
+                  <form method="post" action="{% url 'todos:todo_reopen' todo.pk %}" class="d-inline m-0">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-outline-secondary btn-sm" title="Reopen"><i class="bi bi-arrow-counterclockwise"></i>Reopen</button>
+                  </form>
                 {% endif %}
-              </td>
-
-              <td>{{ todo.get_priority_display }}</td>
-
-              <td>
-                {% if todo.due_date %}
-                  {{ todo.due_date|date:"d M Y" }}
-                {% else %}
-                  -
+                <a href="{% url 'todos:todo_update' todo.pk %}" class="btn btn-light btn-sm" title="Edit" aria-label="Edit"><i class="bi bi-pencil"></i></a>
+                {% can_delete_todo request.user todo as todo_deletable %}
+                {% if todo_deletable %}
+                  <a href="{% url 'todos:todo_delete' todo.pk %}" class="btn btn-light btn-sm" title="Delete" aria-label="Delete"><i class="bi bi-trash"></i></a>
                 {% endif %}
-              </td>
-
-              <td>
-                {% if todo.project %}
-                  Project: {{ todo.project }}
-                {% elif todo.task %}
-                  Task: {{ todo.task }}
-                {% elif todo.deliverable %}
-                  Deliverable: {{ todo.deliverable }}
-                {% elif todo.event %}
-                  Event: {{ todo.event }}
-                {% elif todo.checklist_item %}
-                  Checklist: {{ todo.checklist_item }}
-                {% elif todo.client %}
-                  Client: {{ todo.client }}
-                {% elif todo.lead %}
-                  Lead: {{ todo.lead }}
-                {% elif todo.deal %}
-                  Deal: {{ todo.deal }}
-                {% elif todo.proposal %}
-                  Proposal: {{ todo.proposal }}
-                {% elif todo.contract %}
-                  Contract: {{ todo.contract }}
-                {% elif todo.invoice %}
-                  Invoice: {{ todo.invoice }}
-                {% else %}
-                  -
-                {% endif %}
-              </td>
-
-              <td class="text-end">
-                <div class="btn-group btn-group-sm">
-
-                  {% if todo.status != "completed" %}
-                    <form method="post" action="{% url 'todos:todo_complete' todo.pk %}">
-                      {% csrf_token %}
-                      <button type="submit" class="btn btn-outline-success">
-                        Done
-                      </button>
-                    </form>
-                  {% else %}
-                    <form method="post" action="{% url 'todos:todo_reopen' todo.pk %}">
-                      {% csrf_token %}
-                      <button type="submit" class="btn btn-outline-secondary">
-                        Reopen
-                      </button>
-                    </form>
-                  {% endif %}
-
-                  <a href="{% url 'todos:todo_update' todo.pk %}" class="btn btn-outline-primary">
-                    <i class="bi bi-pencil"></i>Edit
-                  </a>
-
-                  {% can_delete_todo request.user todo as todo_deletable %}
-                  {% if todo_deletable %}
-                  <a href="{% url 'todos:todo_delete' todo.pk %}" class="btn btn-outline-danger">
-                    <i class="bi bi-trash"></i>Delete
-                  </a>
-                  {% endif %}
-                </div>
               </td>
             </tr>
           {% empty %}
-            <tr>
-              <td colspan="7" class="text-center text-muted py-4">
-                No to-dos found.
-              </td>
-            </tr>
+            <tr><td colspan="6">
+              <div class="empty-state">
+                <i class="bi bi-check2-square"></i>No to-dos found.
+                {% if not q and not selected_status and not selected_priority and not selected_assigned and not selected_due %}
+                  <div><a href="{% url 'todos:todo_create' %}" class="btn btn-dark btn-sm"><i class="bi bi-plus-lg"></i>Add a to-do</a></div>
+                {% endif %}
+              </div>
+            </td></tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
-
-    {% if is_paginated %}
-      <div class="card-footer bg-white">
-        <nav>
-          <ul class="pagination pagination-sm mb-0 justify-content-end">
-            {% if page_obj.has_previous %}
-              <li class="page-item">
-                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
-              </li>
-            {% endif %}
-
-            <li class="page-item active">
-              <span class="page-link">
-                Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
-              </span>
-            </li>
-
-            {% if page_obj.has_next %}
-              <li class="page-item">
-                <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
-              </li>
-            {% endif %}
-          </ul>
-        </nav>
-      </div>
-    {% endif %}
+    {% include "ui/partials/pagination.html" %}
   </div>
-
 </div>
 {% endblock %}

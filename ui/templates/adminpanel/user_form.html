@@ -1,77 +1,44 @@
-{% extends "ui/base.html" %}
+{% extends "ui/form_page.html" %}
+{% load ui_tags %}
 
-{% block content %}
-<div class="container-fluid py-3">
+{% block title %}{% if object %}Edit user{% else %}New user{% endif %}{% endblock %}
+{% block form_eyebrow %}<i class="bi bi-shield-lock"></i> Admin · Users{% endblock %}
+{% block form_title %}{% if object %}Edit {{ object.get_full_name|default:object.username }}{% else %}New user{% endif %}{% endblock %}
+{% block form_subtitle %}{% if object %}Update the account and its access roles.{% else %}Create a login for a team member.{% endif %}{% endblock %}
 
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <div>
-      {% if object %}
-        <h4 class="mb-0">Edit User</h4>
-        <div class="text-muted small">Update user account and access roles.</div>
-      {% else %}
-        <h4 class="mb-0">Create User</h4>
-        <div class="text-muted small">Create a new system user.</div>
-      {% endif %}
+{% block form_body %}
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-person"></i>Account</h2>
+    <div class="row g-3">
+      {% field form.username "col-md-6" %}
+      {% field form.email "col-md-6" %}
+      {% field form.first_name "col-md-6" %}
+      {% field form.last_name "col-md-6" %}
     </div>
+  </section>
 
-    <a href="{% url 'adminpanel:user_list' %}" class="btn btn-outline-dark">
-      <i class="bi bi-arrow-left"></i>Back
-    </a>
-  </div>
-
-  <div class="card border-0 shadow-sm">
-    <div class="card-body">
-      <form method="post" novalidate>
-        {% csrf_token %}
-
-        {% if form.non_field_errors %}
-          <div class="alert alert-danger">
-            {{ form.non_field_errors }}
-          </div>
-        {% endif %}
-
-        <div class="row g-3">
-          {% for field in form %}
-            <div class="col-12 col-md-6">
-              {% if field.field.widget.input_type == "checkbox" %}
-                <div class="form-check mt-4">
-                  {{ field }}
-                  <label class="form-check-label" for="{{ field.id_for_label }}">
-                    {{ field.label }}
-                  </label>
-                </div>
-              {% else %}
-                <label class="form-label" for="{{ field.id_for_label }}">
-                  {{ field.label }}
-                </label>
-                {{ field }}
-              {% endif %}
-
-              {% if field.help_text %}
-                <div class="form-text">{{ field.help_text }}</div>
-              {% endif %}
-
-              {% if field.errors %}
-                <div class="text-danger small mt-1">
-                  {{ field.errors|striptags }}
-                </div>
-              {% endif %}
-            </div>
-          {% endfor %}
-        </div>
-
-        <div class="d-flex justify-content-end gap-2 mt-4">
-          <a href="{% url 'adminpanel:user_list' %}" class="btn btn-light">
-            Cancel
-          </a>
-          <button type="submit" class="btn btn-dark">
-            Save User
-          </button>
-        </div>
-
-      </form>
+  {% if form.password1 or form.password %}
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-key"></i>Password</h2>
+    <div class="row g-3">
+      {% field form.password1 "col-md-6" %}
+      {% field form.password2 "col-md-6" %}
+      {% field form.usable_password "col-12" %}
+      {% field form.password "col-12" %}
     </div>
-  </div>
+  </section>
+  {% endif %}
 
-</div>
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-people"></i>Access</h2>
+    <div class="row g-3">
+      {% field form.groups "col-12" label="Roles" %}
+      {% field form.is_active "col-md-4" %}
+      {% field form.is_staff "col-md-4" %}
+      {% field form.is_superuser "col-md-4" %}
+    </div>
+  </section>
 {% endblock %}
+
+{% block cancel_url %}{% url 'adminpanel:user_list' %}{% endblock %}
+{% block submit_label %}Save user{% endblock %}

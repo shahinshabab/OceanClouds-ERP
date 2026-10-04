@@ -1,246 +1,137 @@
 {% extends "ui/base.html" %}
-{% load roles_tags %}
+{% load roles_tags ui_tags %}
 
-{% block title %}WhatsApp Template – {{ template.name }}{% endblock %}
+{% block title %}{{ template.name }}{% endblock %}
 
 {% block content %}
 {% has_sales_access request.user as can_manage_messaging %}
 
-<div class="container py-3 max-w-3xl">
-
-  <!-- Header -->
-  <div class="d-flex justify-content-between align-items-start mb-4">
-    <div>
-      <h2 class="fw-semibold mb-1">{{ template.name }}</h2>
-
-      <div class="d-flex flex-wrap gap-2">
-        <span class="badge bg-light text-dark">
-          {{ template.get_type_display }}
-        </span>
-
-        <span class="badge bg-light text-dark">
-          {{ template.get_provider_display }}
-        </span>
-
-        {% if template.is_active %}
-          <span class="badge bg-success">Active</span>
-        {% else %}
-          <span class="badge bg-secondary">Inactive</span>
-        {% endif %}
-
-        {% if template.is_default_for_type %}
-          <span class="badge bg-primary">Default</span>
-        {% endif %}
+<div class="container">
+  <div class="page-header">
+    <div class="min-w-0">
+      <div class="page-eyebrow"><a href="{% url 'messaging:whatsapp_template_list' %}"><i class="bi bi-whatsapp"></i> WhatsApp templates</a></div>
+      <h1 class="page-title">{{ template.name }}</h1>
+      <div class="page-subtitle d-flex flex-wrap align-items-center gap-2">
+        {% if template.is_active %}<span class="status status-solid">Active</span>{% else %}<span class="status status-muted">Inactive</span>{% endif %}
+        {% if template.is_default_for_type %}<span class="status status-outline">Default for type</span>{% endif %}
+        <span>{{ template.get_type_display }}</span>
+        <span>· {{ template.get_provider_display }}</span>
       </div>
     </div>
 
-    {% if can_manage_messaging %}
-      <div class="d-flex gap-2">
-        <a href="{% url 'messaging:whatsapp_template_preview' template.pk %}"
-           class="btn btn-outline-info btn-sm">
-          <i class="bi bi-eye"></i>Preview
-        </a>
-
-        <a href="{% url 'messaging:whatsapp_template_update' template.pk %}"
-           class="btn btn-primary btn-sm">
-          <i class="bi bi-pencil"></i>Edit
-        </a>
-
-        <a href="{% url 'messaging:whatsapp_template_delete' template.pk %}"
-           class="btn btn-outline-danger btn-sm">
-          <i class="bi bi-trash"></i>Delete
-        </a>
-      </div>
-    {% endif %}
+    <div class="page-actions">
+      <a href="{% url 'messaging:whatsapp_template_preview' template.pk %}" class="btn btn-outline-dark btn-sm"><i class="bi bi-eye"></i>Preview</a>
+      {% if can_manage_messaging %}
+        <a href="{% url 'messaging:whatsapp_template_update' template.pk %}" class="btn btn-dark btn-sm"><i class="bi bi-pencil"></i>Edit</a>
+        <div class="dropdown">
+          <button class="btn btn-outline-secondary btn-sm btn-icon" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="More actions">
+            <i class="bi bi-three-dots"></i>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><a class="dropdown-item" href="{% url 'messaging:whatsapp_log_list' %}"><i class="bi bi-journal-text"></i>All send logs</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item text-danger" href="{% url 'messaging:whatsapp_template_delete' template.pk %}"><i class="bi bi-trash"></i>Delete template</a></li>
+          </ul>
+        </div>
+      {% endif %}
+    </div>
   </div>
 
-  <!-- Main Info -->
-  <div class="card shadow-sm mb-3">
-    <div class="card-body">
+  {% if not template.is_active %}
+    <div class="alert alert-warning small d-flex"><i class="bi bi-exclamation-triangle"></i><div>This template is inactive. It will not be used when sending WhatsApp messages.</div></div>
+  {% endif %}
 
-      <div class="row gy-3">
-
-        <div class="col-md-4">
-          <div class="text-uppercase text-muted small">Slug</div>
-          <div class="fw-semibold">{{ template.slug }}</div>
+  <div class="row g-4">
+    <div class="col-xl-8">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h2 class="section-title"><i class="bi bi-chat-text"></i>Message</h2>
+          <a href="{% url 'messaging:whatsapp_template_preview' template.pk %}" class="btn btn-light btn-sm"><i class="bi bi-eye"></i>Rendered preview</a>
         </div>
+        <div class="card-body">
+          <dl class="info-grid">
+            {% if template.header_text %}
+              <div class="span-all"><dt>Header</dt><dd>{{ template.header_text }}</dd></div>
+            {% endif %}
+            <div class="span-all">
+              <dt>Body</dt>
+              <dd class="fw-normal"><div class="border rounded-3 p-3 bg-light">{{ template.body_text|linebreaksbr }}</div></dd>
+            </div>
+            {% if template.footer_text %}
+              <div class="span-all"><dt>Footer</dt><dd class="text-muted fw-normal">{{ template.footer_text }}</dd></div>
+            {% endif %}
+          </dl>
+        </div>
+      </div>
 
-        <div class="col-md-4">
-          <div class="text-uppercase text-muted small">Provider Template Name</div>
-          <div class="fw-semibold">
-            <code>{{ template.provider_template_name }}</code>
+      <div class="card mb-4">
+        <div class="card-header">
+          <h2 class="section-title"><i class="bi bi-journal-text"></i>Recent sends <span class="text-muted fw-normal">{{ logs|length }}</span></h2>
+          <a href="{% url 'messaging:whatsapp_log_list' %}" class="btn btn-light btn-sm">All logs</a>
+        </div>
+        {% if logs %}
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead>
+                <tr><th>To</th><th>Status</th><th class="d-none d-md-table-cell">Sent</th></tr>
+              </thead>
+              <tbody>
+                {% for log in logs %}
+                  <tr>
+                    <td>
+                      <span class="fw-semibold tabular">{{ log.to_number }}</span>
+                      {% if log.error_message %}<span class="cell-sub text-danger">{{ log.error_message|truncatechars:80 }}</span>{% endif %}
+                    </td>
+                    <td>{% status_pill log.status log.get_status_display %}</td>
+                    <td class="d-none d-md-table-cell text-nowrap">{{ log.sent_at|date:"d M Y, H:i"|default:"—" }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
           </div>
-        </div>
-
-        <div class="col-md-4">
-          <div class="text-uppercase text-muted small">Language</div>
-          <div class="fw-semibold">{{ template.language_code }}</div>
-        </div>
-
-        <div class="col-md-4">
-          <div class="text-uppercase text-muted small">Category</div>
-          <div class="fw-semibold">{{ template.get_category_display }}</div>
-        </div>
-
-        <div class="col-md-4">
-          <div class="text-uppercase text-muted small">Provider</div>
-          <div class="fw-semibold">{{ template.get_provider_display }}</div>
-        </div>
-
-        <div class="col-md-4">
-          <div class="text-uppercase text-muted small">Type</div>
-          <div class="fw-semibold">{{ template.get_type_display }}</div>
-        </div>
-
+        {% else %}
+          <div class="empty-state"><i class="bi bi-send"></i>No messages sent with this template yet.</div>
+        {% endif %}
       </div>
-
-    </div>
-  </div>
-
-  <!-- Message Preview -->
-  <div class="card shadow-sm mb-3">
-    <div class="card-header bg-white">
-      <span class="fw-semibold small text-uppercase text-muted">
-        Template Preview Text
-      </span>
     </div>
 
-    <div class="card-body">
-
-      {% if template.header_text %}
-        <div class="mb-3">
-          <div class="text-uppercase text-muted small">Header</div>
-          <div class="fw-semibold">{{ template.header_text }}</div>
-        </div>
-      {% endif %}
-
-      <div class="mb-3">
-        <div class="text-uppercase text-muted small">Body</div>
-        <div class="border rounded-3 p-3 bg-light">
-          {{ template.body_text|linebreaksbr }}
+    <div class="col-xl-4">
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-info-circle"></i>Details</h2></div>
+        <div class="card-body">
+          <ul class="info-list">
+            <li><span class="k">Slug</span><span class="v">{{ template.slug }}</span></li>
+            <li><span class="k">Provider template</span><span class="v"><code>{{ template.provider_template_name }}</code></span></li>
+            <li><span class="k">Provider</span><span class="v">{{ template.get_provider_display }}</span></li>
+            <li><span class="k">Type</span><span class="v">{{ template.get_type_display }}</span></li>
+            <li><span class="k">Category</span><span class="v">{{ template.get_category_display }}</span></li>
+            <li><span class="k">Language</span><span class="v">{{ template.language_code }}</span></li>
+          </ul>
         </div>
       </div>
 
-      {% if template.footer_text %}
-        <div>
-          <div class="text-uppercase text-muted small">Footer</div>
-          <div class="fw-semibold">{{ template.footer_text }}</div>
-        </div>
-      {% endif %}
-
-    </div>
-  </div>
-
-  <!-- Variable Order -->
-  <div class="card shadow-sm mb-3">
-    <div class="card-header bg-white">
-      <span class="fw-semibold small text-uppercase text-muted">
-        Variable Order
-      </span>
-    </div>
-
-    <div class="card-body">
-      {% if template.variable_order %}
-        <ol class="mb-0">
-          {% for item in template.variable_order %}
-            <li>
-              <code>{{ item }}</code>
-            </li>
-          {% endfor %}
-        </ol>
-      {% else %}
-        <p class="text-muted mb-0">
-          No variables configured.
-        </p>
-      {% endif %}
-    </div>
-  </div>
-
-  <!-- Notes -->
-  <div class="card shadow-sm mb-3">
-    <div class="card-header bg-white">
-      <span class="fw-semibold small text-uppercase text-muted">
-        Notes
-      </span>
-    </div>
-
-    <div class="card-body">
-      {% if template.notes %}
-        {{ template.notes|linebreaksbr }}
-      {% else %}
-        <span class="text-muted">—</span>
-      {% endif %}
-    </div>
-  </div>
-
-  <!-- Recent Logs -->
-  <div class="card shadow-sm mb-4">
-    <div class="card-header bg-white d-flex justify-content-between align-items-center">
-      <span class="fw-semibold small text-uppercase text-muted">
-        Recent Send Logs
-      </span>
-
-      <a href="{% url 'messaging:whatsapp_log_list' %}" class="btn btn-sm btn-outline-secondary">
-        View All Logs
-      </a>
-    </div>
-
-    <div class="card-body p-0">
-      {% if logs %}
-        <div class="table-responsive">
-          <table class="table table-sm align-middle mb-0">
-            <thead class="table-light">
-              <tr>
-                <th>To</th>
-                <th>Status</th>
-                <th>Sent At</th>
-                <th>Error</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for log in logs %}
-                <tr>
-                  <td>{{ log.to_number }}</td>
-                  <td>
-                    {% if log.status == "sent" %}
-                      <span class="badge bg-success">Sent</span>
-                    {% elif log.status == "failed" %}
-                      <span class="badge bg-danger">Failed</span>
-                    {% else %}
-                      <span class="badge bg-secondary">Skipped</span>
-                    {% endif %}
-                  </td>
-                  <td>{{ log.sent_at|default:"—" }}</td>
-                  <td>
-                    {% if log.error_message %}
-                      <span class="text-danger small">{{ log.error_message|truncatechars:80 }}</span>
-                    {% else %}
-                      —
-                    {% endif %}
-                  </td>
-                </tr>
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-braces"></i>Variable order <span class="text-muted fw-normal">{{ template.variable_order|length }}</span></h2></div>
+        <div class="card-body">
+          {% if template.variable_order %}
+            <ol class="mb-0 ps-3">
+              {% for item in template.variable_order %}
+                <li class="mb-1"><code>{{ item }}</code></li>
               {% endfor %}
-            </tbody>
-          </table>
+            </ol>
+          {% else %}
+            <span class="text-muted">No variables configured.</span>
+          {% endif %}
         </div>
-      {% else %}
-        <p class="text-muted mb-0 p-3">No send logs yet.</p>
-      {% endif %}
+      </div>
+
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-card-text"></i>Notes</h2></div>
+        <div class="card-body">
+          {% if template.notes %}{{ template.notes|linebreaksbr }}{% else %}<span class="text-muted">No notes.</span>{% endif %}
+        </div>
+      </div>
     </div>
   </div>
-
-  <!-- Actions -->
-  <div class="d-flex justify-content-center gap-2">
-    <a href="{% url 'messaging:whatsapp_template_list' %}" class="btn btn-outline-secondary">
-      <i class="bi bi-arrow-left"></i>Back to WhatsApp Templates
-    </a>
-
-    {% if can_manage_messaging %}
-      <a href="{% url 'messaging:whatsapp_template_update' template.pk %}" class="btn btn-primary">
-        <i class="bi bi-pencil"></i>Edit Template
-      </a>
-    {% endif %}
-  </div>
-
 </div>
 {% endblock %}

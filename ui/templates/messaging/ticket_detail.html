@@ -1,203 +1,114 @@
 {% extends "ui/base.html" %}
+{% load ui_tags %}
 
 {% block title %}Ticket #{{ ticket.ticket_number }}{% endblock %}
 
 {% block content %}
-
-<div class="container py-3">
-  <div class="row justify-content-center">
-    <div class="col-xl-10">
-
-  <div class="card border-0 shadow-sm mb-3">
-    <div class="card-body">
-      <div class="row g-3 align-items-start">
-        <div class="col-md">
-          <h1 class="h4 mb-1">
-            Ticket #{{ ticket.ticket_number }}
-          </h1>
-
-          <div class="text-muted small">
-            Created on {{ ticket.created_at|date:"d M Y, h:i A" }}
-          </div>
-        </div>
-
-        <div class="col-md-auto">
-          <div class="d-flex flex-wrap gap-2 justify-content-md-end">
-            {% if ticket.status == "open" %}
-              <span class="badge text-bg-primary">
-                {{ ticket.get_status_display }}
-              </span>
-            {% elif ticket.status == "in_progress" %}
-              <span class="badge text-bg-warning">
-                {{ ticket.get_status_display }}
-              </span>
-            {% elif ticket.status == "closed" %}
-              <span class="badge text-bg-success">
-                {{ ticket.get_status_display }}
-              </span>
-            {% else %}
-              <span class="badge text-bg-secondary">
-                {{ ticket.get_status_display }}
-              </span>
-            {% endif %}
-
-            {% if ticket.priority == "high" %}
-              <span class="badge text-bg-danger">
-                {{ ticket.get_priority_display }}
-              </span>
-            {% elif ticket.priority == "medium" %}
-              <span class="badge text-bg-warning">
-                {{ ticket.get_priority_display }}
-              </span>
-            {% else %}
-              <span class="badge text-bg-secondary">
-                {{ ticket.get_priority_display }}
-              </span>
-            {% endif %}
-          </div>
-        </div>
+<div class="container">
+  <div class="page-header">
+    <div class="min-w-0">
+      <div class="page-eyebrow"><a href="{% url 'messaging:ticket_list' %}"><i class="bi bi-life-preserver"></i> Support tickets</a></div>
+      <h1 class="page-title">{{ ticket.subject }}</h1>
+      <div class="page-subtitle d-flex flex-wrap align-items-center gap-2">
+        {% status_pill ticket.status ticket.get_status_display %}
+        {% status_pill ticket.priority ticket.get_priority_display %}
+        <span class="tabular">#{{ ticket.ticket_number }}</span>
+        <span>Opened {{ ticket.created_at|date:"d M Y, H:i" }}</span>
       </div>
+    </div>
+    <div class="page-actions">
+      <a href="{% url 'messaging:ticket_create' %}" class="btn btn-outline-dark btn-sm"><i class="bi bi-plus-lg"></i>New ticket</a>
     </div>
   </div>
 
-  <div class="row g-3">
-
-    <!-- Main Ticket Info -->
-    <div class="col-lg-8">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="card-header bg-white border-0 pt-3">
-          <h2 class="h5 mb-1">{{ ticket.subject }}</h2>
-          <div class="text-muted small">Ticket details and description</div>
+  <div class="row g-4">
+    <div class="col-xl-8">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h2 class="section-title"><i class="bi bi-chat-left-text"></i>Conversation</h2>
         </div>
 
-        <div class="card-body">
+        <div class="ticket-thread">
+          <div class="thread-event">Ticket opened {{ ticket.created_at|date:"d M Y, H:i" }}</div>
 
-          <div class="row g-3 mb-3">
-
-            <div class="col-md-6">
-              <div class="border rounded-3 p-3 h-100">
-                <div class="small text-muted mb-1">Category</div>
-                <div class="fw-semibold">
-                  {{ ticket.get_category_display }}
-                </div>
+          {# The request, as written by the person who raised it #}
+          <div class="thread-msg">
+            <span class="avatar-circle light" aria-hidden="true">{% if ticket.created_by %}{{ ticket.created_by|initials }}{% else %}?{% endif %}</span>
+            <div class="thread-body">
+              <div class="thread-meta">
+                <strong>{% if ticket.created_by %}{{ ticket.created_by.get_full_name|default:ticket.created_by.username }}{% else %}Unknown user{% endif %}</strong>
+                <span>{{ ticket.created_at|date:"d M Y, H:i" }}</span>
               </div>
-            </div>
-
-            <div class="col-md-6">
-              <div class="border rounded-3 p-3 h-100">
-                <div class="small text-muted mb-1">Subject Type</div>
-                <div class="fw-semibold">
-                  {{ ticket.get_subject_type_display }}
-                </div>
-              </div>
-            </div>
-
-          </div>
-
-          <div class="mb-3">
-            <div class="small text-muted mb-1">Description</div>
-            <div class="border rounded-3 p-3 bg-light">
-              <div class="text-break">
+              <div class="thread-bubble">
                 {{ ticket.description|linebreaksbr }}
               </div>
-            </div>
-          </div>
-
-          {% if ticket.screenshot %}
-            <div class="mb-3">
-              <div class="small text-muted mb-1">Screenshot</div>
-
-              <a href="{{ ticket.screenshot.url }}" target="_blank">
-                <img src="{{ ticket.screenshot.url }}"
-                     alt="Ticket screenshot"
-                     class="img-fluid rounded border">
-              </a>
-            </div>
-          {% endif %}
-
-        </div>
-      </div>
-    </div>
-
-    <!-- Side Info -->
-    <div class="col-lg-4">
-      <div class="card border-0 shadow-sm mb-3">
-        <div class="card-header bg-white border-0 pt-3">
-          <h2 class="h5 mb-1">Ticket Info</h2>
-        </div>
-
-        <div class="card-body">
-
-          <div class="mb-3">
-            <div class="small text-muted mb-1">Created By</div>
-            <div class="fw-semibold">
-              {% if ticket.created_by %}
-                {{ ticket.created_by.get_full_name|default:ticket.created_by.username }}
-              {% else %}
-                —
+              {% if ticket.screenshot %}
+                <a href="{{ ticket.screenshot.url }}" target="_blank" rel="noopener" class="thread-attachment" title="Open screenshot">
+                  <img src="{{ ticket.screenshot.url }}" alt="Screenshot attached to the ticket">
+                </a>
               {% endif %}
             </div>
           </div>
 
-          <div class="border-top pt-3 mb-3">
-            <div class="small text-muted mb-1">Assigned To</div>
-            <div class="fw-semibold">
-              {% if ticket.assigned_to %}
-                {{ ticket.assigned_to.get_full_name|default:ticket.assigned_to.username }}
-              {% else %}
-                <span class="text-muted">Not assigned</span>
-              {% endif %}
-            </div>
-          </div>
-
-          <div class="border-top pt-3">
-            <div class="small text-muted mb-1">Ticket Number</div>
-            <div class="fw-semibold">
-              {{ ticket.ticket_number }}
-            </div>
-          </div>
-
-        </div>
-      </div>
-
-      <div class="card border-0 shadow-sm">
-        <div class="card-header bg-white border-0 pt-3">
-          <h2 class="h5 mb-1">Support Response</h2>
-        </div>
-
-        <div class="card-body">
           {% if ticket.admin_response %}
-            <div class="border rounded-3 p-3 bg-light mb-2">
-              <div class="text-break">
-                {{ ticket.admin_response|linebreaksbr }}
+            {# Reply from the support team #}
+            <div class="thread-msg is-support">
+              <span class="avatar-circle" aria-hidden="true">{% if ticket.assigned_to %}{{ ticket.assigned_to|initials }}{% else %}<i class="bi bi-headset"></i>{% endif %}</span>
+              <div class="thread-body">
+                <div class="thread-meta">
+                  <strong>{% if ticket.assigned_to %}{{ ticket.assigned_to.get_full_name|default:ticket.assigned_to.username }}{% else %}Support team{% endif %}</strong>
+                  {% if ticket.responded_at %}<span>{{ ticket.responded_at|date:"d M Y, H:i" }}</span>{% endif %}
+                </div>
+                <div class="thread-bubble">
+                  {{ ticket.admin_response|linebreaksbr }}
+                </div>
               </div>
             </div>
-
-            {% if ticket.responded_at %}
-              <div class="text-muted small">
-                Responded on {{ ticket.responded_at|date:"d M Y, h:i A" }}
-              </div>
-            {% endif %}
           {% else %}
-            <div class="text-muted">
+            <div class="thread-waiting">
+              <i class="bi bi-hourglass-split"></i>
               No response yet. The support team will review this ticket soon.
             </div>
           {% endif %}
+
+          {% if ticket.status == "resolved" or ticket.status == "closed" %}
+            <div class="thread-event">Ticket {{ ticket.get_status_display|lower }}</div>
+          {% endif %}
         </div>
       </div>
     </div>
 
-  </div>
+    <div class="col-xl-4">
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-info-circle"></i>Ticket info</h2></div>
+        <div class="card-body">
+          <ul class="info-list">
+            <li><span class="k">Ticket number</span><span class="v tabular">{{ ticket.ticket_number }}</span></li>
+            <li><span class="k">Status</span><span class="v">{% status_pill ticket.status ticket.get_status_display %}</span></li>
+            <li><span class="k">Priority</span><span class="v">{% status_pill ticket.priority ticket.get_priority_display %}</span></li>
+            <li><span class="k">Category</span><span class="v">{{ ticket.get_category_display }}</span></li>
+            <li><span class="k">Subject type</span><span class="v">{{ ticket.get_subject_type_display }}</span></li>
+          </ul>
+        </div>
+      </div>
 
-  <div class="mt-3 d-flex justify-content-end">
-    <a href="{% url 'messaging:ticket_list' %}" class="btn btn-outline-secondary">
-      <i class="bi bi-arrow-left me-1"></i>
-      Back to Tickets
-    </a>
-  </div>
-
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-people"></i>People</h2></div>
+        <div class="card-body">
+          <ul class="info-list">
+            <li><span class="k">Raised by</span>
+              <span class="v">{% if ticket.created_by %}{{ ticket.created_by.get_full_name|default:ticket.created_by.username }}{% else %}—{% endif %}</span>
+            </li>
+            <li><span class="k">Assigned to</span>
+              <span class="v">{% if ticket.assigned_to %}{{ ticket.assigned_to.get_full_name|default:ticket.assigned_to.username }}{% else %}<span class="text-muted fw-normal">Not assigned</span>{% endif %}</span>
+            </li>
+            <li><span class="k">Opened</span><span class="v">{{ ticket.created_at|date:"d M Y, H:i" }}</span></li>
+            <li><span class="k">Responded</span><span class="v">{{ ticket.responded_at|date:"d M Y, H:i"|default:"—" }}</span></li>
+            <li><span class="k">Last updated</span><span class="v">{{ ticket.updated_at|date:"d M Y, H:i" }}</span></li>
+          </ul>
+        </div>
+      </div>
     </div>
   </div>
 </div>
-
 {% endblock %}

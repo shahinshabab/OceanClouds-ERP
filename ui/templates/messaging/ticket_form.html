@@ -1,171 +1,32 @@
-{% extends "ui/base.html" %}
+{% extends "ui/form_page.html" %}
+{% load ui_tags %}
 
-{% block title %}Raise Support Ticket{% endblock %}
+{% block title %}Raise support ticket{% endblock %}
+{% block form_eyebrow %}<i class="bi bi-life-preserver"></i> Support · Tickets{% endblock %}
+{% block form_title %}Raise support ticket{% endblock %}
+{% block form_subtitle %}Submit an issue or request to the support team.{% endblock %}
+{% block form_attrs %}enctype="multipart/form-data" novalidate{% endblock %}
 
-{% block content %}
-
-<div class="container py-3">
-  <div class="row justify-content-center">
-    <div class="col-xl-10">
-
-  <div class="card border-0 shadow-sm">
-    <div class="card-header bg-white border-0 pt-3">
-      <div class="d-flex justify-content-between align-items-center">
-        <div>
-          <h1 class="h4 mb-1">Raise Support Ticket</h1>
-          <div class="text-muted small">
-            Submit an issue or request to the support team.
-          </div>
-        </div>
-
-        <a href="{% url 'messaging:ticket_list' %}" class="btn btn-sm btn-outline-secondary">
-          <i class="bi bi-arrow-left me-1"></i>
-          Back
-        </a>
-      </div>
+{% block form_body %}
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-tag"></i>What is it about</h2>
+    <div class="row g-3">
+      {% field form.category "col-md-4" %}
+      {% field form.subject_type "col-md-4" %}
+      {% field form.priority "col-md-4" %}
     </div>
+  </section>
 
-    <div class="card-body">
-      <form method="post" enctype="multipart/form-data" novalidate>
-        {% csrf_token %}
-
-        {% if form.non_field_errors %}
-          <div class="alert alert-danger">
-            {{ form.non_field_errors }}
-          </div>
-        {% endif %}
-
-        <div class="row g-3">
-
-          <div class="col-md-4">
-            <label class="form-label">
-              {{ form.category.label }}
-              {% if form.category.field.required %}
-                <span class="text-danger">*</span>
-              {% endif %}
-            </label>
-
-            {{ form.category }}
-
-            {% for error in form.category.errors %}
-              <div class="text-danger small mt-1">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4">
-            <label class="form-label">
-              {{ form.subject_type.label }}
-              {% if form.subject_type.field.required %}
-                <span class="text-danger">*</span>
-              {% endif %}
-            </label>
-
-            {{ form.subject_type }}
-
-            {% for error in form.subject_type.errors %}
-              <div class="text-danger small mt-1">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4">
-            <label class="form-label">
-              {{ form.priority.label }}
-              {% if form.priority.field.required %}
-                <span class="text-danger">*</span>
-              {% endif %}
-            </label>
-
-            {{ form.priority }}
-
-            {% for error in form.priority.errors %}
-              <div class="text-danger small mt-1">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-12">
-            <label class="form-label">
-              {{ form.subject.label }}
-              {% if form.subject.field.required %}
-                <span class="text-danger">*</span>
-              {% endif %}
-            </label>
-
-            {{ form.subject }}
-
-            {% if form.subject.help_text %}
-              <div class="form-text">
-                {{ form.subject.help_text }}
-              </div>
-            {% endif %}
-
-            {% for error in form.subject.errors %}
-              <div class="text-danger small mt-1">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-12">
-            <label class="form-label">
-              {{ form.description.label }}
-              {% if form.description.field.required %}
-                <span class="text-danger">*</span>
-              {% endif %}
-            </label>
-
-            {{ form.description }}
-
-            {% if form.description.help_text %}
-              <div class="form-text">
-                {{ form.description.help_text }}
-              </div>
-            {% endif %}
-
-            {% for error in form.description.errors %}
-              <div class="text-danger small mt-1">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-12">
-            <label class="form-label">
-              {{ form.screenshot.label }}
-            </label>
-
-            {{ form.screenshot }}
-
-            {% if form.screenshot.help_text %}
-              <div class="form-text">
-                {{ form.screenshot.help_text }}
-              </div>
-            {% endif %}
-
-            {% for error in form.screenshot.errors %}
-              <div class="text-danger small mt-1">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-        </div>
-
-        <div class="alert alert-light border small mt-4 mb-0">
-          <i class="bi bi-info-circle me-1"></i>
-          Please explain the issue clearly. If possible, attach a screenshot.
-        </div>
-
-        <div class="border-top mt-4 pt-3 d-flex justify-content-end gap-2">
-          <a href="{% url 'messaging:ticket_list' %}" class="btn btn-outline-secondary">
-            Cancel
-          </a>
-
-          <button type="submit" class="btn btn-dark px-4">
-            <i class="bi bi-check2-circle me-1"></i>
-            Save Ticket
-          </button>
-        </div>
-
-      </form>
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-chat-left-text"></i>Details</h2>
+    <p class="form-section-note">Please explain the issue clearly. If possible, attach a screenshot.</p>
+    <div class="row g-3">
+      {% field form.subject "col-12" %}
+      {% field form.description "col-12" %}
+      {% field form.screenshot "col-12" %}
     </div>
-  </div>
-
-    </div>
-  </div>
-</div>
-
+  </section>
 {% endblock %}
+
+{% block cancel_url %}{% url 'messaging:ticket_list' %}{% endblock %}
+{% block submit_label %}Raise ticket{% endblock %}

@@ -3,35 +3,24 @@
 {% block title %}Delete To-Do{% endblock %}
 
 {% block content %}
-<div class="container py-4">
-
-  <div class="card shadow-sm border-danger">
-    <div class="card-header bg-danger text-white">
-      Delete To-Do
-    </div>
-
-    <div class="card-body">
-      <p class="mb-3">
-        Are you sure you want to delete this to-do?
-      </p>
-
-      <div class="alert alert-warning">
-        <strong>{{ todo.title }}</strong> will be deleted.
-      </div>
-
-      <form method="post" class="d-flex justify-content-end gap-2">
-        {% csrf_token %}
-
-        <a href="{% url 'todos:todo_detail' todo.pk %}" class="btn btn-outline-secondary">
-          Cancel
-        </a>
-
-        <button type="submit" class="btn btn-danger">
-          Yes, Delete
-        </button>
-      </form>
+<div class="container max-w-2xl">
+  <div class="page-header">
+    <div class="min-w-0">
+      <div class="page-eyebrow"><a href="{% url 'todos:todo_detail' todo.pk %}"><i class="bi bi-arrow-left"></i> {{ todo.title }}</a></div>
+      <h1 class="page-title">Delete to-do?</h1>
+      <div class="page-subtitle">This cannot be undone.</div>
     </div>
   </div>
 
+  <form method="post" class="card">
+    {% csrf_token %}
+    <div class="card-body">
+      <p class="mb-0">You are about to permanently delete the to-do <strong>{{ todo.title }}</strong>.</p>
+    </div>
+    <div class="card-footer d-flex justify-content-end gap-2">
+      <a href="{% url 'todos:todo_detail' todo.pk %}" class="btn btn-outline-secondary">Cancel</a>
+      <button type="submit" class="btn btn-danger"><i class="bi bi-trash"></i>Delete to-do</button>
+    </div>
+  </form>
 </div>
 {% endblock %}

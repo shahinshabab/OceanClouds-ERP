@@ -1,516 +1,292 @@
 {% extends "ui/base.html" %}
-{% load roles_tags %}
+{% load roles_tags ui_tags %}
+
+{% block title %}{{ project.name }} · Overview{% endblock %}
 
 {% block content %}
-<div class="container-fluid py-4">
+{% is_admin request.user as is_admin %}
+{% is_project_manager request.user as is_project_manager %}
 
-  {% is_admin request.user as is_admin %}
-  {% is_project_manager request.user as is_project_manager %}
+<div class="container">
   {% include "common/detail_messages.html" %}
-  <!-- Header -->
-  <div class="d-flex justify-content-between align-items-start mb-3">
-    <div>
-      <h1 class="h3 mb-1">Project Overview – {{ project.name }}</h1>
 
-      <div class="text-muted">
-        Client:
-        {% if client %}
-          {{ client }}
-        {% else %}
-          <span class="text-warning">Not linked</span>
-        {% endif %}
-
-        {% if deal %}
-          · Deal: {{ deal }}
-        {% endif %}
-
-        {% if project.project_directory %}
-          · Directory: {{ project.project_directory }}
-        {% endif %}
+  <div class="page-header">
+    <div class="min-w-0">
+      <div class="page-eyebrow"><a href="{% url 'projects:project_list' %}"><i class="bi bi-kanban"></i> Projects</a></div>
+      <h1 class="page-title">{{ project.name }}</h1>
+      <div class="page-subtitle d-flex flex-wrap align-items-center gap-2">
+        <span class="fw-semibold text-ink">Full overview</span>
+        {% status_pill project.status project.get_status_display %}
+        {% status_pill project.priority project.get_priority_display %}
+        {% if project.is_overdue %}<span class="status status-danger">Overdue</span>{% endif %}
+        {% if client %}<span><i class="bi bi-person"></i> {{ client }}</span>{% else %}<span class="text-warning"><i class="bi bi-person"></i> Client not linked</span>{% endif %}
+        {% if deal %}<span><i class="bi bi-briefcase"></i> {{ deal }}</span>{% endif %}
       </div>
     </div>
 
-    <div class="d-flex gap-2">
-      <a href="{% url 'projects:project_detail' project.pk %}"
-         class="btn btn-outline-secondary btn-sm">
-        Operational View
-      </a>
-
+    <div class="page-actions">
+      <a href="{% url 'projects:project_detail' project.pk %}" class="btn btn-outline-dark btn-sm"><i class="bi bi-list-task"></i>Operational view</a>
       {% if is_admin or is_project_manager %}
-        <a href="{% url 'projects:project_update' project.pk %}"
-           class="btn btn-primary btn-sm">
-          <i class="bi bi-pencil"></i>Edit Project
-        </a>
+        <a href="{% url 'projects:project_update' project.pk %}" class="btn btn-dark btn-sm"><i class="bi bi-pencil"></i>Edit project</a>
       {% endif %}
     </div>
   </div>
 
-  <!-- Top summary row -->
+  <!-- Summary -->
   <div class="row g-3 mb-4">
-
-    <div class="col-lg-3 col-md-6">
-      <div class="card h-100 border-0 shadow-sm">
-        <div class="card-body">
-          <div class="small text-uppercase text-muted mb-1">Status</div>
-
-          {% if project.status == "completed" %}
-            <span class="badge bg-success">{{ project.get_status_display }}</span>
-          {% elif project.status == "active" %}
-            <span class="badge bg-primary">{{ project.get_status_display }}</span>
-          {% elif project.status == "on_hold" %}
-            <span class="badge bg-warning text-dark">{{ project.get_status_display }}</span>
-          {% elif project.status == "cancelled" %}
-            <span class="badge bg-danger">{{ project.get_status_display }}</span>
-          {% else %}
-            <span class="badge bg-secondary">{{ project.get_status_display }}</span>
-          {% endif %}
-
-          <div class="small text-muted mt-2">
-            Priority:
-            <span class="fw-semibold">{{ project.get_priority_display }}</span>
-          </div>
-
-          <div class="small text-muted">
-            Manager:
-            <span class="fw-semibold">
-              {% if project.manager %}
-                {{ project.manager.get_full_name|default:project.manager.username }}
-              {% else %}
-                Unassigned
-              {% endif %}
-            </span>
-          </div>
-
-          <div class="small mt-2">
-            <span class="text-muted">Directory:</span>
-            <span class="fw-semibold">
-              {% if project.project_directory %}
-                {{ project.project_directory }}
-              {% else %}
-                —
-              {% endif %}
-            </span>
-          </div>
+    <div class="col-sm-6 col-xl-3">
+      <div class="card stat-card">
+        <div class="stat-label">Progress <i class="bi bi-graph-up"></i></div>
+        <div class="stat-value">{{ project.progress_percent }}%</div>
+        <div class="progress mt-1" role="progressbar" aria-label="Project progress" aria-valuenow="{{ project.progress_percent }}" aria-valuemin="0" aria-valuemax="100">
+          <div class="progress-bar" style="width: {{ project.progress_bar_width }}%"></div>
         </div>
+        <div class="stat-meta mt-1">Work: {{ total_work_hm|default:"0h 0m" }}</div>
       </div>
     </div>
-
-    <div class="col-lg-3 col-md-6">
-      <div class="card h-100 border-0 shadow-sm">
-        <div class="card-body">
-          <div class="small text-uppercase text-muted mb-1">Schedule</div>
-
-          <div class="small mb-1">
-            <span class="text-muted">Start:</span>
-            <span class="fw-semibold">{{ project.start_date|default:"—" }}</span>
-          </div>
-
-          <div class="small mb-1">
-            <span class="text-muted">Due:</span>
-            <span class="fw-semibold {% if project.is_overdue %}text-danger{% endif %}">
-              {{ project.due_date|default:"—" }}
-            </span>
-
-            {% if project.is_overdue %}
-              <span class="badge bg-danger ms-1">Overdue</span>
-            {% endif %}
-          </div>
-
-          {% if project.completed_at %}
-            <div class="small">
-              <span class="text-muted">Completed:</span>
-              <span class="fw-semibold">{{ project.completed_at }}</span>
-            </div>
-          {% endif %}
-        </div>
+    <div class="col-sm-6 col-xl-3">
+      <div class="card stat-card">
+        <div class="stat-label">Invoiced <i class="bi bi-receipt"></i></div>
+        <div class="stat-value">{{ invoice_total|default:0|inr }}</div>
+        <div class="stat-meta">{{ invoices|length }} invoice{{ invoices|length|pluralize }}</div>
       </div>
     </div>
-
-    <div class="col-lg-3 col-md-6">
-      <div class="card h-100 border-0 shadow-sm">
-        <div class="card-body">
-          <div class="small text-uppercase text-muted mb-1">Progress</div>
-
-          <div class="d-flex justify-content-between small mb-1">
-            <span>Completion</span>
-            <span class="fw-semibold">{{ project.progress_percent }}%</span>
-          </div>
-
-          <div class="progress" style="height: 6px;">
-            {% with pct=project.progress_percent|default_if_none:0 %}
-              <div class="progress-bar
-                {% if pct < 30 %}
-                  bg-danger
-                {% elif pct < 70 %}
-                  bg-warning
-                {% else %}
-                  bg-success
-                {% endif %}"
-                style="width: {{ project.progress_bar_width }}%;">
-              </div>
-            {% endwith %}
-          </div>
-
-          <div class="small text-muted mt-2">
-            Work hours:
-            <span class="fw-semibold">{{ total_work_hm|default:"0h 0m" }}</span>
-          </div>
-        </div>
+    <div class="col-sm-6 col-xl-3">
+      <div class="card stat-card">
+        <div class="stat-label">Received <i class="bi bi-cash-coin"></i></div>
+        <div class="stat-value">{{ payments_total|default:0|inr }}</div>
+        <div class="stat-meta">{{ payments|length }} payment{{ payments|length|pluralize }}</div>
       </div>
     </div>
-
-    <div class="col-lg-3 col-md-6">
-      <div class="card h-100 border-0 shadow-sm">
-        <div class="card-body">
-          <div class="small text-uppercase text-muted mb-1">Financial Summary</div>
-
-          <div class="small d-flex justify-content-between">
-            <span>Invoice Total</span>
-            <span class="fw-semibold">₹ {{ invoice_total|default:"0.00" }}</span>
-          </div>
-
-          <div class="small d-flex justify-content-between">
-            <span>Payments Received</span>
-            <span class="fw-semibold">₹ {{ payments_total|default:"0.00" }}</span>
-          </div>
-
-          <div class="small d-flex justify-content-between mt-2 border-top pt-2">
-            <span>Amount Due</span>
-            <span class="fw-semibold {% if amount_due and amount_due > 0 %}text-danger{% endif %}">
-              ₹ {{ amount_due|default:"0.00" }}
-            </span>
-          </div>
-        </div>
+    <div class="col-sm-6 col-xl-3">
+      <div class="card stat-card{% if amount_due and amount_due > 0 %} dark{% endif %}">
+        <div class="stat-label">Amount due <i class="bi bi-hourglass-split"></i></div>
+        <div class="stat-value">{{ amount_due|default:0|inr }}</div>
+        <div class="stat-meta">{% if amount_due and amount_due > 0 %}Outstanding balance{% else %}Nothing outstanding{% endif %}</div>
       </div>
     </div>
-
   </div>
 
-  <!-- Client Details -->
-  <div class="card border-0 shadow-sm mb-3">
-    <div class="card-header bg-body border-bottom d-flex justify-content-between align-items-center">
-      <strong>Client Details</strong>
+  <div class="row g-4">
+    <div class="col-xl-8">
 
-      {% if client %}
-        <a href="{% url 'crm:client_detail' client.pk %}?next={{ request.get_full_path|urlencode }}"
-           class="btn btn-sm btn-outline-secondary">
-          View Client
-        </a>
-      {% endif %}
-    </div>
-
-    <div class="card-body">
-      {% if client %}
-        <div class="row g-3">
-          <div class="col-md-4">
-            <div class="small text-uppercase text-muted mb-1">Name</div>
-            <div class="fw-semibold">{{ client }}</div>
-          </div>
-
-          <div class="col-md-4">
-            <div class="small text-uppercase text-muted mb-1">Phone</div>
-            <div class="fw-semibold">{{ client.phone|default:"—" }}</div>
-          </div>
-
-          <div class="col-md-4">
-            <div class="small text-uppercase text-muted mb-1">Email</div>
-            <div class="fw-semibold">{{ client.email|default:"—" }}</div>
-          </div>
-        </div>
-      {% else %}
-        <div class="text-muted">
-          No client attached to this project yet.
-        </div>
-      {% endif %}
-    </div>
-  </div>
-
-  <!-- Contracts -->
-  <div class="card border-0 shadow-sm mb-3">
-    <div class="card-header bg-body border-bottom">
-      <strong>Contracts</strong>
-    </div>
-
-    <div class="card-body">
-      {% if contracts %}
-        <div class="table-responsive">
-          <table class="table table-sm align-middle mb-0">
-            <thead class="table-light">
-              <tr>
-                <th>Number</th>
-                <th>Status</th>
-                <th class="text-end">Total</th>
-                <th class="text-end">Action</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {% for c in contracts %}
-                <tr>
-                  <td>{{ c.number|default:c.pk }}</td>
-                  <td>{{ c.get_status_display|default:c.status }}</td>
-                  <td class="text-end">
-                    {% if c.total_amount %}
-                      ₹ {{ c.total_amount }}
-                    {% else %}
-                      —
-                    {% endif %}
-                  </td>
-                  <td class="text-end">
-                    <a href="{% url 'sales:contract_detail' c.pk %}?next={{ request.get_full_path|urlencode }}"
-                       class="btn btn-sm btn-outline-secondary">
-                      View Contract
-                    </a>
-                  </td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      {% else %}
-        <div class="text-muted">
-          No contracts found for this project.
-        </div>
-      {% endif %}
-    </div>
-  </div>
-
-  <!-- Invoices -->
-  <div class="card border-0 shadow-sm mb-3">
-    <div class="card-header bg-body border-bottom">
-      <strong>Invoices</strong>
-    </div>
-
-    <div class="card-body">
-      {% if invoices %}
-        <div class="table-responsive">
-          <table class="table table-sm align-middle mb-0">
-            <thead class="table-light">
-              <tr>
-                <th>Number</th>
-                <th>Issue Date</th>
-                <th>Due Date</th>
-                <th>Status</th>
-                <th class="text-end">Total</th>
-                <th class="text-end">Paid</th>
-                <th class="text-end">Action</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {% for inv in invoices %}
-                <tr>
-                  <td>{{ inv.number|default:inv.pk }}</td>
-                  <td>{{ inv.issue_date|default:"—" }}</td>
-                  <td>{{ inv.due_date|default:"—" }}</td>
-                  <td>{{ inv.get_status_display|default:inv.status }}</td>
-                  <td class="text-end">₹ {{ inv.total|default:"0.00" }}</td>
-                  <td class="text-end">₹ {{ inv.amount_paid|default:"0.00" }}</td>
-                  <td class="text-end">
-                    <a href="{% url 'sales:invoice_detail' inv.pk %}?next={{ request.get_full_path|urlencode }}"
-                       class="btn btn-sm btn-outline-secondary">
-                      View Invoice
-                    </a>
-                  </td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      {% else %}
-        <div class="text-muted">
-          No invoices found for this project.
-        </div>
-      {% endif %}
-    </div>
-  </div>
-
-  <!-- Payments -->
-  <div class="card border-0 shadow-sm mb-3">
-    <div class="card-header bg-body border-bottom">
-      <strong>Payments</strong>
-    </div>
-
-    <div class="card-body">
-      {% if payments %}
-        <div class="table-responsive">
-          <table class="table table-sm align-middle mb-0">
-            <thead class="table-light">
-              <tr>
-                <th>Date</th>
-                <th>Invoice</th>
-                <th>Method</th>
-                <th class="text-end">Amount</th>
-                <th class="text-end">Action</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {% for p in payments %}
-                <tr>
-                  <td>{{ p.date|default:"—" }}</td>
-                  <td>{{ p.invoice.number|default:p.invoice }}</td>
-                  <td>{{ p.method|default:"—" }}</td>
-                  <td class="text-end">₹ {{ p.amount|default:"0.00" }}</td>
-                  <td class="text-end">
-                    <a href="{% url 'sales:payment_detail' p.pk %}?next={{ request.get_full_path|urlencode }}"
-                       class="btn btn-sm btn-outline-secondary">
-                      View Payment
-                    </a>
-                  </td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      {% else %}
-        <div class="text-muted">
-          No payments recorded yet.
-        </div>
-      {% endif %}
-    </div>
-  </div>
-
-  <!-- Tasks & Deliverables -->
-  <div class="row g-3">
-
-    <div class="col-lg-6">
-      <div class="card h-100 border-0 shadow-sm">
-        <div class="card-header bg-body border-bottom d-flex justify-content-between align-items-center">
-          <strong>Tasks</strong>
-
+      <!-- Tasks -->
+      <div class="card mb-4">
+        <div class="card-header">
+          <h2 class="section-title"><i class="bi bi-list-check"></i>Tasks <span class="text-muted fw-normal">{{ tasks|length }}</span></h2>
           {% if is_admin or is_project_manager %}
-            <a href="{% url 'projects:task_create_for_project' project.pk %}"
-               class="btn btn-sm btn-outline-primary">
-              <i class="bi bi-plus-lg"></i>Add Task
-            </a>
+            <a href="{% url 'projects:task_create_for_project' project.pk %}" class="btn btn-light btn-sm"><i class="bi bi-plus-lg"></i>Add task</a>
           {% endif %}
         </div>
-
-        <div class="card-body p-0">
-          {% if tasks %}
-            <div class="table-responsive">
-              <table class="table table-sm align-middle mb-0">
-                <thead class="table-light">
-                  <tr>
-                    <th>Name</th>
-                    <th>Category</th>
-                    <th>Assignee</th>
-                    <th>Status</th>
-                    <th>Due</th>
-                    <th class="text-end">Hours</th>
+        {% if tasks %}
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Task</th>
+                  <th class="d-none d-lg-table-cell">Assignee</th>
+                  <th>Status</th>
+                  <th class="d-none d-md-table-cell">Due</th>
+                  <th class="text-end">Hours</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for t in tasks %}
+                  <tr data-href="{% url 'projects:task_detail' t.pk %}?next={{ request.get_full_path|urlencode }}">
+                    <td>
+                      <a href="{% url 'projects:task_detail' t.pk %}?next={{ request.get_full_path|urlencode }}" class="cell-title">{{ t.name }}</a>
+                      <span class="cell-sub">{{ t.get_category_display }}</span>
+                    </td>
+                    <td class="d-none d-lg-table-cell">{% if t.assigned_to %}{{ t.assigned_to.get_full_name|default:t.assigned_to.username }}{% else %}<span class="text-muted">Unassigned</span>{% endif %}</td>
+                    <td><span class="status {% if t.status == 'blocked' %}status-danger{% elif t.status == 'revision' %}status-warning{% elif t.status == 'pending' %}status-muted{% else %}{{ t.status|status_tone }}{% endif %}">{{ t.get_status_display }}</span></td>
+                    <td class="d-none d-md-table-cell text-nowrap">{{ t.due_date|date:"d M Y"|default:"—" }}</td>
+                    <td class="text-end tabular">{{ t.total_work_hm }}</td>
                   </tr>
-                </thead>
-
-                <tbody>
-                  {% for t in tasks %}
-                    <tr>
-                      <td>
-                        <a href="{% url 'projects:task_detail' t.pk %}?next={{ request.get_full_path|urlencode }}"
-                           class="text-decoration-none">
-                          {{ t.name }}
-                        </a>
-                      </td>
-
-                      <td>{{ t.get_category_display }}</td>
-
-                      <td>
-                        {% if t.assigned_to %}
-                          {{ t.assigned_to.get_full_name|default:t.assigned_to.username }}
-                        {% else %}
-                          Unassigned
-                        {% endif %}
-                      </td>
-
-                      <td>{{ t.get_status_display }}</td>
-                      <td>{{ t.due_date|default:"—" }}</td>
-                      <td class="text-end">{{ t.total_work_hm }}</td>
-                    </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-            </div>
-          {% else %}
-            <div class="p-3 text-muted">
-              No tasks for this project.
-            </div>
-          {% endif %}
-        </div>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="empty-state"><i class="bi bi-list-check"></i>No tasks for this project.</div>
+        {% endif %}
       </div>
-    </div>
 
-    <div class="col-lg-6">
-      <div class="card h-100 border-0 shadow-sm">
-        <div class="card-header bg-body border-bottom d-flex justify-content-between align-items-center">
-          <strong>Deliverables</strong>
-
+      <!-- Deliverables -->
+      <div class="card mb-4">
+        <div class="card-header">
+          <h2 class="section-title"><i class="bi bi-box-seam"></i>Deliverables <span class="text-muted fw-normal">{{ deliverables|length }}</span></h2>
           {% if is_admin or is_project_manager %}
-            <a href="{% url 'projects:deliverable_create_for_project' project.pk %}"
-               class="btn btn-sm btn-outline-primary">
-              <i class="bi bi-plus-lg"></i>Add Deliverable
-            </a>
+            <a href="{% url 'projects:deliverable_create_for_project' project.pk %}" class="btn btn-light btn-sm"><i class="bi bi-plus-lg"></i>Add deliverable</a>
           {% endif %}
         </div>
-
-        <div class="card-body p-0">
-          {% if deliverables %}
-            <div class="table-responsive">
-              <table class="table table-sm align-middle mb-0">
-                <thead class="table-light">
-                  <tr>
-                    <th>Name</th>
-                    <th>Category</th>
-                    <th>Tasks</th>
-                    <th>Status</th>
-                    <th>Due</th>
-                    <th class="text-end">Hours</th>
+        {% if deliverables %}
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Deliverable</th>
+                  <th class="d-none d-lg-table-cell">Tasks</th>
+                  <th>Status</th>
+                  <th class="d-none d-md-table-cell">Due</th>
+                  <th class="text-end">Hours</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for d in deliverables %}
+                  <tr data-href="{% url 'projects:deliverable_detail' d.pk %}?next={{ request.get_full_path|urlencode }}">
+                    <td>
+                      <a href="{% url 'projects:deliverable_detail' d.pk %}?next={{ request.get_full_path|urlencode }}" class="cell-title">{{ d.name }}</a>
+                      <span class="cell-sub">{{ d.get_category_display }}</span>
+                    </td>
+                    <td class="d-none d-lg-table-cell tabular">{% if d.linked_task_count %}{{ d.completed_task_count }}/{{ d.linked_task_count }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+                    <td><span class="status {% if d.status == 'revision_requested' %}status-warning{% elif d.status == 'pending' or d.status == 'waiting_for_tasks' %}status-muted{% elif d.status == 'internal_review' or d.status == 'client_review' or d.status == 'ready_to_deliver' %}status-outline{% else %}{{ d.status|status_tone }}{% endif %}">{{ d.get_status_display }}</span></td>
+                    <td class="d-none d-md-table-cell text-nowrap">{{ d.due_date|date:"d M Y"|default:"—" }}</td>
+                    <td class="text-end tabular">{{ d.total_work_hm }}</td>
                   </tr>
-                </thead>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="empty-state"><i class="bi bi-box-seam"></i>No deliverables for this project.</div>
+        {% endif %}
+      </div>
 
-                <tbody>
-                  {% for d in deliverables %}
-                    <tr>
-                      <td>
-                        <a href="{% url 'projects:deliverable_detail' d.pk %}?next={{ request.get_full_path|urlencode }}"
-                           class="text-decoration-none">
-                          {{ d.name }}
-                        </a>
-                      </td>
-
-                      <td>{{ d.get_category_display }}</td>
-
-                      <td>
-                        {% if d.linked_task_count %}
-                          {{ d.completed_task_count }}/{{ d.linked_task_count }}
-                        {% else %}
-                          —
-                        {% endif %}
-                      </td>
-
-                      <td>{{ d.get_status_display }}</td>
-                      <td>{{ d.due_date|default:"—" }}</td>
-                      <td class="text-end">{{ d.total_work_hm }}</td>
-                    </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-            </div>
-          {% else %}
-            <div class="p-3 text-muted">
-              No deliverables for this project.
-            </div>
-          {% endif %}
+      <!-- Invoices -->
+      <div class="card mb-4">
+        <div class="card-header">
+          <h2 class="section-title"><i class="bi bi-receipt"></i>Invoices <span class="text-muted fw-normal">{{ invoices|length }}</span></h2>
         </div>
+        {% if invoices %}
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Invoice</th>
+                  <th>Status</th>
+                  <th class="d-none d-md-table-cell">Due</th>
+                  <th class="text-end">Total</th>
+                  <th class="text-end d-none d-sm-table-cell">Paid</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for inv in invoices %}
+                  <tr data-href="{% url 'sales:invoice_detail' inv.pk %}?next={{ request.get_full_path|urlencode }}">
+                    <td>
+                      <a href="{% url 'sales:invoice_detail' inv.pk %}?next={{ request.get_full_path|urlencode }}" class="cell-title">{{ inv.number|default:inv.pk }}</a>
+                      <span class="cell-sub">Issued {{ inv.issue_date|date:"d M Y"|default:"—" }}</span>
+                    </td>
+                    <td>{% status_pill inv.status inv.get_status_display %}</td>
+                    <td class="d-none d-md-table-cell text-nowrap">{{ inv.due_date|date:"d M Y"|default:"—" }}</td>
+                    <td class="text-end tabular">{{ inv.total|default:0|inr }}</td>
+                    <td class="text-end tabular d-none d-sm-table-cell">{{ inv.amount_paid|default:0|inr }}</td>
+                    <td class="row-actions"><a href="{% url 'sales:invoice_detail' inv.pk %}?next={{ request.get_full_path|urlencode }}" class="btn btn-light btn-sm" title="View invoice" aria-label="View invoice"><i class="bi bi-arrow-right"></i></a></td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="empty-state"><i class="bi bi-receipt"></i>No invoices found for this project.</div>
+        {% endif %}
+      </div>
+
+      <!-- Payments -->
+      <div class="card mb-4">
+        <div class="card-header">
+          <h2 class="section-title"><i class="bi bi-cash-coin"></i>Payments <span class="text-muted fw-normal">{{ payments|length }}</span></h2>
+        </div>
+        {% if payments %}
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Invoice</th>
+                  <th class="d-none d-md-table-cell">Method</th>
+                  <th class="text-end">Amount</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for p in payments %}
+                  <tr data-href="{% url 'sales:payment_detail' p.pk %}?next={{ request.get_full_path|urlencode }}">
+                    <td class="text-nowrap">{{ p.date|date:"d M Y"|default:"—" }}</td>
+                    <td>{{ p.invoice.number|default:p.invoice }}</td>
+                    <td class="d-none d-md-table-cell">{{ p.get_method_display|default:"—" }}</td>
+                    <td class="text-end tabular fw-semibold">{{ p.amount|default:0|inr }}</td>
+                    <td class="row-actions"><a href="{% url 'sales:payment_detail' p.pk %}?next={{ request.get_full_path|urlencode }}" class="btn btn-light btn-sm" title="View payment" aria-label="View payment"><i class="bi bi-arrow-right"></i></a></td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="empty-state"><i class="bi bi-cash-coin"></i>No payments recorded yet.</div>
+        {% endif %}
       </div>
     </div>
 
-  </div>
+    <div class="col-xl-4">
+      <!-- Client -->
+      <div class="card mb-4">
+        <div class="card-header">
+          <h2 class="section-title"><i class="bi bi-person-vcard"></i>Client</h2>
+          {% if client %}
+            <a href="{% url 'crm:client_detail' client.pk %}?next={{ request.get_full_path|urlencode }}" class="btn btn-light btn-sm"><i class="bi bi-box-arrow-up-right"></i>View client</a>
+          {% endif %}
+        </div>
+        <div class="card-body">
+          {% if client %}
+            <ul class="info-list">
+              <li><span class="k">Name</span><span class="v">{{ client }}</span></li>
+              <li><span class="k">Phone</span><span class="v">{% if client.phone %}<a href="tel:{{ client.phone }}">{{ client.phone }}</a>{% else %}—{% endif %}</span></li>
+              <li><span class="k">Email</span><span class="v">{% if client.email %}<a href="mailto:{{ client.email }}">{{ client.email }}</a>{% else %}—{% endif %}</span></li>
+            </ul>
+          {% else %}
+            <span class="text-muted">No client attached to this project yet.</span>
+          {% endif %}
+        </div>
+      </div>
 
-  <div class="text-center mt-4">
-    <a href="{% url 'projects:project_list' %}" class="btn btn-secondary">
-      <i class="bi bi-arrow-left"></i>Back to Projects
-    </a>
-  </div>
+      <!-- Project -->
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-info-circle"></i>Project</h2></div>
+        <div class="card-body">
+          <ul class="info-list">
+            <li><span class="k">Manager</span><span class="v">{% if project.manager %}{{ project.manager.get_full_name|default:project.manager.username }}{% else %}<span class="text-muted fw-normal">Unassigned</span>{% endif %}</span></li>
+            {% if deal %}<li><span class="k">Deal</span><span class="v">{{ deal }}</span></li>{% endif %}
+            <li><span class="k">Start</span><span class="v">{{ project.start_date|date:"d M Y"|default:"—" }}</span></li>
+            <li><span class="k">Due</span><span class="v{% if project.is_overdue %} text-danger{% endif %}">{{ project.due_date|date:"d M Y"|default:"—" }}</span></li>
+            {% if project.completed_at %}<li><span class="k">Completed</span><span class="v">{{ project.completed_at|date:"d M Y, H:i" }}</span></li>{% endif %}
+            <li><span class="k">Work hours</span><span class="v tabular">{{ total_work_hm|default:"0h 0m" }}</span></li>
+          </ul>
+          <div class="info-label mt-3">Directory</div>
+          <div class="small text-break">{% if project.project_directory %}<code>{{ project.project_directory }}</code>{% else %}<span class="text-muted">—</span>{% endif %}</div>
+        </div>
+      </div>
 
+      <!-- Contracts -->
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-pen"></i>Contracts <span class="text-muted fw-normal">{{ contracts|length }}</span></h2></div>
+        {% if contracts %}
+          <ul class="mini-list">
+            {% for c in contracts %}
+              <li>
+                <div class="grow">
+                  <div class="t"><a href="{% url 'sales:contract_detail' c.pk %}?next={{ request.get_full_path|urlencode }}">{{ c.number|default:c.pk }}</a></div>
+                  <div class="m">{% if c.total %}{{ c.total|inr }}{% else %}No amount{% endif %}</div>
+                </div>
+                {% status_pill c.status c.get_status_display %}
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <div class="empty-state"><i class="bi bi-pen"></i>No contracts found for this project.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
 </div>
 {% endblock %}

@@ -1,156 +1,91 @@
 {% extends "ui/base.html" %}
-{% load roles_tags %}
+{% load roles_tags ui_tags %}
 
 {% block title %}Packages{% endblock %}
 
 {% block content %}
 {% has_services_manage_access request.user as can_manage_services %}
 
-<div class="container py-4">
-
-  <!-- Row 1: Heading + Button -->
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="h4 mb-0">Packages</h1>
-
+<div class="container">
+  <div class="page-header">
+    <div>
+      <div class="page-eyebrow"><i class="bi bi-collection"></i> Catalogue</div>
+      <h1 class="page-title">Packages</h1>
+      <div class="page-subtitle">Bundles of services sold at one price.</div>
+    </div>
     {% if can_manage_services %}
-      <a href="{% url 'services:package_create' %}" class="btn btn-success btn-sm">
-        <i class="bi bi-plus-lg"></i>New Package
-      </a>
+      <div class="page-actions">
+        <a href="{% url 'services:package_create' %}" class="btn btn-dark btn-sm"><i class="bi bi-plus-lg"></i>New package</a>
+      </div>
     {% endif %}
   </div>
 
-  <!-- Row 2: Search + Two Filters + Apply -->
-  <form method="get" class="row g-2 align-items-end mb-3">
-    <div class="col-md-4">
-      <label class="form-label small text-muted">Search</label>
-      <input type="text"
-             name="q"
-             value="{{ q }}"
-             class="form-control form-control-sm"
-             placeholder="Search by name or code…">
-    </div>
-
-    <div class="col-md-3">
-      <label class="form-label small text-muted">Status</label>
-      <select name="is_active" class="form-select form-select-sm">
-        <option value="">All statuses</option>
-        <option value="active" {% if is_active == "active" %}selected{% endif %}>Active</option>
-        <option value="inactive" {% if is_active == "inactive" %}selected{% endif %}>Inactive</option>
-      </select>
-    </div>
-
-    <div class="col-md-3">
-      <label class="form-label small text-muted">Price</label>
-      <select name="price_order" class="form-select form-select-sm">
-        <option value="">Default order</option>
-        <option value="low_high" {% if price_order == "low_high" %}selected{% endif %}>Low to high</option>
-        <option value="high_low" {% if price_order == "high_low" %}selected{% endif %}>High to low</option>
-      </select>
-    </div>
-
-    <div class="col-md-2">
-      <button type="submit" class="btn btn-outline-secondary btn-sm w-100">
-        Apply
-      </button>
-    </div>
-  </form>
-
-  <!-- Row 3: Table -->
   <div class="card">
-    <div class="card-body p-0">
-      <div class="table-responsive">
-      <table class="table table-hover mb-0 align-middle">
-        <thead class="table-light">
-        <tr>
-          <th>Name</th>
-          <th>Code</th>
-          <th>Total Price</th>
-          <th>Status</th>
-          <th class="text-end">Actions</th>
-        </tr>
+    <div class="list-tabs">
+      <a href="?q={{ q|urlencode }}&amp;price_order={{ price_order }}" class="{% if not is_active %}active{% endif %}">All</a>
+      <a href="?q={{ q|urlencode }}&amp;price_order={{ price_order }}&amp;is_active=active" class="{% if is_active == 'active' %}active{% endif %}">Active</a>
+      <a href="?q={{ q|urlencode }}&amp;price_order={{ price_order }}&amp;is_active=inactive" class="{% if is_active == 'inactive' %}active{% endif %}">Inactive</a>
+    </div>
+    <form method="get" class="filter-bar">
+      <input type="hidden" name="is_active" value="{{ is_active }}">
+      <div class="search-input" style="flex-basis: 280px">
+        <i class="bi bi-search"></i>
+        <input type="search" name="q" value="{{ q }}" placeholder="Name or code" class="form-control form-control-sm" aria-label="Search">
+      </div>
+      <select name="price_order" class="form-select form-select-sm" aria-label="Price order" onchange="this.form.submit()">
+        <option value="">Default order</option>
+        <option value="low_high" {% if price_order == "low_high" %}selected{% endif %}>Price: low to high</option>
+        <option value="high_low" {% if price_order == "high_low" %}selected{% endif %}>Price: high to low</option>
+      </select>
+      <div class="filter-actions">
+        <button type="submit" class="btn btn-dark btn-sm"><i class="bi bi-funnel"></i>Filter</button>
+        {% if q or is_active or price_order %}<a href="?" class="btn btn-light btn-sm">Clear</a>{% endif %}
+      </div>
+    </form>
+
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Package</th>
+            <th class="d-none d-md-table-cell">Code</th>
+            <th class="text-end">Price</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
         </thead>
-
         <tbody>
-        {% for package in packages %}
-          <tr>
-            <td>{{ package.name }}</td>
-            <td>{{ package.code|default:"—" }}</td>
-            <td>
-              {{ package.selling_price }}
-              {% if package.tagline %}<div class="small text-muted">{{ package.tagline }}</div>{% endif %}
-            </td>
-            <td>
-              {% if package.is_active %}
-                <span class="badge bg-success">Active</span>
-              {% else %}
-                <span class="badge bg-secondary">Inactive</span>
-              {% endif %}
-            </td>
-            <td class="text-end">
-              <a href="{% url 'services:package_detail' package.pk %}"
-                 class="btn btn-sm btn-outline-primary">
-                View
-              </a>
-
-              {% if can_manage_services %}
-                <a href="{% url 'services:package_update' package.pk %}"
-                   class="btn btn-sm btn-outline-secondary">
-                  <i class="bi bi-pencil"></i>Edit
-                </a>
-                <a href="{% url 'services:package_delete' package.pk %}"
-                   class="btn btn-sm btn-outline-danger">
-                  <i class="bi bi-trash"></i>Delete
-                </a>
-              {% endif %}
-            </td>
-          </tr>
-        {% empty %}
-          <tr>
-            <td colspan="5" class="text-center text-muted py-4">
-              No packages found.
-            </td>
-          </tr>
-        {% endfor %}
+          {% for package in packages %}
+            <tr data-href="{% url 'services:package_detail' package.pk %}">
+              <td>
+                <a href="{% url 'services:package_detail' package.pk %}" class="cell-title">{{ package.name }}</a>
+                {% if package.tagline %}<span class="cell-sub">{{ package.tagline }}</span>{% endif %}
+              </td>
+              <td class="d-none d-md-table-cell">{{ package.code|default:"—" }}</td>
+              <td class="text-end tabular">{{ package.selling_price|inr }}</td>
+              <td>{% if package.is_active %}{% status_pill "active" "Active" %}{% else %}{% status_pill "inactive" "Inactive" %}{% endif %}</td>
+              <td class="row-actions">
+                {% if can_manage_services %}
+                  <a href="{% url 'services:package_update' package.pk %}" class="btn btn-light btn-sm" title="Edit" aria-label="Edit"><i class="bi bi-pencil"></i></a>
+                  <a href="{% url 'services:package_delete' package.pk %}" class="btn btn-light btn-sm" title="Delete" aria-label="Delete"><i class="bi bi-trash"></i></a>
+                {% endif %}
+                <a href="{% url 'services:package_detail' package.pk %}" class="btn btn-light btn-sm" title="Open" aria-label="Open"><i class="bi bi-arrow-right"></i></a>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="5">
+              <div class="empty-state">
+                <i class="bi bi-collection"></i>No packages found.
+                {% if can_manage_services and not q and not is_active %}
+                  <div><a href="{% url 'services:package_create' %}" class="btn btn-dark btn-sm"><i class="bi bi-plus-lg"></i>Create the first package</a></div>
+                {% endif %}
+              </div>
+            </td></tr>
+          {% endfor %}
         </tbody>
       </table>
-      </div>
     </div>
+    {% include "ui/partials/pagination.html" %}
   </div>
-
-  <!-- Pagination -->
-  {% if is_paginated %}
-    <nav aria-label="Packages pagination" class="mt-3">
-      <ul class="pagination pagination-sm justify-content-between align-items-center mb-0">
-        <li class="page-item {% if not page_obj.has_previous %}disabled{% endif %}">
-          {% if page_obj.has_previous %}
-            <a class="page-link"
-               href="?page={{ page_obj.previous_page_number }}&q={{ q }}&is_active={{ is_active }}&price_order={{ price_order }}">
-              Previous
-            </a>
-          {% else %}
-            <span class="page-link">Previous</span>
-          {% endif %}
-        </li>
-
-        <li class="page-item disabled">
-          <span class="page-link">
-            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
-          </span>
-        </li>
-
-        <li class="page-item {% if not page_obj.has_next %}disabled{% endif %}">
-          {% if page_obj.has_next %}
-            <a class="page-link"
-               href="?page={{ page_obj.next_page_number }}&q={{ q }}&is_active={{ is_active }}&price_order={{ price_order }}">
-              Next
-            </a>
-          {% else %}
-            <span class="page-link">Next</span>
-          {% endif %}
-        </li>
-      </ul>
-    </nav>
-  {% endif %}
-
 </div>
 {% endblock %}

@@ -1,248 +1,57 @@
-{% extends "ui/base.html" %}
-{% load roles_tags %}
+{% extends "ui/form_page.html" %}
+{% load ui_tags roles_tags %}
 
-{% block title %}
-  {% if form.instance.pk %}Edit WhatsApp Template{% else %}New WhatsApp Template{% endif %}
+{% block title %}{% if form.instance.pk %}Edit WhatsApp template{% else %}New WhatsApp template{% endif %}{% endblock %}
+{% block form_eyebrow %}<i class="bi bi-whatsapp"></i> Messaging · WhatsApp templates{% endblock %}
+{% block form_title %}{% if form.instance.pk %}Edit {{ form.instance.name }}{% else %}New WhatsApp template{% endif %}{% endblock %}
+{% block form_subtitle %}Link an approved provider template to the messages the ERP sends.{% endblock %}
+{% block layout_class %}with-aside{% endblock %}
+
+{% block form_body %}
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-info-circle"></i>Template</h2>
+    <div class="row g-3">
+      {% field form.name "col-md-4" %}
+      {% field form.slug "col-md-4" %}
+      {% field form.type "col-md-4" %}
+      {% field form.is_active "col-12" %}
+    </div>
+  </section>
+
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-plug"></i>Provider</h2>
+    <div class="row g-3">
+      {% field form.provider "col-md-6" %}
+      {% field form.provider_template_name "col-md-6" %}
+      {% field form.language_code "col-md-6" %}
+      {% field form.category "col-md-6" %}
+    </div>
+  </section>
+
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-chat-text"></i>Message</h2>
+    <div class="row g-3">
+      {% field form.header_text "col-md-6" %}
+      {% field form.footer_text "col-md-6" %}
+      {% field form.body_text "col-12" %}
+      {% field form.variable_order_raw "col-12" %}
+      {% field form.notes "col-12" %}
+    </div>
+  </section>
 {% endblock %}
 
-{% block content %}
-{% has_sales_access request.user as can_manage_messaging %}
-
-<div class="container py-3 max-w-3xl">
-
-  <!-- Header -->
-  <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2 class="fw-semibold mb-0">
-      {% if form.instance.pk %}Edit WhatsApp Template{% else %}New WhatsApp Template{% endif %}
-    </h2>
-
-    <a href="{% url 'messaging:whatsapp_template_list' %}" class="btn btn-outline-secondary btn-sm">
-      <i class="bi bi-arrow-left"></i>Back to Templates
-    </a>
-  </div>
-
-  <form method="post" novalidate>
-    {% csrf_token %}
-
-    {% if form.non_field_errors %}
-      <div class="alert alert-danger">
-        {{ form.non_field_errors }}
-      </div>
-    {% endif %}
-
-    <!-- Main Template Card -->
-    <div class="card shadow-sm mb-3">
-      <div class="card-body">
-
-        <!-- Row 1 -->
-        <div class="row">
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.name.label }}{% if form.name.field.required %} *{% endif %}
-            </label>
-            {{ form.name }}
-            {% for error in form.name.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.slug.label }}{% if form.slug.field.required %} *{% endif %}
-            </label>
-            {{ form.slug }}
-            {% if form.slug.help_text %}
-              <div class="form-text">{{ form.slug.help_text }}</div>
-            {% endif %}
-            {% for error in form.slug.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.type.label }}{% if form.type.field.required %} *{% endif %}
-            </label>
-            {{ form.type }}
-            {% for error in form.type.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Row 2 -->
-        <div class="row">
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.provider.label }}{% if form.provider.field.required %} *{% endif %}
-            </label>
-            {{ form.provider }}
-            {% for error in form.provider.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.provider_template_name.label }}{% if form.provider_template_name.field.required %} *{% endif %}
-            </label>
-            {{ form.provider_template_name }}
-            {% if form.provider_template_name.help_text %}
-              <div class="form-text">{{ form.provider_template_name.help_text }}</div>
-            {% endif %}
-            {% for error in form.provider_template_name.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-2 mb-3">
-            <label class="form-label">
-              {{ form.language_code.label }}{% if form.language_code.field.required %} *{% endif %}
-            </label>
-            {{ form.language_code }}
-            {% if form.language_code.help_text %}
-              <div class="form-text">{{ form.language_code.help_text }}</div>
-            {% endif %}
-            {% for error in form.language_code.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-2 mb-3">
-            <label class="form-label">
-              {{ form.category.label }}{% if form.category.field.required %} *{% endif %}
-            </label>
-            {{ form.category }}
-            {% for error in form.category.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Row 3 -->
-        <div class="row">
-          <div class="col-md-6 mb-3">
-            <label class="form-label">
-              {{ form.header_text.label }}{% if form.header_text.field.required %} *{% endif %}
-            </label>
-            {{ form.header_text }}
-            {% if form.header_text.help_text %}
-              <div class="form-text">{{ form.header_text.help_text }}</div>
-            {% endif %}
-            {% for error in form.header_text.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-6 mb-3">
-            <label class="form-label">
-              {{ form.footer_text.label }}{% if form.footer_text.field.required %} *{% endif %}
-            </label>
-            {{ form.footer_text }}
-            {% if form.footer_text.help_text %}
-              <div class="form-text">{{ form.footer_text.help_text }}</div>
-            {% endif %}
-            {% for error in form.footer_text.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Body -->
-        <div class="row">
-          <div class="col-12 mb-3">
-            <label class="form-label">
-              {{ form.body_text.label }}{% if form.body_text.field.required %} *{% endif %}
-            </label>
-            {{ form.body_text }}
-            {% if form.body_text.help_text %}
-              <div class="form-text">{{ form.body_text.help_text }}</div>
-            {% endif %}
-            {% for error in form.body_text.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Variable Order -->
-        <div class="row">
-          <div class="col-12 mb-3">
-            <label class="form-label">
-              {{ form.variable_order_raw.label }}{% if form.variable_order_raw.field.required %} *{% endif %}
-            </label>
-            {{ form.variable_order_raw }}
-            {% if form.variable_order_raw.help_text %}
-              <div class="form-text">{{ form.variable_order_raw.help_text|linebreaksbr }}</div>
-            {% endif %}
-            {% for error in form.variable_order_raw.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Active -->
-        <div class="row">
-          <div class="col-md-4 mb-3 d-flex align-items-center">
-            <div class="form-check mt-2">
-              {{ form.is_active }}
-              <label class="form-check-label ms-1">
-                {{ form.is_active.label }}
-              </label>
-              {% for error in form.is_active.errors %}
-                <div class="text-danger small d-block">{{ error }}</div>
-              {% endfor %}
-            </div>
-          </div>
-        </div>
-
-        <!-- Notes -->
-        <div class="row">
-          <div class="col-12 mb-0">
-            <label class="form-label">
-              {{ form.notes.label }}{% if form.notes.field.required %} *{% endif %}
-            </label>
-            {{ form.notes }}
-            {% for error in form.notes.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-      </div>
+{% block form_aside %}
+  <aside class="form-aside">
+    <div class="aside-card">
+      <h3>Notes</h3>
+      <p class="text-secondary">The provider template name must match the approved template in Meta WhatsApp Cloud API or MSG91.</p>
+      <p class="text-secondary mb-0">The variable order must match the placeholders. If the approved template has <code>{% templatetag openvariable %}1{% templatetag closevariable %}</code>, <code>{% templatetag openvariable %}2{% templatetag closevariable %}</code>, <code>{% templatetag openvariable %}3{% templatetag closevariable %}</code>, add one variable per line in the same order.</p>
     </div>
+  </aside>
+{% endblock %}
 
-    <!-- Help Card -->
-    <div class="card border-info mb-3">
-      <div class="card-body">
-        <h6 class="fw-semibold mb-2">WhatsApp Template Notes</h6>
-
-        <p class="small text-muted mb-2">
-          The provider template name must match the approved template name in Meta WhatsApp Cloud API or MSG91.
-        </p>
-
-        <p class="small text-muted mb-0">
-          The variable order should match your WhatsApp template placeholders. For example, if your approved template has
-          <code>{{ 1 }}</code>, <code>{{ 2 }}</code>, <code>{{ 3 }}</code>, add one variable per line in the same order.
-        </p>
-      </div>
-    </div>
-
-    <!-- Buttons -->
-    <div class="row mt-3">
-      <div class="col-12 d-flex justify-content-center gap-2">
-        {% if can_manage_messaging %}
-          <button type="submit" class="btn btn-primary px-4">
-            Save
-          </button>
-        {% endif %}
-
-        <a href="{% url 'messaging:whatsapp_template_list' %}" class="btn btn-secondary">
-          Cancel
-        </a>
-      </div>
-    </div>
-
-  </form>
-
-</div>
+{% block form_actions %}
+  {% has_sales_access request.user as can_manage_messaging %}
+  <a href="{% if form.instance.pk %}{% url 'messaging:whatsapp_template_detail' form.instance.pk %}{% else %}{% url 'messaging:whatsapp_template_list' %}{% endif %}" class="btn btn-outline-secondary">Cancel</a>
+  {% if can_manage_messaging %}<button type="submit" class="btn btn-dark"><i class="bi bi-check2"></i>Save template</button>{% endif %}
 {% endblock %}

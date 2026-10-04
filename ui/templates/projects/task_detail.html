@@ -1,413 +1,228 @@
 {% extends "ui/base.html" %}
 {% load url_tags %}
-{% load roles_tags %}
+{% load roles_tags ui_tags %}
 {% block live_topics %}task:{{ task.pk }}{% endblock %}
 
+{% block title %}{{ task.name }} · Task{% endblock %}
+
 {% block content %}
-<div class="container-fluid py-4">
+{% is_admin request.user as is_admin %}
+{% is_project_manager request.user as is_project_manager %}
+{% is_employee request.user as is_employee %}
 
-  {% is_admin request.user as is_admin %}
-  {% is_project_manager request.user as is_project_manager %}
-  {% is_employee request.user as is_employee %}
+<div class="container">
   {% include "common/detail_messages.html" %}
-  <!-- Header -->
-  <div class="d-flex justify-content-between align-items-start mb-3">
-    <div>
-      <h1 class="h3 mb-1">{{ task.name }}</h1>
 
-      <div class="text-muted">
-        {% if is_admin or is_project_manager %}
-          <a href="{% url 'projects:project_detail' task.project.pk %}" class="text-decoration-none">
+  <div class="page-header">
+    <div class="min-w-0">
+      <div class="page-eyebrow">
+        <a href="{% if request.GET.next|local_url %}{{ request.GET.next|local_url }}{% else %}{% url 'projects:task_list' %}{% endif %}"><i class="bi bi-list-check"></i> Tasks</a>
+      </div>
+      <h1 class="page-title">{{ task.name }}</h1>
+      <div class="page-subtitle d-flex flex-wrap align-items-center gap-2">
+        <span class="status {% if task.status == 'blocked' %}status-danger{% elif task.status == 'revision' %}status-warning{% elif task.status == 'pending' %}status-muted{% else %}{{ task.status|status_tone }}{% endif %}">{{ task.get_status_display }}</span>
+        {% status_pill task.priority task.get_priority_display %}
+        {% if task.is_overdue %}<span class="status status-danger">Overdue</span>{% endif %}
+        <span>
+          <i class="bi bi-kanban"></i>
+          {% if is_admin or is_project_manager %}
+            <a href="{% url 'projects:project_detail' task.project.pk %}" class="text-reset">{{ task.project.name }}</a>
+          {% else %}
             {{ task.project.name }}
-          </a>
-        {% else %}
-          {{ task.project.name }}
-        {% endif %}
+          {% endif %}
+        </span>
       </div>
     </div>
 
-    <div class="d-flex gap-2">
-      <a href="{% url 'projects:task_kanban' %}" class="btn btn-outline-secondary btn-sm">
-        Kanban
-      </a>
-
-      {% if is_admin or is_project_manager %}
-        <a href="{% url 'projects:task_update' task.pk %}" class="btn btn-primary btn-sm">
-          <i class="bi bi-pencil"></i>Edit Task
-        </a>
-      {% endif %}
+    <div class="page-actions">
       {% if is_admin or is_project_manager %}
         {% if task.assigned_to_id != request.user.id %}
           <form method="post" action="{% url 'projects:task_self_assign' task.pk %}" class="d-inline">
             {% csrf_token %}
-            <button type="submit" class="btn btn-outline-primary btn-sm">Assign to me</button>
+            <button type="submit" class="btn btn-outline-dark btn-sm"><i class="bi bi-person-check"></i>Assign to me</button>
           </form>
         {% endif %}
+        <a href="{% url 'projects:task_update' task.pk %}" class="btn btn-outline-dark btn-sm"><i class="bi bi-pencil"></i>Edit</a>
       {% endif %}
-      {% if request.GET.next|local_url %}
-        <a href="{{ request.GET.next|local_url }}" class="btn btn-outline-secondary btn-sm">
-          <i class="bi bi-arrow-left"></i>Back
-        </a>
-      {% else %}
-        <a href="{% url 'projects:task_list' %}" class="btn btn-outline-secondary btn-sm">
-          <i class="bi bi-arrow-left"></i>Back
-        </a>
-      {% endif %}
+      <a href="{% url 'projects:task_kanban' %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-kanban"></i>Board</a>
     </div>
   </div>
 
-  <!-- Work Action Card -->
-  {% if is_admin or is_project_manager or task.assigned_to_id == request.user.id %}
-    <div class="card border-0 shadow-sm mb-4">
-      <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-2">
-        <div>
-          <div class="fw-semibold">Work Timer</div>
-          <div class="small text-muted">
-            Total counted work: {{ task.total_work_hm }}.
-            Paused time is not counted.
-          </div>
-        </div>
+  <div class="row g-4">
+    <div class="col-xl-8">
 
-        <div class="d-flex flex-wrap gap-2">
-          {% if active_work_session %}
-            {% if active_work_session.status == "active" %}
-              <form method="post" action="{% url 'projects:pause_work' active_work_session.pk %}">
-                {% csrf_token %}
-                <button type="submit" class="btn btn-outline-warning btn-sm">
-                  Pause
-                </button>
-              </form>
-            {% elif active_work_session.status == "paused" %}
-              <form method="post" action="{% url 'projects:resume_work' active_work_session.pk %}">
-                {% csrf_token %}
-                <button type="submit" class="btn btn-success btn-sm">
-                  Continue
-                </button>
-              </form>
-            {% endif %}
+      <!-- Work timer -->
+      {% if is_admin or is_project_manager or task.assigned_to_id == request.user.id %}
+        <div class="card mb-4">
+          <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3">
+            <div class="d-flex align-items-center gap-3 min-w-0">
+              <span class="avatar-circle{% if not active_work_session %} light{% endif %}"><i class="bi bi-stopwatch"></i></span>
+              <div class="min-w-0">
+                <div class="fw-semibold">
+                  Work timer
+                  {% if active_work_session %}<span class="ms-1">{% status_pill active_work_session.status active_work_session.get_status_display %}</span>{% endif %}
+                </div>
+                <div class="small text-muted">Total counted work: <span class="tabular fw-semibold text-ink">{{ task.total_work_hm }}</span>. Paused time is not counted.</div>
+              </div>
+            </div>
 
-            <form method="post" action="{% url 'projects:end_work' active_work_session.pk %}">
-              {% csrf_token %}
-              <button type="submit" class="btn btn-outline-danger btn-sm">
-                End Work
-              </button>
-            </form>
-          {% else %}
-            {% if task.status != "completed" and task.status != "cancelled" %}
-              <form method="post" action="{% url 'projects:start_task_work' task.pk %}">
-                {% csrf_token %}
-                <button type="submit" class="btn btn-success btn-sm">
-                  Start Work
-                </button>
-              </form>
-            {% endif %}
-          {% endif %}
-        </div>
-      </div>
-    </div>
-  {% endif %}
-
-    <!-- Main Info -->
-  <div class="row g-3 mb-4">
-
-    <div class="col-xl-2 col-lg-4 col-md-6">
-      <div class="card h-100 border-0 shadow-sm">
-        <div class="card-body">
-          <div class="small text-uppercase text-muted mb-1">Assigned To</div>
-          <div class="fw-semibold">
-            {% if task.assigned_to %}
-              {{ task.assigned_to.get_full_name|default:task.assigned_to.username }}
-            {% else %}
-              <span class="text-muted">Unassigned</span>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="col-xl-2 col-lg-4 col-md-6">
-      <div class="card h-100 border-0 shadow-sm">
-        <div class="card-body">
-          <div class="small text-uppercase text-muted mb-1">Status</div>
-
-          {% if task.status == "completed" %}
-            <span class="badge bg-success">{{ task.get_status_display }}</span>
-          {% elif task.status == "in_progress" %}
-            <span class="badge bg-primary">{{ task.get_status_display }}</span>
-          {% elif task.status == "paused" %}
-            <span class="badge bg-warning text-dark">{{ task.get_status_display }}</span>
-          {% elif task.status == "review" %}
-            <span class="badge bg-info text-dark">{{ task.get_status_display }}</span>
-          {% elif task.status == "revision" %}
-            <span class="badge bg-warning text-dark">{{ task.get_status_display }}</span>
-          {% elif task.status == "blocked" %}
-            <span class="badge bg-danger">{{ task.get_status_display }}</span>
-          {% elif task.status == "cancelled" %}
-            <span class="badge bg-dark">{{ task.get_status_display }}</span>
-          {% else %}
-            <span class="badge bg-secondary">{{ task.get_status_display }}</span>
-          {% endif %}
-        </div>
-      </div>
-    </div>
-
-    <div class="col-xl-2 col-lg-4 col-md-6">
-      <div class="card h-100 border-0 shadow-sm">
-        <div class="card-body">
-          <div class="small text-uppercase text-muted mb-1">Priority</div>
-
-          {% if task.priority == "critical" %}
-            <span class="badge bg-danger">{{ task.get_priority_display }}</span>
-          {% elif task.priority == "high" %}
-            <span class="badge bg-warning text-dark">{{ task.get_priority_display }}</span>
-          {% elif task.priority == "medium" %}
-            <span class="badge bg-info text-dark">{{ task.get_priority_display }}</span>
-          {% else %}
-            <span class="badge bg-light text-muted border">{{ task.get_priority_display }}</span>
-          {% endif %}
-        </div>
-      </div>
-    </div>
-
-    <div class="col-xl-3 col-lg-6 col-md-6">
-      <div class="card h-100 border-0 shadow-sm">
-        <div class="card-body">
-          <div class="small text-uppercase text-muted mb-1">Start Date</div>
-          <div class="fw-semibold">
-            {{ task.start_date|default:"—" }}
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="col-xl-3 col-lg-6 col-md-6">
-      <div class="card h-100 border-0 shadow-sm">
-        <div class="card-body">
-          <div class="small text-uppercase text-muted mb-1">Due Date</div>
-          <div class="fw-semibold">
-            {% if task.due_date %}
-              <span class="{% if task.is_overdue %}text-danger{% endif %}">
-                {{ task.due_date }}
-              </span>
-
-              {% if task.is_overdue %}
-                <span class="badge bg-danger ms-1">Overdue</span>
+            <div class="d-flex flex-wrap gap-2">
+              {% if active_work_session %}
+                {% if active_work_session.status == "active" %}
+                  <form method="post" action="{% url 'projects:pause_work' active_work_session.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-outline-warning btn-sm"><i class="bi bi-pause-fill"></i>Pause</button>
+                  </form>
+                {% elif active_work_session.status == "paused" %}
+                  <form method="post" action="{% url 'projects:resume_work' active_work_session.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-dark btn-sm"><i class="bi bi-play-fill"></i>Continue</button>
+                  </form>
+                {% endif %}
+                <form method="post" action="{% url 'projects:end_work' active_work_session.pk %}">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-stop-fill"></i>End work</button>
+                </form>
+              {% else %}
+                {% if task.status != "completed" and task.status != "cancelled" %}
+                  <form method="post" action="{% url 'projects:start_task_work' task.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-dark btn-sm"><i class="bi bi-play-fill"></i>Start work</button>
+                  </form>
+                {% endif %}
               {% endif %}
-            {% else %}
-              —
-            {% endif %}
+            </div>
           </div>
         </div>
+      {% endif %}
+
+      <!-- Production details -->
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-sliders"></i>Production details</h2></div>
+        <div class="card-body">
+          <dl class="info-grid">
+            <div><dt>Department</dt><dd>{{ task.get_department_display }}</dd></div>
+            <div><dt>Category</dt><dd>{{ task.get_category_display }}</dd></div>
+            <div><dt>Estimated time</dt><dd class="tabular">{% if task.estimated_minutes %}{{ task.estimated_minutes }} min{% else %}—{% endif %}</dd></div>
+            <div><dt>Actual work</dt><dd class="tabular">{{ task.total_work_hm }}</dd></div>
+            <div><dt>Count / notes</dt><dd>{% if task.count %}{{ task.count }}{% else %}—{% endif %}</dd></div>
+            <div class="span-all"><dt>Directory / folder</dt><dd>{% if task.directory %}<code>{{ task.directory }}</code>{% else %}—{% endif %}</dd></div>
+          </dl>
+        </div>
+      </div>
+
+      <!-- Description -->
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-card-text"></i>Description</h2></div>
+        <div class="card-body">
+          {% if task.description %}{{ task.description|linebreaksbr }}{% else %}<span class="text-muted">No description added for this task.</span>{% endif %}
+        </div>
+      </div>
+
+      <!-- Related deliverables -->
+      <div class="card mb-4">
+        <div class="card-header">
+          <h2 class="section-title"><i class="bi bi-box-seam"></i>Related deliverables <span class="text-muted fw-normal">{{ task.deliverables.all|length }}</span></h2>
+        </div>
+        {% if task.deliverables.all %}
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Deliverable</th>
+                  <th>Status</th>
+                  <th class="d-none d-md-table-cell">Due</th>
+                  <th class="d-none d-sm-table-cell">File</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for d in task.deliverables.all %}
+                  <tr data-href="{% url 'projects:deliverable_detail' d.pk %}">
+                    <td>
+                      <a href="{% url 'projects:deliverable_detail' d.pk %}" class="cell-title">{{ d.name }}</a>
+                      <span class="cell-sub">{{ d.get_category_display }} · {{ d.get_type_display }}</span>
+                    </td>
+                    <td><span class="status {% if d.status == 'revision_requested' %}status-warning{% elif d.status == 'pending' or d.status == 'waiting_for_tasks' %}status-muted{% elif d.status == 'internal_review' or d.status == 'client_review' or d.status == 'ready_to_deliver' %}status-outline{% else %}{{ d.status|status_tone }}{% endif %}">{{ d.get_status_display }}</span></td>
+                    <td class="d-none d-md-table-cell text-nowrap">{{ d.due_date|date:"d M Y"|default:"—" }}</td>
+                    <td class="d-none d-sm-table-cell">
+                      {% if d.file_link %}
+                        <a href="{{ d.file_link }}" target="_blank" rel="noopener"><i class="bi bi-link-45deg"></i> Final file</a>
+                      {% elif d.preview_link %}
+                        <a href="{{ d.preview_link }}" target="_blank" rel="noopener"><i class="bi bi-eye"></i> Preview</a>
+                      {% else %}
+                        <span class="text-muted">—</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="empty-state"><i class="bi bi-box-seam"></i>No deliverables linked to this task.</div>
+        {% endif %}
+      </div>
+
+      <!-- Work sessions -->
+      <div class="card mb-4">
+        <div class="card-header">
+          <h2 class="section-title"><i class="bi bi-stopwatch"></i>Work sessions <span class="text-muted fw-normal">{{ work_sessions|length }}</span></h2>
+        </div>
+        {% if work_sessions %}
+          <div class="table-responsive">
+            <table class="table align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>User</th>
+                  <th>Status</th>
+                  <th class="d-none d-md-table-cell">Started</th>
+                  <th class="d-none d-md-table-cell">Ended</th>
+                  <th class="text-end">Work</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for session in work_sessions %}
+                  <tr>
+                    <td>{{ session.user.get_full_name|default:session.user.username }}</td>
+                    <td>{% status_pill session.status session.get_status_display %}</td>
+                    <td class="d-none d-md-table-cell text-nowrap">{{ session.started_at|date:"d M Y, H:i" }}</td>
+                    <td class="d-none d-md-table-cell text-nowrap">{{ session.ended_at|date:"d M Y, H:i"|default:"—" }}</td>
+                    <td class="text-end tabular">{{ session.live_work_hm }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="empty-state"><i class="bi bi-stopwatch"></i>No work sessions recorded yet.</div>
+        {% endif %}
       </div>
     </div>
 
-  </div>
-
-  <!-- Production Details -->
-  <div class="card border-0 shadow-sm mb-4">
-    <div class="card-header bg-body border-bottom">
-      <strong>Production Details</strong>
-    </div>
-
-    <div class="card-body">
-      <div class="row g-3">
-
-        <div class="col-md-3">
-          <div class="small text-uppercase text-muted mb-1">Department</div>
-          <div class="fw-semibold">{{ task.get_department_display }}</div>
+    <div class="col-xl-4">
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-info-circle"></i>Details</h2></div>
+        <div class="card-body">
+          <ul class="info-list">
+            <li><span class="k">Assigned to</span><span class="v">{% if task.assigned_to %}{{ task.assigned_to.get_full_name|default:task.assigned_to.username }}{% else %}<span class="text-muted fw-normal">Unassigned</span>{% endif %}</span></li>
+            <li><span class="k">Status</span><span class="v">{{ task.get_status_display }}</span></li>
+            <li><span class="k">Priority</span><span class="v">{{ task.get_priority_display }}</span></li>
+            <li><span class="k">Start date</span><span class="v">{{ task.start_date|date:"d M Y"|default:"—" }}</span></li>
+            <li><span class="k">Due date</span><span class="v{% if task.is_overdue %} text-danger{% endif %}">{{ task.due_date|date:"d M Y"|default:"—" }}</span></li>
+          </ul>
         </div>
-
-        <div class="col-md-3">
-          <div class="small text-uppercase text-muted mb-1">Category</div>
-          <div class="fw-semibold">{{ task.get_category_display }}</div>
-        </div>
-
-        <div class="col-md-3">
-          <div class="small text-uppercase text-muted mb-1">Estimated Time</div>
-          <div class="fw-semibold">
-            {% if task.estimated_minutes %}
-              {{ task.estimated_minutes }} min
-            {% else %}
-              —
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="col-md-3">
-          <div class="small text-uppercase text-muted mb-1">Actual Work</div>
-          <div class="fw-semibold">{{ task.total_work_hm }}</div>
-        </div>
-
-        <div class="col-md-6">
-          <div class="small text-uppercase text-muted mb-1">Directory / Folder</div>
-          <div class="fw-semibold">
-            {% if task.directory %}
-              {{ task.directory }}
-            {% else %}
-              —
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="col-md-6">
-          <div class="small text-uppercase text-muted mb-1">Count / Notes</div>
-          <div class="fw-semibold">
-            {% if task.count %}
-              {{ task.count }}
-            {% else %}
-              —
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="col-md-4">
-          <div class="small text-uppercase text-muted mb-1">First Started</div>
-          <div class="fw-semibold">{{ task.first_started_at|default:"—" }}</div>
-        </div>
-
-        <div class="col-md-4">
-          <div class="small text-uppercase text-muted mb-1">Completed At</div>
-          <div class="fw-semibold">{{ task.completed_at|default:"—" }}</div>
-        </div>
-
-        <div class="col-md-4">
-          <div class="small text-uppercase text-muted mb-1">Created</div>
-          <div class="fw-semibold">{{ task.created_at|default:"—" }}</div>
-        </div>
-
       </div>
-    </div>
-  </div>
 
-  <!-- Description Card -->
-  <div class="card mb-4 border-0 shadow-sm">
-    <div class="card-header bg-body border-bottom">
-      <strong>Description</strong>
-    </div>
-
-    <div class="card-body">
-      {% if task.description %}
-        <div>{{ task.description|linebreaksbr }}</div>
-      {% else %}
-        <div class="text-muted">No description added for this task.</div>
-      {% endif %}
-    </div>
-  </div>
-
-  <!-- Related Deliverables -->
-  <div class="card border-0 shadow-sm mb-4">
-    <div class="card-header bg-body border-bottom d-flex justify-content-between align-items-center">
-      <strong>Related Deliverables</strong>
-      <span class="badge bg-light text-muted border">{{ task.deliverables.all|length }}</span>
-    </div>
-
-    <div class="card-body p-0">
-      {% if task.deliverables.all %}
-        <div class="table-responsive">
-          <table class="table table-sm table-hover align-middle mb-0">
-            <thead class="table-light">
-              <tr>
-                <th>Deliverable</th>
-                <th>Category</th>
-                <th>Status</th>
-                <th>Due</th>
-                <th>File</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for d in task.deliverables.all %}
-                <tr>
-                  <td>
-                    <a href="{% url 'projects:deliverable_detail' d.pk %}"
-                       class="fw-semibold text-decoration-none">
-                      {{ d.name }}
-                    </a>
-                  </td>
-
-                  <td>
-                    {{ d.get_category_display }}
-                    <div class="small text-muted">{{ d.get_type_display }}</div>
-                  </td>
-
-                  <td>
-                    {% if d.status == "delivered" %}
-                      <span class="badge bg-success">{{ d.get_status_display }}</span>
-                    {% elif d.status == "in_progress" %}
-                      <span class="badge bg-primary">{{ d.get_status_display }}</span>
-                    {% elif d.status == "paused" %}
-                      <span class="badge bg-warning text-dark">{{ d.get_status_display }}</span>
-                    {% elif d.status == "revision_requested" %}
-                      <span class="badge bg-warning text-dark">{{ d.get_status_display }}</span>
-                    {% else %}
-                      <span class="badge bg-secondary">{{ d.get_status_display }}</span>
-                    {% endif %}
-                  </td>
-
-                  <td>{{ d.due_date|default:"—" }}</td>
-
-                  <td>
-                    {% if d.file_link %}
-                      <a href="{{ d.file_link }}" target="_blank" class="text-decoration-none">
-                        Final File
-                      </a>
-                    {% elif d.preview_link %}
-                      <a href="{{ d.preview_link }}" target="_blank" class="text-decoration-none">
-                        Preview
-                      </a>
-                    {% else %}
-                      <span class="text-muted">—</span>
-                    {% endif %}
-                  </td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-clock-history"></i>Timeline</h2></div>
+        <div class="card-body">
+          <ul class="info-list">
+            <li><span class="k">Created</span><span class="v">{{ task.created_at|date:"d M Y, H:i"|default:"—" }}</span></li>
+            <li><span class="k">First started</span><span class="v">{{ task.first_started_at|date:"d M Y, H:i"|default:"—" }}</span></li>
+            <li><span class="k">Completed</span><span class="v">{{ task.completed_at|date:"d M Y, H:i"|default:"—" }}</span></li>
+          </ul>
         </div>
-      {% else %}
-        <div class="p-3 text-muted">
-          No deliverables linked to this task.
-        </div>
-      {% endif %}
-    </div>
-  </div>
-
-  <!-- Work Sessions -->
-  <div class="card border-0 shadow-sm mb-4">
-    <div class="card-header bg-body border-bottom">
-      <strong>Work Sessions</strong>
-    </div>
-
-    <div class="card-body p-0">
-      {% if work_sessions %}
-        <div class="table-responsive">
-          <table class="table table-sm align-middle mb-0">
-            <thead class="table-light">
-              <tr>
-                <th>User</th>
-                <th>Status</th>
-                <th>Started</th>
-                <th>Ended</th>
-                <th class="text-end">Work Hours</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for session in work_sessions %}
-                <tr>
-                  <td>{{ session.user.get_full_name|default:session.user.username }}</td>
-                  <td>{{ session.get_status_display }}</td>
-                  <td>{{ session.started_at }}</td>
-                  <td>{{ session.ended_at|default:"—" }}</td>
-                  <td class="text-end">{{ session.live_work_hm }}</td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      {% else %}
-        <div class="p-3 text-muted">
-          No work sessions recorded yet.
-        </div>
-      {% endif %}
+      </div>
     </div>
   </div>
 </div>

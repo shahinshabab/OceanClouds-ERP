@@ -1,168 +1,26 @@
-{% extends "ui/base.html" %}
-{% load static %}
-{% load roles_tags %}
+{% extends "ui/form_page.html" %}
+{% load ui_tags %}
 
-{% block title %}
-  {% if form.instance.pk %}Edit Payment{% else %}New Payment{% endif %}
+{% block title %}{% if form.instance.pk %}Edit payment{% else %}Record payment{% endif %}{% endblock %}
+
+{% block form_eyebrow %}<i class="bi bi-cash-coin"></i> Billing · Payments{% endblock %}
+{% block form_title %}{% if form.instance.pk %}Edit payment{% else %}Record payment{% endif %}{% endblock %}
+{% block form_subtitle %}Money received against an invoice.{% endblock %}
+
+{% block form_body %}
+  <section class="form-section">
+    <div class="row g-3">
+      {% field form.invoice "col-12" %}
+      {% field form.amount "col-md-6" prefix="₹" %}
+      {% field form.date "col-md-6" %}
+      {% field form.payment_type "col-md-6" %}
+      {% field form.method "col-md-6" %}
+      {% field form.reference "col-md-6" placeholder="UPI ref, cheque no." %}
+      {% field form.received_by "col-md-6" %}
+      {% field form.notes "col-12" %}
+    </div>
+  </section>
 {% endblock %}
 
-{% block content %}
-{% is_admin request.user as is_admin %}
-{% is_crm_manager request.user as is_crm_manager %}
-{% is_project_manager request.user as is_project_manager %}
-{% is_employee request.user as is_employee %}
-
-<div class="container py-3 max-w-2xl">
-
-  <h2 class="fw-semibold mb-4">
-    {% if form.instance.pk %}Edit Payment{% else %}New Payment{% endif %}
-  </h2>
-
-  <form method="post" novalidate>
-    {% csrf_token %}
-
-    {% if form.non_field_errors %}
-      <div class="alert alert-danger">
-        {{ form.non_field_errors }}
-      </div>
-    {% endif %}
-
-    <div class="card shadow-sm">
-      <div class="card-header bg-light">
-        <strong>Payment Information</strong>
-      </div>
-
-      <div class="card-body">
-
-        <!-- Row 1 -->
-        <div class="row">
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.invoice.label }}{% if form.invoice.field.required %} *{% endif %}
-            </label>
-            {{ form.invoice }}
-            {% for error in form.invoice.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-            {% if form.invoice.help_text %}
-              <div class="form-text">{{ form.invoice.help_text }}</div>
-            {% endif %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.date.label }}{% if form.date.field.required %} *{% endif %}
-            </label>
-            {{ form.date }}
-            {% for error in form.date.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.amount.label }}{% if form.amount.field.required %} *{% endif %}
-            </label>
-            {{ form.amount }}
-            {% for error in form.amount.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-            {% if form.amount.help_text %}
-              <div class="form-text">{{ form.amount.help_text }}</div>
-            {% endif %}
-          </div>
-        </div>
-
-        <!-- Row 2 -->
-        <div class="row">
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.method.label }}{% if form.method.field.required %} *{% endif %}
-            </label>
-            {{ form.method }}
-            {% for error in form.method.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.payment_type.label }}{% if form.payment_type.field.required %} *{% endif %}
-            </label>
-            {{ form.payment_type }}
-            {% for error in form.payment_type.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.reference.label }}
-            </label>
-            {{ form.reference }}
-            {% for error in form.reference.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Row 3 -->
-        <div class="row">
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.received_by.label }}
-            </label>
-            {{ form.received_by }}
-            {% for error in form.received_by.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-            <div class="form-text">
-              Leave empty to use the logged-in user.
-            </div>
-          </div>
-
-          <div class="col-md-8 mb-3">
-            <label class="form-label">
-              {{ form.notes.label }}
-            </label>
-            {{ form.notes }}
-            {% for error in form.notes.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-      </div>
-    </div>
-
-    <!-- Buttons -->
-    <div class="row mt-3">
-      <div class="col-12 d-flex justify-content-center flex-wrap gap-2">
-
-        {% if is_admin or is_crm_manager %}
-          <button type="submit" class="btn btn-primary px-4">
-            Save
-          </button>
-        {% endif %}
-
-        {% if form.instance.pk and form.instance.invoice %}
-          <a href="{% url 'sales:invoice_detail' form.instance.invoice.pk %}" class="btn btn-secondary">
-            Cancel
-          </a>
-        {% elif form.initial.invoice %}
-          <a href="{% url 'sales:invoice_detail' form.initial.invoice %}" class="btn btn-secondary">
-            Cancel
-          </a>
-        {% else %}
-          <a href="{% url 'sales:payment_list' %}" class="btn btn-secondary">
-            Cancel
-          </a>
-        {% endif %}
-
-      </div>
-    </div>
-
-  </form>
-
-</div>
-{% endblock %}
+{% block cancel_url %}{% if form.instance.pk and form.instance.invoice %}{% url 'sales:invoice_detail' form.instance.invoice.pk %}{% elif form.initial.invoice %}{% url 'sales:invoice_detail' form.initial.invoice %}{% else %}{% url 'sales:payment_list' %}{% endif %}{% endblock %}
+{% block submit_label %}Save payment{% endblock %}

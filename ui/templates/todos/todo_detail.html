@@ -1,199 +1,114 @@
 {% extends "ui/base.html" %}
-{% load roles_tags %}
+{% load roles_tags ui_tags %}
 
 {% block title %}To-Do Detail{% endblock %}
 {% block live_topics %}todo:{{ todo.pk }}{% endblock %}
 
 {% block content %}
-<div class="container py-3">
+{% has_sales_access request.user as is_sales %}
+{% can_delete_todo request.user todo as todo_deletable %}
 
-  <div class="d-flex justify-content-between align-items-start mb-3">
-    <div>
-      <h2 class="fw-semibold mb-1">{{ todo.title }}</h2>
-      <div class="text-muted small">
-        Created {{ todo.created_at|date:"d M Y H:i" }}
+<div class="container">
+  <div class="page-header">
+    <div class="min-w-0">
+      <div class="page-eyebrow"><a href="{% url 'todos:todo_list' %}"><i class="bi bi-check2-square"></i> To-dos</a></div>
+      <h1 class="page-title">{{ todo.title }}</h1>
+      <div class="page-subtitle d-flex flex-wrap align-items-center gap-2">
+        {% status_pill todo.status todo.get_status_display %}
+        {% status_pill todo.priority todo.get_priority_display %}
+        {% if todo.is_overdue %}{% status_pill "overdue" "Overdue" %}{% endif %}
+        {% if todo.due_date %}<span><i class="bi bi-calendar-event"></i> Due {{ todo.due_date|date:"d M Y" }}</span>{% endif %}
+        {% if todo.assigned_to %}<span><i class="bi bi-person"></i> {{ todo.assigned_to }}</span>{% endif %}
       </div>
     </div>
 
-    <div class="d-flex gap-2">
-      <a href="{% url 'todos:todo_list' %}" class="btn btn-outline-secondary btn-sm">
-        <i class="bi bi-arrow-left"></i>Back
-      </a>
+    <div class="page-actions">
+      {% if todo.status != "completed" %}
+        <form method="post" action="{% url 'todos:todo_complete' todo.pk %}" class="m-0">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-dark btn-sm"><i class="bi bi-check2"></i>Mark completed</button>
+        </form>
+      {% else %}
+        <form method="post" action="{% url 'todos:todo_reopen' todo.pk %}" class="m-0">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-outline-dark btn-sm"><i class="bi bi-arrow-counterclockwise"></i>Reopen</button>
+        </form>
+      {% endif %}
+      <a href="{% url 'todos:todo_update' todo.pk %}" class="btn btn-outline-dark btn-sm"><i class="bi bi-pencil"></i>Edit</a>
 
-      <a href="{% url 'todos:todo_update' todo.pk %}" class="btn btn-primary btn-sm">
-        <i class="bi bi-pencil"></i>Edit
-      </a>
-
-      {% can_delete_todo request.user todo as todo_deletable %}
-      {% if todo_deletable %}
-      <a href="{% url 'todos:todo_delete' todo.pk %}" class="btn btn-outline-danger btn-sm">
-        <i class="bi bi-trash"></i>Delete
-      </a>
+      {% if todo.status != "cancelled" or todo_deletable %}
+        <div class="dropdown">
+          <button class="btn btn-outline-secondary btn-sm btn-icon" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="More actions">
+            <i class="bi bi-three-dots"></i>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            {% if todo.status != "cancelled" %}
+              <li>
+                <form method="post" action="{% url 'todos:todo_cancel' todo.pk %}" class="m-0">
+                  {% csrf_token %}
+                  <button type="submit" class="dropdown-item"><i class="bi bi-x-circle"></i>Cancel to-do</button>
+                </form>
+              </li>
+            {% endif %}
+            {% if todo_deletable %}
+              {% if todo.status != "cancelled" %}<li><hr class="dropdown-divider"></li>{% endif %}
+              <li><a class="dropdown-item text-danger" href="{% url 'todos:todo_delete' todo.pk %}"><i class="bi bi-trash"></i>Delete to-do</a></li>
+            {% endif %}
+          </ul>
+        </div>
       {% endif %}
     </div>
   </div>
 
-  <div class="row g-3">
-
-    <div class="col-md-8">
-      <div class="card shadow-sm border-0 mb-3">
-        <div class="card-header bg-white fw-semibold">
-          Details
-        </div>
-
+  <div class="row g-4">
+    <div class="col-xl-8">
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-card-text"></i>Description</h2></div>
         <div class="card-body">
-          <div class="mb-3">
-            <div class="text-muted small">Description</div>
-            <div>{{ todo.description|linebreaksbr|default:"-" }}</div>
-          </div>
-
-          <div class="row g-3">
-            <div class="col-md-4">
-              <div class="text-muted small">Status</div>
-              <div class="fw-semibold">{{ todo.get_status_display }}</div>
-            </div>
-
-            <div class="col-md-4">
-              <div class="text-muted small">Priority</div>
-              <div class="fw-semibold">{{ todo.get_priority_display }}</div>
-            </div>
-
-            <div class="col-md-4">
-              <div class="text-muted small">Due Date</div>
-              <div class="fw-semibold">
-                {{ todo.due_date|date:"d M Y"|default:"-" }}
-
-                {% if todo.is_overdue %}
-                  <span class="badge bg-danger-subtle text-danger-emphasis ms-1">
-                    Overdue
-                  </span>
-                {% endif %}
-              </div>
-            </div>
-
-            <div class="col-md-4">
-              <div class="text-muted small">Assigned To</div>
-              <div class="fw-semibold">{{ todo.assigned_to|default:"-" }}</div>
-            </div>
-
-            <div class="col-md-4">
-              <div class="text-muted small">Owner</div>
-              <div class="fw-semibold">{{ todo.owner|default:"-" }}</div>
-            </div>
-
-            <div class="col-md-4">
-              <div class="text-muted small">Completed At</div>
-              <div class="fw-semibold">
-                {{ todo.completed_at|date:"d M Y H:i"|default:"-" }}
-              </div>
-            </div>
-          </div>
+          {% if todo.description %}{{ todo.description|linebreaksbr }}{% else %}<span class="text-muted">No description.</span>{% endif %}
         </div>
       </div>
 
-      <div class="card shadow-sm border-0">
-        <div class="card-header bg-white fw-semibold">
-          Linked Records
-        </div>
-
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-link-45deg"></i>Linked records</h2></div>
         <div class="card-body">
-          <div class="row g-3">
-            <div class="col-md-6">
-              <div class="text-muted small">Project</div>
-              <div>{{ todo.project|default:"-" }}</div>
-            </div>
-
-            <div class="col-md-6">
-              <div class="text-muted small">Task</div>
-              <div>{{ todo.task|default:"-" }}</div>
-            </div>
-
-            <div class="col-md-6">
-              <div class="text-muted small">Deliverable</div>
-              <div>{{ todo.deliverable|default:"-" }}</div>
-            </div>
-
-            <div class="col-md-6">
-              <div class="text-muted small">Client</div>
-              <div>{{ todo.client|default:"-" }}</div>
-            </div>
-
-            <div class="col-md-6">
-              <div class="text-muted small">Lead</div>
-              <div>{{ todo.lead|default:"-" }}</div>
-            </div>
-
-            <div class="col-md-6">
-              <div class="text-muted small">Deal</div>
-              <div>{{ todo.deal|default:"-" }}</div>
-            </div>
-
-            <div class="col-md-6">
-              <div class="text-muted small">Proposal</div>
-              <div>{{ todo.proposal|default:"-" }}</div>
-            </div>
-
-            <div class="col-md-6">
-              <div class="text-muted small">Contract</div>
-              <div>{{ todo.contract|default:"-" }}</div>
-            </div>
-
-            <div class="col-md-6">
-              <div class="text-muted small">Invoice</div>
-              <div>{{ todo.invoice|default:"-" }}</div>
-            </div>
-            <div class="col-md-6">
-              <div class="text-muted small">Event</div>
-              <div>{{ todo.event|default:"-" }}</div>
-            </div>
-
-            <div class="col-md-6">
-              <div class="text-muted small">Checklist Item</div>
-              <div>{{ todo.checklist_item|default:"-" }}</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="col-md-4">
-      <div class="card shadow-sm border-0">
-        <div class="card-header bg-white fw-semibold">
-          Quick Actions
-        </div>
-
-        <div class="card-body d-grid gap-2">
-
-          {% if todo.status != "completed" %}
-            <form method="post" action="{% url 'todos:todo_complete' todo.pk %}">
-              {% csrf_token %}
-              <button type="submit" class="btn btn-success w-100">
-                Mark Completed
-              </button>
-            </form>
+          {% if todo.project or todo.task or todo.deliverable or todo.event or todo.checklist_item or todo.client or todo.lead or todo.deal or todo.proposal or todo.contract or todo.invoice %}
+            <dl class="info-grid">
+              {% if todo.project %}<div><dt>Project</dt><dd><a href="{{ todo.project.get_absolute_url }}">{{ todo.project }}</a></dd></div>{% endif %}
+              {% if todo.task %}<div><dt>Task</dt><dd><a href="{{ todo.task.get_absolute_url }}">{{ todo.task }}</a></dd></div>{% endif %}
+              {% if todo.deliverable %}<div><dt>Deliverable</dt><dd><a href="{{ todo.deliverable.get_absolute_url }}">{{ todo.deliverable }}</a></dd></div>{% endif %}
+              {% if todo.event %}<div><dt>Event</dt><dd><a href="{{ todo.event.get_absolute_url }}">{{ todo.event }}</a></dd></div>{% endif %}
+              {% if todo.checklist_item %}<div><dt>Checklist item</dt><dd>{{ todo.checklist_item }}</dd></div>{% endif %}
+              {% if todo.client %}<div><dt>Client</dt><dd>{% if is_sales %}<a href="{% url 'crm:client_detail' todo.client.pk %}">{{ todo.client }}</a>{% else %}{{ todo.client }}{% endif %}</dd></div>{% endif %}
+              {% if todo.lead %}<div><dt>Lead</dt><dd>{% if is_sales %}<a href="{% url 'crm:lead_detail' todo.lead.pk %}">{{ todo.lead }}</a>{% else %}{{ todo.lead }}{% endif %}</dd></div>{% endif %}
+              {% if todo.deal %}<div><dt>Deal</dt><dd>{% if is_sales %}<a href="{{ todo.deal.get_absolute_url }}">{{ todo.deal }}</a>{% else %}{{ todo.deal }}{% endif %}</dd></div>{% endif %}
+              {% if todo.proposal %}<div><dt>Proposal</dt><dd>{% if is_sales %}<a href="{{ todo.proposal.get_absolute_url }}">{{ todo.proposal }}</a>{% else %}{{ todo.proposal }}{% endif %}</dd></div>{% endif %}
+              {% if todo.contract %}<div><dt>Contract</dt><dd>{% if is_sales %}<a href="{{ todo.contract.get_absolute_url }}">{{ todo.contract }}</a>{% else %}{{ todo.contract }}{% endif %}</dd></div>{% endif %}
+              {% if todo.invoice %}<div><dt>Invoice</dt><dd>{% if is_sales %}<a href="{{ todo.invoice.get_absolute_url }}">{{ todo.invoice }}</a>{% else %}{{ todo.invoice }}{% endif %}</dd></div>{% endif %}
+            </dl>
           {% else %}
-            <form method="post" action="{% url 'todos:todo_reopen' todo.pk %}">
-              {% csrf_token %}
-              <button type="submit" class="btn btn-outline-secondary w-100">
-                Reopen
-              </button>
-            </form>
+            <span class="text-muted">Not linked to any project, event or sales record.</span>
           {% endif %}
-
-          {% if todo.status != "cancelled" %}
-            <form method="post" action="{% url 'todos:todo_cancel' todo.pk %}">
-              {% csrf_token %}
-              <button type="submit" class="btn btn-outline-warning w-100">
-                Cancel
-              </button>
-            </form>
-          {% endif %}
-
         </div>
       </div>
     </div>
 
+    <div class="col-xl-4">
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-info-circle"></i>Details</h2></div>
+        <div class="card-body">
+          <ul class="info-list">
+            <li><span class="k">Status</span><span class="v">{{ todo.get_status_display }}</span></li>
+            <li><span class="k">Priority</span><span class="v">{{ todo.get_priority_display }}</span></li>
+            <li><span class="k">Due date</span><span class="v">{{ todo.due_date|date:"d M Y"|default:"—" }}</span></li>
+            <li><span class="k">Assigned to</span><span class="v">{{ todo.assigned_to|default:"—" }}</span></li>
+            <li><span class="k">Owner</span><span class="v">{{ todo.owner|default:"—" }}</span></li>
+            <li><span class="k">Completed</span><span class="v">{{ todo.completed_at|date:"d M Y, H:i"|default:"—" }}</span></li>
+          </ul>
+          <div class="small text-muted mt-3">Created {{ todo.created_at|date:"d M Y, H:i" }}</div>
+        </div>
+      </div>
+    </div>
   </div>
-
 </div>
 {% endblock %}

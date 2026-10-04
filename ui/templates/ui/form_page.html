@@ -1,0 +1,55 @@
+{% extends "ui/base.html" %}
+{% comment %}
+Shared layout for create and edit pages. A form template extends this and
+fills the blocks it needs:
+
+  form_eyebrow / form_title / form_subtitle   page header
+  form_intro                                  notes above the form
+  form_body                                   sections of {% field %} tags;
+                                              defaults to every field
+  form_aside + layout_class "with-aside"      optional right-hand column,
+                                              wrapped in <aside class="form-aside">
+  cancel_url / submit_label                   the action bar
+{% endcomment %}
+{% load ui_tags %}
+
+{% block content %}
+<div class="container form-page {% block page_class %}{% endblock %}">
+  <div class="page-header">
+    <div>
+      <div class="page-eyebrow">{% block form_eyebrow %}{% endblock %}</div>
+      <h1 class="page-title">{% block form_title %}{% endblock %}</h1>
+      <div class="page-subtitle">{% block form_subtitle %}{% endblock %}</div>
+    </div>
+    <div class="page-actions">{% block header_actions %}{% endblock %}</div>
+  </div>
+
+  {% block form_intro %}{% endblock %}
+
+  <form method="post" class="oc-form" {% block form_attrs %}novalidate{% endblock %}>
+    {% csrf_token %}
+    {% include "ui/partials/form_errors.html" %}
+    {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
+
+    <div class="form-layout {% block layout_class %}{% endblock %}">
+      <div class="form-main">
+        {% block form_body %}
+          <section class="form-section">
+            <div class="row g-3">{% form_fields form %}</div>
+          </section>
+        {% endblock %}
+      </div>
+      {% block form_aside %}{% endblock %}
+    </div>
+
+    <div class="form-actions">
+      {% block form_actions %}
+        <a href="{% block cancel_url %}javascript:history.back(){% endblock %}" class="btn btn-outline-secondary">Cancel</a>
+        <button type="submit" class="btn btn-dark"><i class="bi bi-check2"></i>{% block submit_label %}Save{% endblock %}</button>
+      {% endblock %}
+    </div>
+  </form>
+
+  {% block after_form %}{% endblock %}
+</div>
+{% endblock %}

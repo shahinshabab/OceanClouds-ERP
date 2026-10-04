@@ -82,6 +82,10 @@
             Generate Invoice
           </a>
         {% endif %}
+        <a href="{% url 'sales:contract_document' contract.pk %}"
+           class="btn btn-outline-primary btn-sm">
+          Digital Contract
+        </a>
         <a href="{% url 'sales:contract_download' contract.pk %}"
            class="btn btn-outline-secondary btn-sm">
           Download PDF
@@ -101,6 +105,10 @@
       {% endif %}
       
       {% if not is_sales %}
+        <a href="{% url 'sales:contract_document' contract.pk %}"
+           class="btn btn-outline-primary btn-sm">
+          Digital Contract
+        </a>
         <a href="{% url 'sales:contract_download' contract.pk %}"
            class="btn btn-outline-secondary btn-sm">
           Download PDF

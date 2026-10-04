@@ -67,9 +67,15 @@
           </div>
         </div>
 
+        <div class="row">
+          <div class="col-12 mb-3">{% include "services/_field.html" with field=form.summary %}</div>
+        </div>
+
         <!-- Row 2: Base Price / Active -->
         <div class="row">
-          <div class="col-md-6 mb-3">
+          <div class="col-md-3 mb-3">{% include "services/_field.html" with field=form.price_unit %}</div>
+          <div class="col-md-2 mb-3">{% include "services/_field.html" with field=form.sort_order %}</div>
+          <div class="col-md-4 mb-3">
             <label class="form-label">
               {{ form.base_price.label }}{% if form.base_price.field.required %} *{% endif %}
             </label>

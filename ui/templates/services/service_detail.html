@@ -52,7 +52,8 @@
           <div class="text-uppercase text-muted small">Base Price</div>
           <div class="fw-semibold">
             {% if service.base_price %}
-              {{ service.base_price }}
+              {{ service.base_price }} <span class="small text-muted fw-normal">{{ service.get_price_unit_display }}</span>
+              {% if service.summary %}<div class="small text-muted fw-normal">{{ service.summary }}</div>{% endif %}
             {% else %}
               —
             {% endif %}

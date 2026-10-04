@@ -1,0 +1,6 @@
+{% load proposal_pdf_filters %}
+<div class="grid2">
+  {% for d in deliverables %}
+    <div class="deliv"><span>{{ d.title }}</span><span class="q">{% if d.quantity %}{{ d.quantity|clean_qty }}{% if d.unit %} {{ d.unit|lower }}{% endif %}{% endif %}</span></div>
+  {% endfor %}
+</div>

@@ -1,0 +1,167 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Ocean Clouds{% endblock %}</title>
+  <style>
+    @font-face { font-family: "OC Sans"; font-weight: 300; src: url("{% static 'sales/fonts/SF-Pro-Display-Light.otf' %}"); }
+    @font-face { font-family: "OC Sans"; font-weight: 400; src: url("{% static 'sales/fonts/SF-Pro-Display-Regular.otf' %}"); }
+    @font-face { font-family: "OC Sans"; font-weight: 500; src: url("{% static 'sales/fonts/SF-Pro-Display-Medium.otf' %}"); }
+    @font-face { font-family: "OC Sans"; font-weight: 600; src: url("{% static 'sales/fonts/SF-Pro-Display-Semibold.otf' %}"); }
+    @font-face { font-family: "OC Sans"; font-weight: 400; font-style: italic; src: url("{% static 'sales/fonts/SF-Pro-Display-RegularItalic.otf' %}"); }
+
+    :root {
+      --paper: #f6f6f6;
+      --ink: #161616;
+      --muted: #6d6f71;
+      --faint: #9a9da0;
+      --line: #dcdcdc;
+      --card: #ffffff;
+      --sea: #5f7a87;
+    }
+
+    @page {
+      size: A4;
+      margin: 22mm 20mm 20mm;
+      background: #f6f6f6;
+      @bottom-left {
+        content: "OCEAN  CLOUDS";
+        font-family: "OC Sans", sans-serif; font-size: 7pt; letter-spacing: 2.5pt; color: #9a9da0;
+      }
+      @bottom-right {
+        content: "{% block running_label %}{% endblock %}  ·  " counter(page) " / " counter(pages);
+        font-family: "OC Sans", sans-serif; font-size: 7pt; color: #9a9da0;
+      }
+    }
+    @page cover { margin: 0; @bottom-left { content: none; } @bottom-right { content: none; } }
+    @page letter { background: #f6f6f6 url("{% static 'sales/brand/waves.png' %}") no-repeat center bottom / 210mm auto; }
+    .letter { page: letter; }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: "OC Sans", "Helvetica Neue", Arial, sans-serif;
+      font-size: 9.6pt; line-height: 1.5; color: var(--ink); font-weight: 400;
+      background: var(--paper);
+    }
+    p { margin: 0 0 3mm; }
+    h1, h2, h3, h4 { margin: 0; font-weight: 400; }
+
+    /* ---------- Cover ---------- */
+    .cover { page: cover; position: relative; width: 210mm; height: 297mm; overflow: hidden; break-after: page; }
+    .cover .clouds { position: absolute; top: 0; left: 0; width: 210mm; }
+    .cover .waves { position: absolute; bottom: 0; left: 0; width: 210mm; }
+    .cover .content { position: absolute; top: 78mm; left: 22mm; right: 22mm; text-align: center; }
+    .cover .logo { width: 108mm; }
+    .cover .kicker { margin-top: 16mm; font-size: 8pt; letter-spacing: 4pt; text-transform: uppercase; color: var(--muted); }
+    .cover .name { margin-top: 5mm; font-size: 27pt; font-weight: 300; letter-spacing: .3pt; line-height: 1.2; }
+    .cover .when { margin-top: 4mm; font-size: 10.5pt; color: var(--muted); }
+    .cover .meta { position: absolute; left: 22mm; right: 22mm; bottom: 70mm; display: flex; justify-content: center; gap: 12mm; font-size: 7.6pt; color: var(--muted); text-align: center; }
+    .cover .meta b { display: block; font-weight: 500; color: var(--ink); font-size: 8.6pt; margin-top: .6mm; }
+
+    /* ---------- Sections ---------- */
+    .section { margin-bottom: 9mm; }
+    .page-break { break-before: page; }
+    .eyebrow { font-size: 7.4pt; letter-spacing: 3pt; text-transform: uppercase; color: var(--sea); margin-bottom: 2mm; }
+    .title { font-size: 19pt; font-weight: 400; line-height: 1.2; margin-bottom: 5mm; }
+    .lede { font-size: 10.5pt; font-weight: 300; color: #333; }
+    .muted { color: var(--muted); }
+    .small { font-size: 8pt; }
+    .rule { border: 0; border-top: .6pt solid var(--line); margin: 6mm 0; }
+    .swoosh { width: 100%; margin: -6mm 0 4mm; opacity: .9; }
+    .logo-small { width: 46mm; }
+
+    /* ---------- Event days & items ---------- */
+    .day { background: var(--card); border-radius: 3mm; padding: 5mm 6mm 2mm; margin-bottom: 5mm; break-inside: avoid; }
+    .day-head { display: flex; justify-content: space-between; align-items: baseline; border-bottom: .6pt solid var(--line); padding-bottom: 2.5mm; margin-bottom: 1mm; }
+    .day-title { font-size: 12.5pt; font-weight: 500; }
+    .day-when { font-size: 8.4pt; color: var(--muted); text-align: right; }
+    .day-when b { color: var(--ink); font-weight: 500; }
+    .day-notes { font-size: 8.4pt; color: var(--muted); margin: 1.5mm 0 0; font-style: italic; }
+    .item { display: flex; gap: 6mm; padding: 3mm 0; border-bottom: .5pt dashed var(--line); break-inside: avoid; }
+    .item:last-child { border-bottom: 0; }
+    .item-main { flex: 1; }
+    .item-name { font-weight: 500; font-size: 10pt; }
+    .item-sub { font-size: 8.4pt; color: var(--muted); }
+    .item-notes { font-size: 8.4pt; color: #444; margin-top: .8mm; }
+    .chips { margin-top: 1.6mm; }
+    .chip { display: inline-block; font-size: 7.6pt; padding: .4mm 2.2mm; margin: 0 1.2mm 1.2mm 0; border: .5pt solid var(--line); border-radius: 10mm; color: #3d3f41; background: #fafafa; }
+    .item-price { width: 38mm; text-align: right; white-space: nowrap; }
+    .item-price .qty { font-size: 7.8pt; color: var(--muted); }
+    .item-price .amt { font-weight: 500; font-size: 10pt; }
+
+    /* ---------- Deliverables grid ---------- */
+    .grid2 { columns: 2; column-gap: 10mm; column-fill: balance; }
+    .deliv { break-inside: avoid; display: flex; justify-content: space-between; gap: 4mm; padding: 2mm 0; border-bottom: .5pt solid var(--line); font-size: 9pt; }
+    .deliv .q { color: var(--muted); white-space: nowrap; }
+
+    /* ---------- Investment ---------- */
+    .invest { background: var(--card); border-radius: 3mm; padding: 7mm 8mm; break-inside: avoid; }
+    .totals { width: 100%; border-collapse: collapse; font-size: 9.6pt; }
+    .totals td { padding: 1.8mm 0; }
+    .totals td:last-child { text-align: right; }
+    .totals .grand td { border-top: .8pt solid var(--ink); padding-top: 3.5mm; font-size: 15pt; font-weight: 500; }
+    .words { margin-top: 2mm; font-size: 8.4pt; color: var(--muted); font-style: italic; text-align: right; }
+    .schedule { width: 100%; border-collapse: collapse; margin-top: 3mm; font-size: 9pt; }
+    .schedule th { text-align: left; font-weight: 500; font-size: 7.6pt; letter-spacing: 1.2pt; text-transform: uppercase; color: var(--muted); border-bottom: .6pt solid var(--line); padding: 2mm 0; }
+    .schedule td { padding: 2.2mm 0; border-bottom: .5pt solid var(--line); vertical-align: top; }
+    .schedule td:last-child, .schedule th:last-child { text-align: right; }
+
+    /* ---------- Craft ---------- */
+    .craft { display: flex; gap: 8mm; margin-bottom: 7mm; break-inside: avoid; }
+    .craft h3 { font-size: 13pt; margin-bottom: 2mm; }
+    .craft p { font-weight: 300; color: #333; }
+    .logos img { height: 10mm; margin: 2mm 6mm 0 0; vertical-align: middle; }
+
+    /* ---------- Terms ---------- */
+    .terms { display: table; width: 100%; table-layout: fixed; font-size: 7.9pt; line-height: 1.45; color: #2d2f31; }
+    .terms .col { display: table-cell; vertical-align: top; padding-right: 9mm; }
+    .terms .col:last-child { padding-right: 0; }
+    .terms .term { break-inside: avoid; margin-bottom: 1.8mm; padding-left: 5mm; position: relative; }
+    .terms .term span { position: absolute; left: 0; color: #9a9da0; }
+
+    /* ---------- Parties / signatures ---------- */
+    .two { display: table; width: 100%; table-layout: fixed; border-spacing: 0; }
+    .two > div { display: table-cell; vertical-align: top; }
+    .two > div + div { border-left: 8mm solid var(--paper); }
+    .card { background: var(--card); border-radius: 3mm; padding: 5mm 6mm; break-inside: avoid; }
+    .label { font-size: 7.2pt; letter-spacing: 2pt; text-transform: uppercase; color: var(--muted); margin-bottom: 1.5mm; }
+    .sign { margin-top: 14mm; border-top: .6pt solid var(--ink); padding-top: 2mm; font-size: 8.4pt; }
+    .stamp { display: inline-block; font-size: 7.6pt; letter-spacing: 1.5pt; text-transform: uppercase; color: #2f6b4f; border: .7pt solid #2f6b4f; border-radius: 1.5mm; padding: .8mm 2.5mm; }
+    table.spec { width: 100%; border-collapse: collapse; font-size: 8.4pt; }
+    table.spec td { border-bottom: .5pt solid var(--line); padding: 2.2mm 2mm 2.2mm 0; vertical-align: top; }
+    table.spec td:first-child { width: 42mm; font-weight: 500; }
+    ul.plain { margin: 0; padding-left: 4mm; }
+    ul.plain li { margin-bottom: 1mm; }
+
+    {% if screen %}
+    /* Browser view of the same document */
+    body { background: #e9eaeb; padding: 24px 12px; }
+    .sheet { max-width: 210mm; margin: 0 auto 24px; background: var(--paper); padding: 22mm 20mm; box-shadow: 0 2px 14px rgba(0,0,0,.08); border-radius: 4px; }
+    .sheet.cover-sheet { padding: 0; }
+    .cover { width: 100%; height: auto; aspect-ratio: 210 / 297; }
+    .cover .clouds, .cover .waves { width: 100%; }
+    .screen-bar { max-width: 210mm; margin: 0 auto 16px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
+    .screen-bar a { color: var(--ink); text-decoration: none; border: 1px solid #c9cbcd; border-radius: 6px; padding: 6px 12px; background: #fff; margin-left: 6px; }
+    .page-break { break-before: auto; }
+    @media (max-width: 640px) {
+      .sheet { padding: 16px; }
+      .two, .craft, .day-head, .item { display: block; }
+      .item-price { width: auto; text-align: left; margin-top: 2mm; }
+      .grid2 { columns: 1; }
+      .terms { display: block; }
+    }
+    @media print {
+      body { background: none; padding: 0; }
+      .screen-bar { display: none; }
+      .sheet { box-shadow: none; margin: 0; padding: 0; max-width: none; }
+    }
+    {% endif %}
+  </style>
+</head>
+<body>
+{% block screen_bar %}{% endblock %}
+{% block body %}{% endblock %}
+</body>
+</html>

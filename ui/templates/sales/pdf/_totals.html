@@ -1,0 +1,9 @@
+{% load proposal_pdf_filters %}
+<table class="totals">
+  <tr><td>Services subtotal</td><td>{{ doc.subtotal|money }}</td></tr>
+  {% if doc.discount %}<tr><td>Discount</td><td>− {{ doc.discount|money }}</td></tr>{% endif %}
+  {% if doc.tax_rate %}<tr><td>GST ({{ doc.tax_rate|clean_qty }}%)</td><td>{{ doc.tax_amount|money }}</td></tr>{% endif %}
+  <tr class="grand"><td>Total investment</td><td>{{ doc.total|money }}</td></tr>
+</table>
+{% if amount_words %}<div class="words">{{ amount_words|capfirst }}</div>{% endif %}
+{% if not doc.tax_rate %}<div class="words">Prices are exclusive of taxes.</div>{% endif %}

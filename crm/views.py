@@ -1,7 +1,7 @@
 # crm/views.py
 from django.contrib import messages
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
@@ -9,10 +9,12 @@ from django.views.generic import ListView, CreateView, UpdateView, DetailView, D
 
 from .forms import ClientForm, ContactForm, InquiryForm, LeadForm, ReviewForm
 from .models import Client, Contact, Inquiry, Lead, Review
+from sales.models import Payment
 
 from common.mixins import (
     AdminCRMManagerMixin,
     InquiryManagerMixin,
+    KeepPaymentsOnDeleteMixin,
     StaffAllMixin,
     SalesReadOnlyAccessMixin,
 )
@@ -202,7 +204,7 @@ class ReviewCreateView(AdminCRMManagerMixin, OwnerAssignMixin, CreateView):
 
     def get_success_url(self):
         if self.object.client_id:
-            return reverse_lazy("crm:client_detail", kwargs={"pk": self.object.client_id})
+            return reverse("crm:client_detail", kwargs={"pk": self.object.client_id}) + "#tab-reviews"
         return reverse_lazy("crm:review_list")
 
 
@@ -225,7 +227,7 @@ class ReviewUpdateView(AdminCRMManagerMixin, OwnerAssignMixin, UpdateView):
 
     def get_success_url(self):
         if self.object.client_id:
-            return reverse_lazy("crm:client_detail", kwargs={"pk": self.object.client_id})
+            return reverse("crm:client_detail", kwargs={"pk": self.object.client_id}) + "#tab-reviews"
         return reverse_lazy("crm:review_list")
 
 
@@ -246,7 +248,7 @@ class ReviewDeleteView(AdminCRMManagerMixin, CommonDeleteMixin, DeleteView):
 
     def get_success_url(self):
         if self.object.client_id:
-            return reverse_lazy("crm:client_detail", kwargs={"pk": self.object.client_id})
+            return reverse("crm:client_detail", kwargs={"pk": self.object.client_id}) + "#tab-reviews"
         return reverse_lazy("crm:review_list")
 
 
@@ -316,7 +318,7 @@ class ContactCreateView(AdminCRMManagerMixin, OwnerAssignMixin, CreateView):
 
     def get_success_url(self):
         if self.object.client_id:
-            return reverse_lazy("crm:client_detail", kwargs={"pk": self.object.client_id})
+            return reverse("crm:client_detail", kwargs={"pk": self.object.client_id}) + "#tab-contacts"
         return reverse_lazy("crm:contact_list")
 
 
@@ -339,7 +341,7 @@ class ContactUpdateView(AdminCRMManagerMixin, OwnerAssignMixin, UpdateView):
 
     def get_success_url(self):
         if self.object.client_id:
-            return reverse_lazy("crm:client_detail", kwargs={"pk": self.object.client_id})
+            return reverse("crm:client_detail", kwargs={"pk": self.object.client_id}) + "#tab-contacts"
         return reverse_lazy("crm:contact_list")
 
 
@@ -363,7 +365,7 @@ class ContactDeleteView(AdminCRMManagerMixin, CommonDeleteMixin, DeleteView):
 
     def get_success_url(self):
         if self.object.client_id:
-            return reverse_lazy("crm:client_detail", kwargs={"pk": self.object.client_id})
+            return reverse("crm:client_detail", kwargs={"pk": self.object.client_id}) + "#tab-contacts"
         return reverse_lazy("crm:contact_list")
 
 
@@ -378,7 +380,10 @@ class ClientListView(AdminCRMManagerMixin, ListView):
     paginate_by = 20
 
     def get_queryset(self):
-        qs = super().get_queryset().select_related("owner")
+        qs = super().get_queryset().select_related("owner").annotate(
+            deal_count=Count("deals", distinct=True),
+            event_count=Count("events", distinct=True),
+        ).order_by("name")
         q = (self.request.GET.get("q") or "").strip()
         if q:
             qs = qs.filter(
@@ -418,6 +423,24 @@ class ClientDetailView(SalesReadOnlyAccessMixin, DetailMessageScopeMixin, Detail
                 "deals__proposals", "deals__contracts", "deals__invoices",
             )
         )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        client = self.object
+        contacts = list(client.contacts.all())
+        reviews = list(client.reviews.all())
+        ratings = [r.rating for r in reviews if r.rating is not None]
+        context.update({
+            "contacts": sorted(contacts, key=lambda c: (not c.is_primary, c.first_name.lower())),
+            "reviews": reviews,
+            "average_rating": round(sum(ratings) / len(ratings), 1) if ratings else None,
+            "deals": client.deals.all().order_by("-created_at"),
+            "events": client.events.select_related("venue").order_by("date", "start_time"),
+            "projects": client.projects.select_related("manager").order_by("-created_at"),
+            "leads": client.leads.all(),
+            "inquiries": client.inquiries.all(),
+        })
+        return context
 
 
 class ClientCreateView(AdminCRMManagerMixin, OwnerAssignMixin, CreateView):
@@ -459,7 +482,7 @@ class ClientUpdateView(AdminCRMManagerMixin, OwnerAssignMixin, UpdateView):
         return reverse_lazy("crm:client_detail", kwargs={"pk": self.object.pk})
 
 
-class ClientDeleteView(AdminCRMManagerMixin, CommonDeleteMixin, DeleteView):
+class ClientDeleteView(AdminCRMManagerMixin, KeepPaymentsOnDeleteMixin, CommonDeleteMixin, DeleteView):
     model = Client
     context_object_name = "client"
     object_type = "client"
@@ -478,6 +501,12 @@ class ClientDeleteView(AdminCRMManagerMixin, CommonDeleteMixin, DeleteView):
 
     def get_object_label(self):
         return self.object.display_name or self.object.name
+
+    def get_blocking_payments(self):
+        return Payment.objects.filter(invoice__deal__client=self.object)
+
+    def get_blocked_redirect_url(self):
+        return reverse("crm:client_detail", kwargs={"pk": self.object.pk})
 
     def get_related_counts(self):
         return [
@@ -521,6 +550,12 @@ class LeadListView(AdminCRMManagerMixin, ListView):
         if source:
             qs = qs.filter(source=source)
         return qs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["status_choices"] = Lead._meta.get_field("status").choices
+        context["source_choices"] = Lead._meta.get_field("source").choices
+        return context
 
 
 class LeadDetailView(AdminCRMManagerMixin, DetailMessageScopeMixin, DetailView):
@@ -672,6 +707,12 @@ class InquiryListView(StaffAllMixin, ListView):
         if handled_by:
             qs = qs.filter(handled_by_id=handled_by)
         return qs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["status_choices"] = Inquiry._meta.get_field("status").choices
+        context["channel_choices"] = Inquiry._meta.get_field("channel").choices
+        return context
 
 
 class InquiryDetailView(StaffAllMixin, DetailMessageScopeMixin, DetailView):

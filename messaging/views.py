@@ -179,20 +179,20 @@ class EmailTemplatePreviewView(MessagingAccessMixin, DetailView):
             },
             "proposal": {
                 "title": "Wedding Photography Proposal",
-                "total_amount": "45000",
+                "total": "45000",
             },
             "contract": {
                 "title": "Wedding Photography Contract",
                 "status": "Draft",
             },
             "invoice": {
-                "invoice_number": "INV-1001",
-                "total_amount": "45000",
+                "number": "INV1001",
+                "total": "45000",
                 "due_date": "2026-05-30",
             },
             "payment": {
                 "amount": "10000",
-                "payment_date": "2026-05-07",
+                "date": "2026-05-07",
             },
             "today": "2026-05-07",
         }
@@ -358,7 +358,14 @@ class EmailSendLogListView(MessagingAccessMixin, ListView):
             qs = qs.filter(template_type=template_type)
 
         return qs
-    
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["status_choices"] = EmailSendLog.Status.choices
+        context["current_status"] = self.request.GET.get("status") or ""
+        return context
+
+
 class WhatsAppTemplateListView(MessagingAccessMixin, ListView):
     model = WhatsAppTemplate
     template_name = "messaging/whatsapptemplate_list.html"

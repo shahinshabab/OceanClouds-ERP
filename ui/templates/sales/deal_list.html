@@ -1,203 +1,101 @@
 {% extends "ui/base.html" %}
-{% load roles_tags %}
+{% load roles_tags ui_tags %}
 
 {% block title %}Deals{% endblock %}
 
 {% block content %}
 {% is_admin request.user as is_admin %}
 {% is_crm_manager request.user as is_crm_manager %}
-{% is_project_manager request.user as is_project_manager %}
-{% is_employee request.user as is_employee %}
 
-<div class="container py-3">
-
-  <!-- Header -->
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2 class="fw-semibold mb-0">Deals</h2>
-
+<div class="container">
+  <div class="page-header">
+    <div>
+      <div class="page-eyebrow"><i class="bi bi-briefcase"></i> Sales pipeline</div>
+      <h1 class="page-title">Deals</h1>
+      <div class="page-subtitle">A deal carries a lead or existing client through proposal, advance and contract.</div>
+    </div>
     {% if is_admin or is_crm_manager %}
-      <a href="{% url 'sales:deal_create' %}" class="btn btn-success btn-sm">
-        + New Deal
-      </a>
+      <div class="page-actions">
+        <a href="{% url 'sales:deal_create' %}" class="btn btn-dark btn-sm"><i class="bi bi-plus-lg"></i>New deal</a>
+      </div>
     {% endif %}
   </div>
 
-  <!-- Search + Filters -->
-  <form method="get" class="row g-2 align-items-end mb-3">
-    <div class="col-md-4">
-      <label for="id_q" class="form-label mb-1 small text-muted">Search</label>
-      <input type="text"
-             id="id_q"
-             name="q"
-             value="{{ q }}"
-             placeholder="Search by deal name, client or lead"
-             class="form-control">
+  <div class="card">
+    <div class="list-tabs">
+      <a href="?q={{ q|urlencode }}&amp;is_active={{ filter_is_active }}" class="{% if not filter_stage %}active{% endif %}">All stages</a>
+      {% for value, label in stage_choices %}
+        <a href="?q={{ q|urlencode }}&amp;is_active={{ filter_is_active }}&amp;stage={{ value }}" class="{% if filter_stage == value %}active{% endif %}">{{ label }}</a>
+      {% endfor %}
     </div>
-
-    <div class="col-md-3">
-      <label for="id_stage" class="form-label mb-1 small text-muted">Stage</label>
-      <select name="stage" id="id_stage" class="form-select">
-        <option value="">All stages</option>
-        {% for value, label in stage_choices %}
-          <option value="{{ value }}" {% if filter_stage == value %}selected{% endif %}>
-            {{ label }}
-          </option>
-        {% endfor %}
-      </select>
-    </div>
-
-    <div class="col-md-3">
-      <label for="id_is_active" class="form-label mb-1 small text-muted">Status</label>
-      <select name="is_active" id="id_is_active" class="form-select">
+    <form method="get" class="filter-bar">
+      <input type="hidden" name="stage" value="{{ filter_stage }}">
+      <div class="search-input" style="flex-basis: 280px">
+        <i class="bi bi-search"></i>
+        <input type="search" name="q" value="{{ q }}" placeholder="Search deal, client or lead" class="form-control form-control-sm" aria-label="Search">
+      </div>
+      <select name="is_active" class="form-select form-select-sm" aria-label="Active" onchange="this.form.submit()">
         {% for value, label in is_active_choices %}
-          <option value="{{ value }}" {% if filter_is_active == value %}selected{% endif %}>
-            {{ label }}
-          </option>
+          <option value="{{ value }}" {% if filter_is_active == value %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
-    </div>
+      <div class="filter-actions">
+        <button type="submit" class="btn btn-dark btn-sm"><i class="bi bi-funnel"></i>Filter</button>
+        {% if q or filter_stage or filter_is_active %}<a href="?" class="btn btn-light btn-sm">Clear</a>{% endif %}
+      </div>
+    </form>
 
-    <div class="col-md-2">
-      <button type="submit" class="btn btn-outline-secondary w-100">
-        Apply
-      </button>
-    </div>
-  </form>
-
-  <!-- Deals Table -->
-  <div class="card shadow-sm">
-    <div class="card-body p-0">
-      <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-          <thead class="table-light">
-            <tr>
-              <th>Deal</th>
-              <th>Client</th>
-              <th>Lead</th>
-              <th>Stage</th>
-              <th>Amount</th>
-              <th>Expected Close</th>
-              <th class="text-end">Actions</th>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Deal</th>
+            <th>Customer</th>
+            <th>Stage</th>
+            <th class="text-end">Amount</th>
+            <th class="d-none d-lg-table-cell">Expected close</th>
+            <th class="d-none d-lg-table-cell">Owner</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for deal in deals %}
+            <tr data-href="{% url 'sales:deal_detail' deal.pk %}">
+              <td>
+                <a href="{% url 'sales:deal_detail' deal.pk %}" class="cell-title">{{ deal.name }}</a>
+                {% if not deal.is_active %}<span class="cell-sub">Inactive</span>{% endif %}
+              </td>
+              <td>
+                {% if deal.client %}
+                  <a href="{% url 'crm:client_detail' deal.client.pk %}" class="text-decoration-none">{{ deal.client }}</a>
+                  <span class="cell-sub">{% if deal.lead %}Client · from lead{% else %}Existing client{% endif %}</span>
+                {% elif deal.lead %}
+                  <a href="{% url 'crm:lead_detail' deal.lead.pk %}" class="text-decoration-none">{{ deal.lead.name }}</a>
+                  <span class="cell-sub">Lead</span>
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+              <td>{% status_pill deal.stage deal.get_stage_display %}</td>
+              <td class="text-end tabular">{% if deal.amount %}{{ deal.amount|inr }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+              <td class="d-none d-lg-table-cell text-nowrap">{{ deal.expected_close_date|date:"d M Y"|default:"—" }}</td>
+              <td class="d-none d-lg-table-cell">{{ deal.owner|default:"—" }}</td>
+              <td class="row-actions">
+                {% if is_admin or is_crm_manager %}
+                  <a href="{% url 'sales:deal_update' deal.pk %}" class="btn btn-light btn-sm" title="Edit" aria-label="Edit"><i class="bi bi-pencil"></i></a>
+                {% endif %}
+                <a href="{% url 'sales:deal_detail' deal.pk %}" class="btn btn-light btn-sm" title="Open" aria-label="Open"><i class="bi bi-arrow-right"></i></a>
+              </td>
             </tr>
-          </thead>
-
-          <tbody>
-            {% for deal in deals %}
-              <tr>
-                <td>
-                  <a href="{% url 'sales:deal_detail' deal.pk %}" class="text-decoration-none fw-semibold">
-                    {{ deal.name }}
-                  </a>
-                </td>
-
-                <td>
-                  {% if deal.client %}
-                    <a href="{% url 'crm:client_detail' deal.client.pk %}" class="text-decoration-none">
-                      {{ deal.client }}
-                    </a>
-                  {% elif deal.lead %}
-                    {{ deal.lead.name }} <span class="badge bg-light text-muted border">Lead</span>
-                  {% else %}
-                    <span class="text-muted">—</span>
-                  {% endif %}
-                </td>
-
-                <td>
-                  {% if deal.lead %}
-                    <a href="{% url 'crm:lead_detail' deal.lead.pk %}" class="text-decoration-none">
-                      {{ deal.lead.name }}
-                    </a>
-                  {% else %}
-                    <span class="text-muted">—</span>
-                  {% endif %}
-                </td>
-
-                <td>
-                  {% if deal.stage == "won" %}
-                    <span class="badge bg-success">{{ deal.get_stage_display }}</span>
-                  {% elif deal.stage == "lost" %}
-                    <span class="badge bg-dark">{{ deal.get_stage_display }}</span>
-                  {% elif deal.stage == "proposal_sent" %}
-                    <span class="badge bg-primary">{{ deal.get_stage_display }}</span>
-                  {% elif deal.stage == "negotiation" %}
-                    <span class="badge bg-warning text-dark">{{ deal.get_stage_display }}</span>
-                  {% else %}
-                    <span class="badge bg-secondary">{{ deal.get_stage_display }}</span>
-                  {% endif %}
-                </td>
-
-                <td>
-                  {% if deal.amount %}
-                    {{ deal.amount }}
-                  {% else %}
-                    <span class="text-muted">—</span>
-                  {% endif %}
-                </td>
-
-                <td>
-                  {% if deal.expected_close_date %}
-                    {{ deal.expected_close_date }}
-                  {% else %}
-                    <span class="text-muted">—</span>
-                  {% endif %}
-                </td>
-
-                <td class="text-end">
-                  <div class="btn-group btn-group-sm" role="group">
-                    <a href="{% url 'sales:deal_detail' deal.pk %}"
-                      class="btn btn-outline-secondary">
-                      View
-                    </a>
-
-                    {% if is_admin or is_crm_manager %}
-                      <a href="{% url 'sales:deal_update' deal.pk %}"
-                        class="btn btn-outline-primary">
-                        Edit
-                      </a>
-
-
-                    {% endif %}
-                  </div>
-                </td>
-              </tr>
-
-            {% empty %}
-              <tr>
-                <td colspan="7" class="text-center text-muted py-3">
-                  No deals found.
-                </td>
-              </tr>
-            {% endfor %}
-          </tbody>
-
-        </table>
-      </div>
+          {% empty %}
+            <tr><td colspan="7">
+              <div class="empty-state"><i class="bi bi-briefcase"></i><p class="mb-0">No deals match these filters.</p></div>
+            </td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
+    {% include "ui/partials/pagination.html" %}
   </div>
-
-  {% if is_paginated %}
-    <div class="mt-3 d-flex justify-content-between align-items-center">
-      <div>
-        {% if page_obj.has_previous %}
-          <a href="?page={{ page_obj.previous_page_number }}&q={{ q }}&stage={{ filter_stage }}&is_active={{ filter_is_active }}">
-            ‹ Previous
-          </a>
-        {% endif %}
-      </div>
-
-      <div class="small text-muted">
-        Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
-      </div>
-
-      <div>
-        {% if page_obj.has_next %}
-          <a href="?page={{ page_obj.next_page_number }}&q={{ q }}&stage={{ filter_stage }}&is_active={{ filter_is_active }}">
-            Next ›
-          </a>
-        {% endif %}
-      </div>
-    </div>
-  {% endif %}
-
 </div>
 {% endblock %}

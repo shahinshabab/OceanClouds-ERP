@@ -1,4 +1,5 @@
 {% extends "ui/base.html" %}
+{% load url_tags %}
 {% load roles_tags %}
 {% block live_topics %}task:{{ task.pk }}{% endblock %}
 
@@ -32,7 +33,7 @@
 
       {% if is_admin or is_project_manager %}
         <a href="{% url 'projects:task_update' task.pk %}" class="btn btn-primary btn-sm">
-          Edit Task
+          <i class="bi bi-pencil"></i>Edit Task
         </a>
       {% endif %}
       {% if is_admin or is_project_manager %}
@@ -43,13 +44,13 @@
           </form>
         {% endif %}
       {% endif %}
-      {% if request.GET.next %}
-        <a href="{{ request.GET.next }}" class="btn btn-outline-secondary btn-sm">
-          Back
+      {% if request.GET.next|local_url %}
+        <a href="{{ request.GET.next|local_url }}" class="btn btn-outline-secondary btn-sm">
+          <i class="bi bi-arrow-left"></i>Back
         </a>
       {% else %}
         <a href="{% url 'projects:task_list' %}" class="btn btn-outline-secondary btn-sm">
-          Back
+          <i class="bi bi-arrow-left"></i>Back
         </a>
       {% endif %}
     </div>

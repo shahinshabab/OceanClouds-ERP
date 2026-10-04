@@ -19,12 +19,12 @@
     {% if form.instance.pk %}
       <a href="{% url 'events:checklist_detail' form.instance.checklist.pk %}"
          class="btn btn-outline-secondary btn-sm">
-        Back to Checklist
+        <i class="bi bi-arrow-left"></i>Back to Checklist
       </a>
     {% else %}
       <a href="{% url 'events:checklist_list' %}"
          class="btn btn-outline-secondary btn-sm">
-        Back to Checklists
+        <i class="bi bi-arrow-left"></i>Back to Checklists
       </a>
     {% endif %}
   </div>

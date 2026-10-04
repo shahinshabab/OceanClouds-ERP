@@ -327,6 +327,7 @@ class Command(BaseCommand):
             .filter(due_date=self.today)
             .exclude(status__in=[
                 ProjectStatus.COMPLETED,
+                ProjectStatus.CLOSED,
                 ProjectStatus.CANCELLED,
             ])
         )

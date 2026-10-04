@@ -2,7 +2,7 @@ from django.utils import timezone
 
 
 def _get_month_info():
-    today = timezone.now().date()
+    today = timezone.localdate()
     this_year = today.year
     this_month = today.month
 

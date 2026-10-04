@@ -1,170 +1,93 @@
 {% extends "ui/base.html" %}
-{% load roles_tags %}
+{% load roles_tags ui_tags %}
 
 {% block title %}Clients{% endblock %}
 
 {% block content %}
 {% is_admin request.user as is_admin %}
 {% is_crm_manager request.user as is_crm_manager %}
-{% is_project_manager request.user as is_project_manager %}
-{% is_employee request.user as is_employee %}
 
-<div class="container py-3">
-
-  <!-- Header -->
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2 class="fw-semibold mb-0">Clients</h2>
-
+<div class="container">
+  <div class="page-header">
+    <div>
+      <div class="page-eyebrow"><i class="bi bi-people"></i> Clients &amp; events</div>
+      <h1 class="page-title">Clients</h1>
+      <div class="page-subtitle">New clients are created from a signed contract. Add one directly only for an existing customer.</div>
+    </div>
     {% if is_admin or is_crm_manager %}
-      <a href="{% url 'crm:client_create' %}" class="btn btn-success btn-sm">
-        + New Client
-      </a>
+      <div class="page-actions">
+        <a href="{% url 'crm:client_create' %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-person-plus"></i>Existing customer</a>
+      </div>
     {% endif %}
   </div>
 
-  <!-- Search + Filters -->
-  <form method="get" class="row g-2 align-items-end mb-3">
-    <div class="col-md-4">
-      <label class="form-label mb-1 small text-muted">Search</label>
-      <input type="text"
-             name="q"
-             value="{{ request.GET.q }}"
-             class="form-control"
-             placeholder="Search by name, display name, email or phone">
-    </div>
-
-    <div class="col-md-3">
-      <label class="form-label mb-1 small text-muted">Status</label>
-      <select name="is_active" class="form-select">
-        <option value="">All</option>
+  <div class="card">
+    <form method="get" class="filter-bar">
+      <div class="search-input" style="flex-basis: 280px">
+        <i class="bi bi-search"></i>
+        <input type="search" name="q" value="{{ request.GET.q }}" placeholder="Name, email, phone or place" class="form-control form-control-sm" aria-label="Search">
+      </div>
+      <select name="is_active" class="form-select form-select-sm" aria-label="Status" onchange="this.form.submit()">
+        <option value="">Active and inactive</option>
         <option value="1" {% if request.GET.is_active == "1" %}selected{% endif %}>Active only</option>
         <option value="0" {% if request.GET.is_active == "0" %}selected{% endif %}>Inactive only</option>
       </select>
-    </div>
+      <input type="text" name="country" value="{{ request.GET.country }}" placeholder="Country" class="form-control form-control-sm" aria-label="Country">
+      <div class="filter-actions">
+        <button type="submit" class="btn btn-dark btn-sm"><i class="bi bi-funnel"></i>Filter</button>
+        {% if request.GET.q or request.GET.is_active or request.GET.country %}<a href="?" class="btn btn-light btn-sm">Clear</a>{% endif %}
+      </div>
+    </form>
 
-    <div class="col-md-3">
-      <label class="form-label mb-1 small text-muted">Country</label>
-      <input type="text"
-             name="country"
-             value="{{ request.GET.country }}"
-             class="form-control"
-             placeholder="e.g. UAE, India">
-    </div>
-
-    <div class="col-md-2">
-      <button type="submit" class="btn btn-outline-secondary w-100">
-        Apply
-      </button>
-    </div>
-  </form>
-
-  <!-- Clients Table -->
-  <div class="card shadow-sm">
-    <div class="card-body p-0">
-      <div class="table-responsive">
-        <table class="table table-hover mb-0 align-middle">
-          <thead class="table-light">
-            <tr>
-              <th>Name</th>
-              <th>Display Name</th>
-              <th>Email</th>
-              <th>Phone</th>
-              <th>City</th>
-              <th>Status</th>
-              <th class="text-end">Actions</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {% for client in clients %}
-              <tr>
-                <td>
-                  <a href="{% url 'crm:client_detail' client.pk %}" class="text-decoration-none fw-semibold">
-                    {{ client.name }}
-                  </a>
-                </td>
-
-                <td>{{ client.display_name|default:"—" }}</td>
-
-                <td>
-                  {% if client.email %}
-                    <a href="mailto:{{ client.email }}">{{ client.email }}</a>
-                  {% else %}
-                    <span class="text-muted">—</span>
-                  {% endif %}
-                </td>
-
-                <td>{{ client.phone|default:"—" }}</td>
-
-                <td>{{ client.city|default:"—" }}</td>
-
-                <td>
-                  {% if client.is_active %}
-                    <span class="badge bg-success">Active</span>
-                  {% else %}
-                    <span class="badge bg-secondary">Inactive</span>
-                  {% endif %}
-                </td>
-
-                <td class="text-end">
-                  <div class="btn-group btn-group-sm" role="group">
-                    <a href="{% url 'crm:client_detail' client.pk %}"
-                       class="btn btn-outline-secondary">
-                      View
-                    </a>
-
-                    {% if is_admin or is_crm_manager %}
-                      <a href="{% url 'crm:client_update' client.pk %}"
-                         class="btn btn-outline-primary">
-                        Edit
-                      </a>
-
-                      <a href="{% url 'crm:review_create' %}?client={{ client.pk }}"
-                         class="btn btn-outline-success">
-                        Review
-                      </a>
-                    {% endif %}
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Client</th>
+            <th class="d-none d-md-table-cell">Contact</th>
+            <th class="d-none d-lg-table-cell">Location</th>
+            <th class="text-center d-none d-sm-table-cell">Deals</th>
+            <th class="text-center d-none d-sm-table-cell">Events</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for client in clients %}
+            <tr data-href="{% url 'crm:client_detail' client.pk %}">
+              <td>
+                <div class="d-flex align-items-center gap-2">
+                  <span class="avatar-circle sm">{{ client.display_name|default:client.name|initials }}</span>
+                  <div class="min-w-0">
+                    <a href="{% url 'crm:client_detail' client.pk %}" class="cell-title">{{ client.display_name|default:client.name }}</a>
+                    {% if client.display_name and client.display_name != client.name %}<span class="cell-sub">{{ client.name }}</span>{% endif %}
                   </div>
-                </td>
-              </tr>
-
-            {% empty %}
-              <tr>
-                <td colspan="7" class="text-center text-muted py-3">
-                  No clients found.
-                </td>
-              </tr>
-            {% endfor %}
-          </tbody>
-
-        </table>
-      </div>
+                </div>
+              </td>
+              <td class="d-none d-md-table-cell">
+                {{ client.phone|default:"—" }}
+                {% if client.email %}<span class="cell-sub">{{ client.email }}</span>{% endif %}
+              </td>
+              <td class="d-none d-lg-table-cell">{{ client.city|default:client.district|default:"—" }}{% if client.country %}<span class="cell-sub">{{ client.country }}</span>{% endif %}</td>
+              <td class="text-center tabular d-none d-sm-table-cell">{{ client.deal_count }}</td>
+              <td class="text-center tabular d-none d-sm-table-cell">{{ client.event_count }}</td>
+              <td>{% if client.is_active %}{% status_pill "active" "Active" %}{% else %}{% status_pill "inactive" "Inactive" %}{% endif %}</td>
+              <td class="row-actions">
+                {% if is_admin or is_crm_manager %}
+                  <a href="{% url 'crm:client_update' client.pk %}" class="btn btn-light btn-sm" title="Edit" aria-label="Edit"><i class="bi bi-pencil"></i></a>
+                {% endif %}
+                <a href="{% url 'crm:client_detail' client.pk %}" class="btn btn-light btn-sm" title="Open" aria-label="Open"><i class="bi bi-arrow-right"></i></a>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="7">
+              <div class="empty-state"><i class="bi bi-people"></i><p class="mb-0">No clients match these filters.</p></div>
+            </td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
+    {% include "ui/partials/pagination.html" %}
   </div>
-
-  {% if is_paginated %}
-    <div class="mt-3 d-flex justify-content-between align-items-center">
-      <div>
-        {% if page_obj.has_previous %}
-          <a href="?page={{ page_obj.previous_page_number }}&q={{ request.GET.q }}&is_active={{ request.GET.is_active }}&country={{ request.GET.country }}">
-            ‹ Previous
-          </a>
-        {% endif %}
-      </div>
-
-      <div class="small text-muted">
-        Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
-      </div>
-
-      <div>
-        {% if page_obj.has_next %}
-          <a href="?page={{ page_obj.next_page_number }}&q={{ request.GET.q }}&is_active={{ request.GET.is_active }}&country={{ request.GET.country }}">
-            Next ›
-          </a>
-        {% endif %}
-      </div>
-    </div>
-  {% endif %}
-
 </div>
 {% endblock %}

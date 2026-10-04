@@ -14,7 +14,7 @@
 
     {% if can_manage_services %}
       <a href="{% url 'services:service_create' %}" class="btn btn-success btn-sm">
-        + New Service
+        <i class="bi bi-plus-lg"></i>New Service
       </a>
     {% endif %}
   </div>
@@ -107,11 +107,11 @@
               {% if can_manage_services %}
                 <a href="{% url 'services:service_update' service.pk %}"
                    class="btn btn-sm btn-outline-secondary">
-                  Edit
+                  <i class="bi bi-pencil"></i>Edit
                 </a>
                 <a href="{% url 'services:service_delete' service.pk %}"
                    class="btn btn-sm btn-outline-danger">
-                  Delete
+                  <i class="bi bi-trash"></i>Delete
                 </a>
               {% endif %}
             </td>

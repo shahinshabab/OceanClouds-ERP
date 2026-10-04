@@ -25,7 +25,7 @@
 
       {% if is_admin or is_project_manager %}
         <a href="{% url 'projects:project_create' %}" class="btn btn-success btn-sm">
-          + New Project
+          <i class="bi bi-plus-lg"></i>New Project
         </a>
       {% endif %}
     </div>
@@ -234,7 +234,7 @@
                     {% if is_admin or is_project_manager %}
                       <a href="{% url 'projects:project_update' project.pk %}"
                          class="btn btn-outline-primary">
-                        Edit
+                        <i class="bi bi-pencil"></i>Edit
                       </a>
                     {% endif %}
                   </div>

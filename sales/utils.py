@@ -27,20 +27,6 @@ def set_lead_status(lead, status_attr, fallback):
     lead.save(update_fields=["status", "updated_at"])
 
 
-def link_client_and_status_to_lead(
-    lead,
-    client,
-    status_attr="STATUS_CONVERTED_TO_CLIENT",
-    fallback="converted_to_client",
-):
-    if not lead:
-        return
-
-    lead.client = client
-    lead.status = lead_status(status_attr, fallback)
-    lead.save(update_fields=["client", "status", "updated_at"])
-
-
 def copy_lead_data_to_client_if_empty(client, lead):
     changed_fields = []
 
@@ -154,73 +140,6 @@ def get_pdf_event_days(plan):
     )
 
 
-def get_item_name(item):
-    if getattr(item, "service", None):
-        return item.service.name
-
-    if getattr(item, "package", None):
-        return item.package.name
-
-    if getattr(item, "description", None):
-        return item.description
-
-    return "Service Item"
-
-
-def get_pdf_deliverables(plan):
-    if not plan:
-        return []
-
-    grouped = {}
-
-    for event_day in get_pdf_event_days(plan):
-        for item in event_day.items.all():
-            item_deliverables = list(item.deliverables.all())
-
-            if item_deliverables:
-                for deliverable in item_deliverables:
-                    if not getattr(deliverable, "is_included", True):
-                        continue
-
-                    title = (deliverable.title or "").strip()
-                    if not title:
-                        continue
-
-                    unit = (
-                        deliverable.get_unit_display()
-                        if hasattr(deliverable, "get_unit_display")
-                        else getattr(deliverable, "unit", "") or ""
-                    )
-                    key = (title.lower(), unit.lower())
-                    quantity = Decimal(deliverable.quantity or 0)
-
-                    grouped.setdefault(
-                        key,
-                        {
-                            "title": title,
-                            "quantity": Decimal("0.00"),
-                            "unit": unit,
-                        },
-                    )
-                    grouped[key]["quantity"] += quantity
-            else:
-                title = get_item_name(item)
-                key = (title.lower(), "")
-                quantity = Decimal(getattr(item, "quantity", 1) or 1)
-
-                grouped.setdefault(
-                    key,
-                    {
-                        "title": title,
-                        "quantity": Decimal("0.00"),
-                        "unit": "",
-                    },
-                )
-                grouped[key]["quantity"] += quantity
-
-    return list(grouped.values())
-
-
 def get_proposal_client(proposal):
     if proposal.deal:
         return proposal.deal.customer
@@ -243,9 +162,24 @@ def get_amount_in_words(value):
     return f"{num2words(amount, lang='en_IN')} only"
 
 
+# Payment split used everywhere (proposal terms, contract schedule, signing
+# page, advance default). Change it here only.
+ADVANCE_PERCENT = 10
+EVENT_PERCENT = 30
+DELIVERY_PERCENT = 60
+
+
+def payment_split_term():
+    return (
+        f"{ADVANCE_PERCENT}% of the quoted amount should be paid in advance, "
+        f"{EVENT_PERCENT}% on or the day after the function, "
+        f"and the balance {DELIVERY_PERCENT}% upon delivery."
+    )
+
+
 def get_proposal_terms():
     return [
-        "30% booking advance, 60% on event & 10% on delivery.",
+        payment_split_term(),
         "Additional charges for travel expense & accommodation if required.",
         "All prices are exclusive of taxes.",
         "Booking will be confirmed only after receiving the advance payment.",
@@ -389,7 +323,7 @@ def get_payment_plan_terms():
         "All prices are exclusive of taxes.",
         "Booking will be confirmed only after receiving the advance payment.",
         "The advance amount cannot be reimbursed in case of cancellation.",
-        "10% of the quoted amount should be paid in advance, 80% on or day after the function, and the balance 10% upon delivery.",
+        payment_split_term(),
         "Additional charges for travel expense and accommodation will be applicable if required based on the distance and number of times we travel.",
         "Our charges are for the reserved time and crew availability, not solely for the number of photos or videos delivered.",
         "If, for any reason, the shoot cannot be carried out as scheduled due to delays, cancellations, or circumstances beyond our control, the agreed payment remains payable in full.",
@@ -755,9 +689,9 @@ def build_proposal_document_context(proposal):
 
 
 PAYMENT_SCHEDULE = (
-    ("Booking advance", 10, "On signing, to reserve your dates"),
-    ("On the event day", 80, "On or the day after the function"),
-    ("On delivery", 10, "When the final outputs are delivered"),
+    ("Booking advance", ADVANCE_PERCENT, "To reserve your dates"),
+    ("On the event day", EVENT_PERCENT, "On or the day after the function"),
+    ("On delivery", DELIVERY_PERCENT, "When the final outputs are delivered"),
 )
 
 

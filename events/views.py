@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date
 
 from django.contrib import messages
 from django.db.models import Q
@@ -14,6 +14,7 @@ from django.views.generic import (
 )
 
 from common.mixins import EventManageMixin, EventCalendarAccessMixin
+from common.roles import can_manage_events
 from crm.models import Client
 from .models import (
     Venue,
@@ -89,102 +90,86 @@ class EventCalendarView(EventCalendarAccessMixin, TemplateView):
     """
     Everyone can access this page.
     Non-managers only see the calendar, not event details.
+
+    Month, week and agenda views. The fill of each entry shows the event
+    status (see EVENT_TONES); cancelled events are hidden unless asked for.
     """
 
     template_name = "events/event_calendar.html"
 
-    TIME_START = 8
-    TIME_END = 22
+    EVENT_TONES = {
+        EventStatus.CONFIRMED: "solid",
+        EventStatus.IN_PROGRESS: "gray",
+        EventStatus.PLANNED: "outline",
+        EventStatus.DRAFT: "dashed",
+        EventStatus.COMPLETED: "soft",
+        EventStatus.CANCELLED: "danger",
+    }
 
     def get_context_data(self, **kwargs):
+        from ui.calendar import CalendarRange
+        from ui.templatetags.ui_tags import status_tone
+
         context = super().get_context_data(**kwargs)
         request = self.request
 
-        range_param = (request.GET.get("range") or "1m").strip()
         event_type = (request.GET.get("event_type") or "").strip()
         status = (request.GET.get("status") or "").strip()
+        venue = (request.GET.get("venue") or "").strip()
 
-        today = date.today()
-
-        days_map = {
-            "1m": 30,
-            "2m": 60,
-            "3m": 90,
-        }
-
-        days = days_map.get(range_param, 30)
-        end_date = today + timedelta(days=days - 1)
+        cal = CalendarRange.from_request(request, keep=("event_type", "status", "venue"))
 
         qs = (
             Event.objects
-            .filter(date__range=(today, end_date))
-            .exclude(status=EventStatus.CANCELLED)
+            .filter(date__range=(cal.start, cal.end))
             .select_related("client", "project", "venue")
-            .prefetch_related("services", "packages", "vendors", "inventory_items")
             .order_by("date", "start_time", "name")
         )
+
+        if status:
+            qs = qs.filter(status=status)
+        else:
+            qs = qs.exclude(status=EventStatus.CANCELLED)
 
         if event_type:
             qs = qs.filter(event_type=event_type)
 
-        if status:
-            qs = qs.filter(status=status)
+        if venue.isdigit():
+            qs = qs.filter(venue_id=venue)
 
-        dates = []
-        current = today
-
-        while current <= end_date:
-            dates.append(current)
-            current += timedelta(days=1)
-
-        time_slots = list(range(self.TIME_START, self.TIME_END + 1))
-
-        events_by_date_hour = {
-            d: {h: [] for h in time_slots}
-            for d in dates
-        }
-
+        can_open = can_manage_events(request.user)
+        entries = []
         for event in qs:
-            if event.start_time:
-                hour = event.start_time.hour
-                if hour < self.TIME_START or hour > self.TIME_END:
-                    hour = self.TIME_START
-            else:
-                hour = self.TIME_START
+            meta = []
+            if event.client_id:
+                meta.append(("bi-person", str(event.client)))
+            if event.venue_id:
+                meta.append(("bi-geo-alt", event.venue.name))
+            meta.append(("bi-tag", event.get_event_type_display()))
+            entries.append({
+                "date": event.date,
+                "start": event.start_time,
+                "end": event.end_time,
+                "title": event.name,
+                "url": reverse("events:event_detail", args=[event.pk]) if can_open else "",
+                "tone": self.EVENT_TONES.get(event.status, "outline"),
+                "icon": "",
+                "meta": meta,
+                "status": event.get_status_display(),
+                "status_tone": status_tone(event.status),
+            })
 
-            if event.date in events_by_date_hour:
-                events_by_date_hour[event.date][hour].append(event)
-
-        time_rows = []
-
-        for hour in time_slots:
-            cells = []
-
-            for d in dates:
-                cells.append(
-                    {
-                        "date": d,
-                        "events": events_by_date_hour[d][hour],
-                    }
-                )
-
-            time_rows.append(
-                {
-                    "hour": hour,
-                    "cells": cells,
-                }
-            )
-
+        context.update(cal.layout(entries))
         context.update(
             {
-                "dates": dates,
-                "time_rows": time_rows,
-                "time_slots": time_slots,
                 "event_type": event_type,
-                "range_param": range_param,
                 "status": status,
+                "venue": venue,
                 "event_type_choices": EventType.choices,
                 "status_choices": EventStatus.choices,
+                "venue_choices": Venue.objects.order_by("name"),
+                "can_manage_events": can_open,
+                "cal_add_url": reverse("events:event_create") + "?" if can_open else "",
             }
         )
 
@@ -386,6 +371,14 @@ class EventCreateView(EventManageMixin, CreateView):
                 initial["client"] = client.pk
                 initial["name"] = f"{client} - Wedding"
 
+        # Calendar -> "+" on a day.
+        raw_date = (self.request.GET.get("date") or "").strip()
+        if raw_date:
+            try:
+                initial["date"] = date.fromisoformat(raw_date)
+            except ValueError:
+                pass
+
         return initial
 
     def form_valid(self, form):
@@ -415,7 +408,6 @@ class EventUpdateView(EventManageMixin, UpdateView):
 
     def form_valid(self, form):
         self.object = form.save()
-        form.save_m2m()
 
         self.object.sync_auto_checklist(owner=self.request.user)
 

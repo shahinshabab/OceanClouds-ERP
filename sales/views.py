@@ -2,13 +2,11 @@ import json
 from datetime import date, timedelta
 from decimal import Decimal
 
-from django.conf import settings
 from django.contrib import messages
 from django.db import transaction
 from django.db.models import Q
 from django.http import Http404, HttpResponse
 from django.shortcuts import redirect, get_object_or_404, render
-from django.template.loader import render_to_string
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.utils.decorators import method_decorator
@@ -23,8 +21,15 @@ from django.views.generic import (
     ListView,
     UpdateView,
 )
+from django.views.generic.edit import ProcessFormView
 
-from common.mixins import ContractViewAccessMixin, SalesAccessMixin, SalesReadOnlyAccessMixin
+from common.http import get_client_ip
+from common.mixins import (
+    ContractViewAccessMixin,
+    KeepPaymentsOnDeleteMixin,
+    SalesAccessMixin,
+    SalesReadOnlyAccessMixin,
+)
 from common.roles import can_access_sales
 from crm.models import Lead
 from messaging.models import EmailTemplate
@@ -60,26 +65,19 @@ from .models import (
     InvoiceStatus,
 )
 from .utils import (
+    ADVANCE_PERCENT,
+    DELIVERY_PERCENT,
+    EVENT_PERCENT,
     build_common_email_context,
     build_contract_document_context,
     build_proposal_document_context,
     check_before_send,
     create_client_and_events_from_contract,
     flash_send_result,
-    get_amount_in_words,
-    get_contract_client,
-    get_contract_pdf_total,
     get_contract_public_sign_total,
-    get_oceanclouds_bank_details,
     get_payment_plan_client_notes,
-    get_payment_plan_deliverable_rows,
     get_payment_plan_important_terms,
     get_payment_plan_terms,
-    get_pdf_deliverables,
-    get_pdf_event_days,
-    get_proposal_client,
-    get_proposal_terms,
-    get_selected_proposal_plan,
     lead_status,
     percentage_amount,
     resolve_client_email,
@@ -100,6 +98,16 @@ class OwnerAssignMixin:
             form.instance.owner = self.request.user
 
         return super().form_valid(form)
+
+
+def _script_json(data):
+    """JSON safe to place inside an inline <script> (no </script> breakout)."""
+    return mark_safe(
+        json.dumps(data)
+        .replace("<", "\\u003C")
+        .replace(">", "\\u003E")
+        .replace("&", "\\u0026")
+    )
 
 
 def _contract_has_invoice(contract):
@@ -133,13 +141,6 @@ def _get_price_maps():
 
 def _get_proposal_plan(proposal):
     return proposal.accepted_plan or proposal.get_pricing_plan()
-
-
-def _get_proposal_event_day(proposal):
-    plan = _get_proposal_plan(proposal)
-    if not plan:
-        return None
-    return plan.event_days.order_by("sort_order", "event_date", "id").first()
 
 
 def _iter_proposal_event_days(proposal):
@@ -401,8 +402,8 @@ class DealUpdateView(SalesAccessMixin, OwnerAssignMixin, UpdateView):
 
     def get_success_url(self):
         return reverse_lazy("sales:deal_detail", kwargs={"pk": self.object.pk})
-    
-class DealDeleteView(SalesAccessMixin, DeleteView):
+
+class DealDeleteView(SalesAccessMixin, KeepPaymentsOnDeleteMixin, DeleteView):
     model = Deal
     template_name = "common/confirm_delete.html"
     success_url = reverse_lazy("sales:deal_list")
@@ -410,13 +411,18 @@ class DealDeleteView(SalesAccessMixin, DeleteView):
     def get_queryset(self):
         return super().get_queryset().select_related("client", "lead", "owner")
 
+    def get_blocking_payments(self):
+        return Payment.objects.filter(invoice__deal=self.object)
+
     def form_valid(self, form):
-        messages.success(
-            self.request,
-            "Deal deleted successfully.",
-            extra_tags=_scope_tags("deal"),
-        )
-        return super().form_valid(form)
+        response = super().form_valid(form)
+        if not Deal.objects.filter(pk=self.object.pk).exists():
+            messages.success(
+                self.request,
+                "Deal deleted successfully.",
+                extra_tags=_scope_tags("deal"),
+            )
+        return response
 
 
 class LeadConvertToDealView(SalesAccessMixin, OwnerAssignMixin, CreateView):
@@ -512,7 +518,7 @@ class ProposalListView(SalesAccessMixin, ListView):
     paginate_by = 20
 
     def get_queryset(self):
-        qs = super().get_queryset().select_related("deal", "deal__client", "owner")
+        qs = super().get_queryset().select_related("deal", "deal__client", "deal__lead", "owner").prefetch_related("contracts")
 
         q = (self.request.GET.get("q") or "").strip()
         status = (self.request.GET.get("status") or "").strip()
@@ -578,13 +584,6 @@ class ProposalDetailView(SalesReadOnlyAccessMixin, DetailMessageScopeMixin, Deta
         context["event_days"] = _iter_proposal_event_days(self.object)
 
         return context
-
-
-
-
-
-
-
 
 
 class ProposalPDFDownloadView(SalesAccessMixin, DetailView):
@@ -1103,11 +1102,11 @@ class ProposalCreateView(SalesAccessMixin, OwnerAssignMixin, CreateView):
         context = super().get_context_data(**kwargs)
 
         services_price_map, packages_price_map = _get_price_maps()
-        context["services_price_map_json"] = mark_safe(json.dumps(services_price_map))
-        context["packages_price_map_json"] = mark_safe(json.dumps(packages_price_map))
+        context["services_price_map_json"] = _script_json(services_price_map)
+        context["packages_price_map_json"] = _script_json(packages_price_map)
         services_deliverable_map, packages_deliverable_map = self.get_deliverable_maps()
-        context["services_deliverable_map_json"] = mark_safe(json.dumps(services_deliverable_map))
-        context["packages_deliverable_map_json"] = mark_safe(json.dumps(packages_deliverable_map))
+        context["services_deliverable_map_json"] = _script_json(services_deliverable_map)
+        context["packages_deliverable_map_json"] = _script_json(packages_deliverable_map)
 
         catalog_choices = self.get_catalog_choices()
         plan = self.get_plan()
@@ -1181,10 +1180,25 @@ class ProposalCreateView(SalesAccessMixin, OwnerAssignMixin, CreateView):
         return reverse_lazy("sales:proposal_detail", kwargs={"pk": self.object.pk})
 
 
-class ProposalUpdateView(SalesAccessMixin, OwnerAssignMixin, UpdateView):
-    model = Proposal
-    form_class = ProposalForm
-    template_name = "sales/proposal_form.html"
+class ProposalUpdateView(ProposalCreateView):
+    """
+    Edit a proposal with the same plan / event day / item forms as create.
+    The create view builds its nested forms from self.object, so loading
+    the proposal first is all an edit needs.
+    """
+
+    default_plan_initial = {}
+
+    def get(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        return ProcessFormView.get(self, request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        return ProcessFormView.post(self, request, *args, **kwargs)
+
+    def get_initial(self):
+        return UpdateView.get_initial(self)
 
     def get_queryset(self):
         return (
@@ -1316,8 +1330,6 @@ class ProposalConvertToContractView(SalesAccessMixin, OwnerAssignMixin, CreateVi
             pk=self.kwargs["pk"],
         )
 
-        deal = self.proposal.deal
-
         # 1. Proposal must be accepted first
         if self.proposal.status != ProposalStatus.ACCEPTED:
             messages.error(
@@ -1397,7 +1409,7 @@ class ProposalConvertToContractView(SalesAccessMixin, OwnerAssignMixin, CreateVi
             "sales:contract_detail",
             kwargs={"pk": self.object.pk},
         )
-    
+
 class DealRecordAdvanceView(SalesAccessMixin, View):
     """
     Deal / accepted proposal -> Record Advance.
@@ -1438,7 +1450,7 @@ class DealRecordAdvanceView(SalesAccessMixin, View):
 
         total = self.proposal.total if self.proposal else self.deal.amount
         if total:
-            initial["amount"] = percentage_amount(total, Decimal("10"))
+            initial["amount"] = percentage_amount(total, ADVANCE_PERCENT)
 
         return self._render(request, AdvancePaymentForm(initial=initial))
 
@@ -1587,7 +1599,7 @@ class ContractListView(ContractViewAccessMixin, ListView):
         qs = (
             super()
             .get_queryset()
-            .select_related("deal", "proposal", "deal__client", "owner")
+            .select_related("deal", "proposal", "deal__client", "deal__lead", "owner")
             .prefetch_related("invoices")
         )
         qs = _visible_contracts(qs, self.request.user)
@@ -1654,10 +1666,6 @@ class ContractDetailView(ContractViewAccessMixin, DetailMessageScopeMixin, Detai
         context["invoice"] = self.object.invoices.order_by("-issue_date", "-created_at").first()
 
         return context
-
-
-
-
 
 
 class ContractPDFDownloadView(ContractViewAccessMixin, DetailView):
@@ -1831,7 +1839,7 @@ class ContractDeleteView(SalesAccessMixin, DeleteView):
             extra_tags=_scope_tags("contract"),
         )
         return super().form_valid(form)
-    
+
 
 class ContractGenerateInvoiceView(SalesAccessMixin, OwnerAssignMixin, CreateView):
     """
@@ -1963,7 +1971,7 @@ class InvoiceListView(SalesAccessMixin, ListView):
         qs = (
             super()
             .get_queryset()
-            .select_related("deal", "deal__client", "contract", "owner")
+            .select_related("deal", "deal__client", "deal__lead", "contract", "owner")
             .prefetch_related("payments")
         )
 
@@ -2075,19 +2083,13 @@ class InvoiceCreateView(SalesAccessMixin, OwnerAssignMixin, CreateView):
 
         return initial
 
-    def _get_contract_for_invoice(self, invoice):
-        contract_id = self.request.POST.get("contract") or self.request.GET.get("contract")
-
-        if contract_id:
-            return Contract.objects.filter(pk=contract_id, deal=invoice.deal).first()
-
-        return invoice.deal.contracts.order_by("-signed_date", "-created_at").first()
-
     @transaction.atomic
     def form_valid(self, form):
         response = super().form_valid(form)
 
-        contract = self._get_contract_for_invoice(self.object)
+        # Only copy contract items when a contract was chosen; a manual
+        # invoice must not silently bill the whole contract again.
+        contract = form.cleaned_data.get("contract")
 
         if contract:
             self.object.populate_from_contract(contract, clear_existing=True)
@@ -2116,6 +2118,7 @@ class InvoiceUpdateView(SalesAccessMixin, OwnerAssignMixin, UpdateView):
         response = super().form_valid(form)
 
         self.object.recalculate_totals(save=True)
+        self.object.refresh_payment_status()
 
         messages.success(
             self.request,
@@ -2128,7 +2131,7 @@ class InvoiceUpdateView(SalesAccessMixin, OwnerAssignMixin, UpdateView):
     def get_success_url(self):
         return reverse_lazy("sales:invoice_detail", kwargs={"pk": self.object.pk})
 
-class InvoiceDeleteView(SalesAccessMixin, DeleteView):
+class InvoiceDeleteView(SalesAccessMixin, KeepPaymentsOnDeleteMixin, DeleteView):
     model = Invoice
     template_name = "common/confirm_delete.html"
     success_url = reverse_lazy("sales:invoice_list")
@@ -2141,14 +2144,19 @@ class InvoiceDeleteView(SalesAccessMixin, DeleteView):
             .prefetch_related("payments", "items")
         )
 
+    def get_blocking_payments(self):
+        return self.object.payments.all()
+
     def form_valid(self, form):
-        messages.success(
-            self.request,
-            "Invoice deleted successfully.",
-            extra_tags=_scope_tags("invoice"),
-        )
-        return super().form_valid(form)
-    
+        response = super().form_valid(form)
+        if not Invoice.objects.filter(pk=self.object.pk).exists():
+            messages.success(
+                self.request,
+                "Invoice deleted successfully.",
+                extra_tags=_scope_tags("invoice"),
+            )
+        return response
+
 class InvoicePDFDownloadView(SalesAccessMixin, DetailView):
     model = Invoice
 
@@ -2188,6 +2196,7 @@ class PaymentListView(SalesAccessMixin, ListView):
                 "invoice",
                 "invoice__deal",
                 "invoice__deal__client",
+                "invoice__deal__lead",
                 "received_by",
                 "owner",
             )
@@ -2244,7 +2253,7 @@ class PaymentCreateView(SalesAccessMixin, OwnerAssignMixin, CreateView):
         initial = super().get_initial()
 
         invoice_id = self.request.GET.get("invoice")
-        if invoice_id:
+        if invoice_id and str(invoice_id).isdigit():
             invoice = Invoice.objects.filter(pk=invoice_id).first()
 
             if invoice:
@@ -2341,12 +2350,10 @@ class PaymentDeleteView(SalesAccessMixin, DeleteView):
             )
 
         return reverse_lazy("sales:payment_list")
-    
+
 # ============================================================
 # Send Email Actions
 # ============================================================
-
-
 
 
 @method_decorator(require_POST, name="dispatch")
@@ -2632,19 +2639,6 @@ class PaymentSendEmailView(SalesAccessMixin, View):
         )
 
         return redirect("sales:payment_detail", pk=payment.pk)
-    
-def get_client_ip(request):
-    forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
-
-    if forwarded_for:
-        return forwarded_for.split(",")[0].strip()
-
-    return request.META.get("REMOTE_ADDR")
-
-
-
-
-
 
 class ContractPublicSignView(View):
     template_name = "sales/contract_public_sign.html"
@@ -2672,8 +2666,8 @@ class ContractPublicSignView(View):
 
         total_amount = get_contract_public_sign_total(contract)
 
-        booking_advance = percentage_amount(total_amount, Decimal("10"))
-        on_event_amount = percentage_amount(total_amount, Decimal("80"))
+        booking_advance = percentage_amount(total_amount, ADVANCE_PERCENT)
+        on_event_amount = percentage_amount(total_amount, EVENT_PERCENT)
         after_delivery_amount = total_amount - booking_advance - on_event_amount
         balance_amount = total_amount - booking_advance
 
@@ -2689,9 +2683,9 @@ class ContractPublicSignView(View):
             "on_event_amount": on_event_amount,
             "after_delivery_amount": after_delivery_amount,
 
-            "advance_percent": 10,
-            "event_percent": 80,
-            "delivery_percent": 10,
+            "advance_percent": ADVANCE_PERCENT,
+            "event_percent": EVENT_PERCENT,
+            "delivery_percent": DELIVERY_PERCENT,
 
             "client_notes": get_payment_plan_client_notes(),
             "terms": get_payment_plan_terms(),
@@ -2757,6 +2751,22 @@ class ContractPublicSignView(View):
             )
             return redirect("sales:contract_public_sign", token=token)
 
+        with transaction.atomic():
+            # Lock the row so a double submit cannot sign twice.
+            contract = Contract.objects.select_for_update().get(pk=contract.pk)
+            if contract.status in (ContractStatus.SIGNED, ContractStatus.CANCELLED):
+                return redirect("sales:contract_public_sign", token=token)
+            self._sign(request, contract, signed_by_name)
+
+        messages.success(
+            request,
+            "Contract signed successfully. Thank you.",
+            extra_tags=_scope_tags("contract", "public"),
+        )
+
+        return redirect("sales:contract_public_sign", token=token)
+
+    def _sign(self, request, contract, signed_by_name):
         contract.status = ContractStatus.SIGNED
         contract.signed_date = timezone.localdate()
         contract.signed_at = timezone.now()
@@ -2777,11 +2787,3 @@ class ContractPublicSignView(View):
         )
 
         mark_deal_won(contract.deal)
-
-        messages.success(
-            request,
-            "Contract signed successfully. Thank you.",
-            extra_tags=_scope_tags("contract", "public"),
-        )
-
-        return redirect("sales:contract_public_sign", token=token)

@@ -1,0 +1,22 @@
+<div class="cal-month" role="grid" aria-label="{{ cal.title }}">
+  {% for name in cal_weekdays %}
+    <div class="cal-dow{% if forloop.counter > 5 %} weekend{% endif %}" role="columnheader">{{ name }}</div>
+  {% endfor %}
+  {% for week in cal_weeks %}
+    {% for day in week %}
+      <div class="cal-day{% if not day.in_month %} out{% endif %}{% if day.is_today %} today{% endif %}{% if day.is_past %} past{% endif %}{% if day.is_weekend %} weekend{% endif %}" role="gridcell">
+        <div class="cal-date-row">
+          <a class="cal-date" href="{{ day.week_url }}" title="{{ day.date|date:'l, d F Y' }}">{{ day.date|date:"j" }}</a>
+          {% if day.count %}<span class="cal-count d-md-none">{{ day.count }}</span>{% endif %}
+        </div>
+        {% for item in day.items %}
+          {% include "ui/calendar/item.html" %}
+        {% endfor %}
+        {% if day.more %}
+          <a class="cal-more" href="{{ day.agenda_url }}">+{{ day.more }} more</a>
+        {% endif %}
+        {% if cal_add_url %}<a class="cal-add" href="{{ cal_add_url }}date={{ day.date|date:'Y-m-d' }}" title="Add on {{ day.date|date:'d M' }}" aria-label="Add on {{ day.date|date:'d M' }}"><i class="bi bi-plus"></i></a>{% endif %}
+      </div>
+    {% endfor %}
+  {% endfor %}
+</div>

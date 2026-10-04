@@ -1,238 +1,70 @@
 {# events/event_calendar.html #}
 {% extends "ui/base.html" %}
-{% load roles_tags %}
 
-{% block title %}Event Calendar{% endblock %}
-
-{% block extra_css %}
-<style>
-  .calendar-scroll {
-    max-height: 600px;
-    overflow-x: auto;
-    overflow-y: auto;
-    position: relative;
-  }
-
-  .calendar-table {
-    border-collapse: separate;
-    border-spacing: 0;
-    width: max-content;
-  }
-
-  .calendar-table thead th {
-    position: static !important;
-  }
-
-  .calendar-table .time-col,
-  .calendar-table .time-cell {
-    width: 80px;
-    min-width: 80px;
-    max-width: 80px;
-    text-align: left;
-    background-color: #ffffff;
-    white-space: nowrap;
-  }
-
-  .calendar-table th.time-col,
-  .calendar-table td.time-cell {
-    position: sticky !important;
-    left: 0;
-    z-index: 5;
-    background-color: #ffffff;
-  }
-
-  .calendar-table .corner-cell {
-    z-index: 6;
-    background-color: #ffffff;
-  }
-
-  .calendar-table th.date-col,
-  .calendar-table td.date-cell {
-    min-width: 150px;
-    max-width: 150px;
-  }
-
-  .calendar-table th.date-col {
-    white-space: nowrap;
-    font-size: 0.85rem;
-    text-align: center;
-  }
-
-  .calendar-table .slot-row td {
-    height: 60px;
-    vertical-align: top;
-  }
-
-  .calendar-event-pill {
-    min-height: 40px;
-    border-radius: 0.4rem;
-    font-size: 0.8rem;
-  }
-</style>
-{% endblock %}
+{% block title %}Event calendar{% endblock %}
 
 {% block content %}
-{% has_event_manage_access request.user as can_manage_events %}
+<div class="container">
+  <div class="page-header">
+    <div>
+      <div class="page-eyebrow"><i class="bi bi-calendar-event"></i> Calendars</div>
+      <h1 class="page-title">Event calendar</h1>
+      <div class="page-subtitle">Shoots and functions across every client. {{ cal_total }} event{{ cal_total|pluralize }} shown.</div>
+    </div>
+    <div class="page-actions">
+      {% if can_manage_events %}
+        <a href="{% url 'events:event_create' %}" class="btn btn-dark btn-sm"><i class="bi bi-plus-lg"></i>New event</a>
+      {% endif %}
+    </div>
+  </div>
 
-<div class="container-fluid px-3 pt-0 pb-3">
+  <div class="card overflow-hidden">
+    {% include "ui/calendar/toolbar.html" %}
 
-  <!-- Header -->
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2 class="fw-semibold mb-0">Event Calendar</h2>
+    <form method="get" class="cal-filters" aria-label="Filters">
+      <input type="hidden" name="view" value="{{ cal.view }}">
+      <input type="hidden" name="date" value="{{ cal.anchor|date:'Y-m-d' }}">
+      <select name="event_type" class="form-select form-select-sm" onchange="this.form.submit()" aria-label="Event type">
+        <option value="">All event types</option>
+        {% for value, label in event_type_choices %}
+          <option value="{{ value }}" {% if event_type == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <select name="status" class="form-select form-select-sm" onchange="this.form.submit()" aria-label="Status">
+        <option value="">All statuses (not cancelled)</option>
+        {% for value, label in status_choices %}
+          <option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <select name="venue" class="form-select form-select-sm" onchange="this.form.submit()" aria-label="Venue">
+        <option value="">All venues</option>
+        {% for v in venue_choices %}
+          <option value="{{ v.pk }}" {% if venue == v.pk|stringformat:"s" %}selected{% endif %}>{{ v.name }}</option>
+        {% endfor %}
+      </select>
+      {% if event_type or status or venue %}
+        <a href="?view={{ cal.view }}&amp;date={{ cal.anchor|date:'Y-m-d' }}" class="btn btn-light btn-sm"><i class="bi bi-x-lg"></i>Clear</a>
+      {% endif %}
+      <noscript><button type="submit" class="btn btn-dark btn-sm">Apply</button></noscript>
 
-    {% if can_manage_events %}
-      <a href="{% url 'events:event_create' %}" class="btn btn-success btn-sm">
-        + New Event
-      </a>
+      <div class="cal-legend ms-auto align-self-center">
+        <span><i class="cal-swatch solid"></i>Confirmed</span>
+        <span><i class="cal-swatch gray"></i>In progress</span>
+        <span><i class="cal-swatch"></i>Planned</span>
+        <span><i class="cal-swatch dashed"></i>Draft</span>
+        <span><i class="cal-swatch soft"></i>Completed</span>
+      </div>
+    </form>
+
+    {% if cal.view == "month" %}
+      {% include "ui/calendar/month.html" %}
+    {% elif cal.view == "week" %}
+      {% include "ui/calendar/week.html" %}
+    {% else %}
+      {% include "ui/calendar/agenda.html" %}
     {% endif %}
   </div>
-
-  <!-- Filters -->
-  <form method="get" class="row g-2 align-items-end mb-3">
-
-    <div class="col-md-4">
-      <label class="form-label small text-muted mb-1">View Range</label>
-      <select name="range" class="form-select form-select-sm">
-        <option value="1m" {% if range_param == "1m" %}selected{% endif %}>1 month</option>
-        <option value="2m" {% if range_param == "2m" %}selected{% endif %}>2 months</option>
-        <option value="3m" {% if range_param == "3m" %}selected{% endif %}>3 months</option>
-      </select>
-    </div>
-
-    <div class="col-md-3">
-      <label class="form-label small text-muted mb-1">Event Type</label>
-      <select name="event_type" class="form-select form-select-sm">
-        <option value="">All types</option>
-        {% for value, label in event_type_choices %}
-          <option value="{{ value }}" {% if event_type == value %}selected{% endif %}>
-            {{ label }}
-          </option>
-        {% endfor %}
-      </select>
-    </div>
-
-    <div class="col-md-3">
-      <label class="form-label small text-muted mb-1">Status</label>
-      <select name="status" class="form-select form-select-sm">
-        <option value="">All statuses</option>
-        {% for value, label in status_choices %}
-          <option value="{{ value }}" {% if status == value %}selected{% endif %}>
-            {{ label }}
-          </option>
-        {% endfor %}
-      </select>
-    </div>
-
-    <div class="col-md-2">
-      <button type="submit" class="btn btn-outline-secondary btn-sm w-100">
-        Apply
-      </button>
-    </div>
-
-  </form>
-
-  <!-- Calendar Grid -->
-  <div class="card">
-    <div class="card-body p-0">
-
-      <div class="calendar-scroll table-responsive">
-        <table class="table table-sm mb-0 align-middle calendar-table">
-
-          <thead class="table-light">
-            <tr>
-              <th scope="col" class="time-col corner-cell">
-                Time
-              </th>
-
-              {% for d in dates %}
-                <th scope="col" class="date-col">
-                  {{ d|date:"M d" }} -
-                  <span class="text-muted small">{{ d|date:"D" }}</span>
-                </th>
-              {% endfor %}
-            </tr>
-          </thead>
-
-          <tbody>
-            {% if dates %}
-              {% for row in time_rows %}
-                {% if row.hour >= 10 and row.hour <= 19 %}
-                  <tr class="slot-row">
-
-                    <td class="fw-semibold text-nowrap time-cell">
-                      {{ row.hour|stringformat:"02d" }}:00
-                    </td>
-
-                    {% for cell in row.cells %}
-                      <td class="date-cell">
-                        {% if cell.events %}
-                          {% for ev in cell.events %}
-
-                            {% if can_manage_events %}
-                              <a href="{% url 'events:event_detail' ev.pk %}"
-                                 class="text-decoration-none d-block mb-1">
-                            {% else %}
-                              <div class="d-block mb-1">
-                            {% endif %}
-
-                              {% with ev.status as st %}
-                                <div class="calendar-event-pill text-white px-2 py-1
-                                  {% if st == 'completed' %} bg-success
-                                  {% elif st == 'confirmed' %} bg-primary
-                                  {% elif st == 'in_progress' %} bg-info
-                                  {% elif st == 'cancelled' %} bg-danger
-                                  {% else %} bg-secondary
-                                  {% endif %}
-                                ">
-                                  <div class="fw-semibold small">
-                                    {{ ev.name|truncatechars:28 }}
-                                  </div>
-
-                                  <div class="small">
-                                    {% if ev.start_time %}
-                                      {{ ev.start_time|time:"H:i" }}
-                                    {% endif %}
-
-                                    {% if ev.client %}
-                                      • {{ ev.client }}
-                                    {% endif %}
-                                  </div>
-
-                                  {% if ev.venue %}
-                                    <div class="small">
-                                      {{ ev.venue.name|truncatechars:24 }}
-                                    </div>
-                                  {% endif %}
-                                </div>
-                              {% endwith %}
-
-                            {% if can_manage_events %}
-                              </a>
-                            {% else %}
-                              </div>
-                            {% endif %}
-
-                          {% endfor %}
-                        {% endif %}
-                      </td>
-                    {% endfor %}
-                  </tr>
-                {% endif %}
-              {% endfor %}
-            {% else %}
-              <tr>
-                <td colspan="999" class="text-center text-muted py-4">
-                  No upcoming events in this range.
-                </td>
-              </tr>
-            {% endif %}
-          </tbody>
-
-        </table>
-      </div>
-
-    </div>
-  </div>
-
 </div>
 {% endblock %}
+
+{% block extra_js %}{% include "ui/calendar/mobile_default.html" %}{% endblock %}

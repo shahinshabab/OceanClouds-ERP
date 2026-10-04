@@ -1,13 +1,12 @@
 # projects/views.py
 
-import calendar
-from datetime import date, timedelta
 from decimal import Decimal
 
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.db.models import Q, Sum, F
 from django.db.models.functions import Coalesce
 from django.http import JsonResponse
@@ -23,6 +22,7 @@ from django.views.generic import (
     TemplateView,
 )
 
+from common.http import safe_next_url
 from common.mixins import ProjectAccessMixin, ProjectWorkAccessMixin
 from common.roles import (
     ROLE_EMPLOYEE,
@@ -51,7 +51,6 @@ from .utils import (
     _scope_tags,
     _validation_error_message,
     close_active_work_for_target,
-    is_admin,
     is_admin_or_project_manager,
     is_employee,
     is_project_manager,
@@ -491,12 +490,13 @@ class ProjectCloseView(ProjectAccessMixin, View):
                 extra_tags=_scope_tags("project"),
             )
 
-        next_url = request.POST.get("next") or request.GET.get("next")
-
-        if next_url:
-            return redirect(next_url)
-
-        return redirect("projects:project_detail", pk=project.pk)
+        return redirect(
+            safe_next_url(
+                request,
+                request.POST.get("next") or request.GET.get("next"),
+                reverse("projects:project_detail", kwargs={"pk": project.pk}),
+            )
+        )
 
 
 # ============================================================
@@ -1476,9 +1476,28 @@ class StartDeliverableWorkView(ProjectWorkAccessMixin, View):
         return redirect("projects:deliverable_detail", pk=deliverable.pk)
 
 
-class PauseWorkSessionView(ProjectWorkAccessMixin, View):
+def _work_session_item_url(session):
+    if session.task_id:
+        return reverse("projects:task_detail", kwargs={"pk": session.task_id})
+    return reverse("projects:deliverable_detail", kwargs={"pk": session.deliverable_id})
+
+
+class WorkSessionActionMixin(ProjectWorkAccessMixin):
+    """
+    Shared checks for pausing, resuming and ending a work session.
+
+    The action is skipped when the session is not in a state it applies to
+    (for example a stale tab pausing an ended session), so the task or
+    deliverable status is never changed for a session that did not change.
+    """
+
+    allowed_statuses = ()
+
     def post(self, request, pk):
-        session = get_object_or_404(WorkSession, pk=pk)
+        session = get_object_or_404(
+            WorkSession.objects.select_related("task", "deliverable"), pk=pk
+        )
+        item_url = _work_session_item_url(session)
 
         if not is_admin_or_project_manager(request.user) and session.user_id != request.user.id:
             messages.error(
@@ -1486,138 +1505,79 @@ class PauseWorkSessionView(ProjectWorkAccessMixin, View):
                 "Not allowed.",
                 extra_tags=_scope_tags("task", "deliverable"),
             )
-            return redirect("projects:work_in_progress")
+            return redirect(item_url)
 
+        if session.status not in self.allowed_statuses:
+            messages.info(
+                request,
+                "This work session has already changed. Please check its current status.",
+                extra_tags=_scope_tags("task", "deliverable"),
+            )
+            return redirect(item_url)
+
+        with transaction.atomic():
+            response = self.apply(request, session)
+
+        return response or redirect(item_url)
+
+
+class PauseWorkSessionView(WorkSessionActionMixin, View):
+    allowed_statuses = (WorkSessionStatus.ACTIVE,)
+
+    def apply(self, request, session):
         session.pause()
 
         if session.task:
             session.task.status = TaskStatus.PAUSED
-            session.task.save(update_fields=["status"])
-
-            messages.info(
-                request,
-                "Task work paused.",
-                extra_tags=_scope_tags("task"),
-            )
-
-            return redirect("projects:task_detail", pk=session.task.pk)
+            session.task.save(update_fields=["status", "updated_at"])
+            messages.info(request, "Task work paused.", extra_tags=_scope_tags("task"))
+            return None
 
         session.deliverable.status = DeliverableStatus.PAUSED
-        session.deliverable.save(update_fields=["status"])
-
-        messages.info(
-            request,
-            "Deliverable work paused.",
-            extra_tags=_scope_tags("deliverable"),
-        )
-
-        return redirect("projects:deliverable_detail", pk=session.deliverable.pk)
+        session.deliverable.save(update_fields=["status", "updated_at"])
+        messages.info(request, "Deliverable work paused.", extra_tags=_scope_tags("deliverable"))
+        return None
 
 
-class ResumeWorkSessionView(ProjectWorkAccessMixin, View):
-    def post(self, request, pk):
-        session = get_object_or_404(WorkSession, pk=pk)
+class ResumeWorkSessionView(WorkSessionActionMixin, View):
+    allowed_statuses = (WorkSessionStatus.PAUSED,)
 
-        if not is_admin_or_project_manager(request.user) and session.user_id != request.user.id:
-            messages.error(
-                request,
-                "Not allowed.",
-                extra_tags=_scope_tags("task", "deliverable"),
-            )
-            return redirect("projects:work_in_progress")
-
+    def apply(self, request, session):
         if user_has_active_work(session.user):
             messages.error(
                 request,
                 "This employee already has another active work item.",
                 extra_tags=_scope_tags("task", "deliverable"),
             )
-            return redirect("projects:work_in_progress")
+            return None
 
         session.resume()
 
         if session.task:
             session.task.status = TaskStatus.IN_PROGRESS
-            session.task.save(update_fields=["status"])
-
-            messages.success(
-                request,
-                "Task work resumed.",
-                extra_tags=_scope_tags("task"),
-            )
-
-            return redirect("projects:task_detail", pk=session.task.pk)
+            session.task.save(update_fields=["status", "updated_at"])
+            messages.success(request, "Task work resumed.", extra_tags=_scope_tags("task"))
+            return None
 
         session.deliverable.status = DeliverableStatus.IN_PROGRESS
-        session.deliverable.save(update_fields=["status"])
-
-        messages.success(
-            request,
-            "Deliverable work resumed.",
-            extra_tags=_scope_tags("deliverable"),
-        )
-
-        return redirect("projects:deliverable_detail", pk=session.deliverable.pk)
+        session.deliverable.save(update_fields=["status", "updated_at"])
+        messages.success(request, "Deliverable work resumed.", extra_tags=_scope_tags("deliverable"))
+        return None
 
 
-class EndWorkSessionView(ProjectWorkAccessMixin, View):
-    def post(self, request, pk):
-        session = get_object_or_404(WorkSession, pk=pk)
+class EndWorkSessionView(WorkSessionActionMixin, View):
+    allowed_statuses = (WorkSessionStatus.ACTIVE, WorkSessionStatus.PAUSED)
 
-        if not is_admin_or_project_manager(request.user) and session.user_id != request.user.id:
-            messages.error(
-                request,
-                "Not allowed.",
-                extra_tags=_scope_tags("task", "deliverable"),
-            )
-            return redirect("projects:work_in_progress")
-
+    def apply(self, request, session):
         session.end()
 
         if session.task:
+            messages.success(request, "Task work session ended.", extra_tags=_scope_tags("task"))
+        else:
             messages.success(
-                request,
-                "Task work session ended.",
-                extra_tags=_scope_tags("task"),
+                request, "Deliverable work session ended.", extra_tags=_scope_tags("deliverable")
             )
-            return redirect("projects:task_detail", pk=session.task.pk)
-
-        messages.success(
-            request,
-            "Deliverable work session ended.",
-            extra_tags=_scope_tags("deliverable"),
-        )
-
-        return redirect("projects:deliverable_detail", pk=session.deliverable.pk)
-
-
-class WorkInProgressView(ProjectWorkAccessMixin, ListView):
-    model = WorkSession
-    template_name = "projects/work_in_progress.html"
-    context_object_name = "work_sessions"
-
-    def get_queryset(self):
-        qs = WorkSession.objects.select_related(
-            "user",
-            "project",
-            "task",
-            "deliverable",
-        ).filter(
-            status__in=[
-                WorkSessionStatus.ACTIVE,
-                WorkSessionStatus.PAUSED,
-            ]
-        )
-
-        user = self.request.user
-
-        if is_admin_or_project_manager(user):
-            return qs
-
-        if is_employee(user):
-            return qs.filter(user=user)
-
-        return WorkSession.objects.none()
+        return None
 
 
 # ============================================================
@@ -1632,8 +1592,8 @@ def _person_name(user):
 
 class ProjectCalendarView(ProjectWorkAccessMixin, TemplateView):
     """
-    Month view of upcoming project work: events, tasks and deliverables,
-    each card showing who is assigned.
+    Calendar of project work: events, tasks and deliverables, each entry
+    showing who is assigned. Month, week and agenda views.
 
     Tasks and deliverables sit on their due date (start date if no due date).
     Employees see only their own work; events are shown to everyone.
@@ -1641,27 +1601,20 @@ class ProjectCalendarView(ProjectWorkAccessMixin, TemplateView):
 
     template_name = "projects/project_calendar.html"
 
-    def get_month(self):
-        raw = (self.request.GET.get("month") or "").strip()
-        today = timezone.localdate()
-        try:
-            year, month = (int(part) for part in raw.split("-", 1))
-            return date(year, month, 1)
-        except (TypeError, ValueError):
-            return today.replace(day=1)
-
     def get_context_data(self, **kwargs):
+        from ui.calendar import CalendarRange
+        from ui.templatetags.ui_tags import status_tone
+
         context = super().get_context_data(**kwargs)
         user = self.request.user
-        today = timezone.localdate()
-        first = self.get_month()
-        last = first.replace(day=calendar.monthrange(first.year, first.month)[1])
-        grid_start = first - timedelta(days=first.weekday())
-        grid_end = last + timedelta(days=6 - last.weekday())
 
         project_id = (self.request.GET.get("project") or "").strip()
         staff_id = (self.request.GET.get("staff") or "").strip()
+        show = (self.request.GET.get("show") or "").strip()
         can_filter_staff = is_admin_or_project_manager(user)
+
+        cal = CalendarRange.from_request(self.request, keep=("project", "staff", "show"))
+        grid_start, grid_end = cal.start, cal.end
 
         in_range = (
             Q(due_date__range=(grid_start, grid_end))
@@ -1696,84 +1649,78 @@ class ProjectCalendarView(ProjectWorkAccessMixin, TemplateView):
             tasks = tasks.filter(assigned_to_id=staff_id)
             deliverables = deliverables.filter(assigned_to_id=staff_id)
 
-        items_by_day = {}
+        if show == "mine":
+            tasks = tasks.filter(assigned_to=user)
+            deliverables = deliverables.filter(assigned_to=user)
 
-        def add(day, item):
-            items_by_day.setdefault(day, []).append(item)
+        if show in ("tasks", "deliverables", "mine"):
+            events = events.none()
+        if show == "tasks":
+            deliverables = deliverables.none()
+        if show == "deliverables":
+            tasks = tasks.none()
+        if show == "events":
+            tasks = tasks.none()
+            deliverables = deliverables.none()
 
+        entries = []
         can_open_events = can_manage_events(user)
         for event in events:
             project = event.linked_project
-            add(event.date, {
-                "kind": "event",
+            meta = []
+            if event.venue_id:
+                meta.append(("bi-geo-alt", event.venue.name))
+            if project:
+                meta.append(("bi-kanban", project.name))
+            else:
+                meta.append(("bi-exclamation-circle", "No project yet"))
+            entries.append({
+                "date": event.date,
+                "start": event.start_time,
+                "end": event.end_time,
                 "title": event.name,
                 "url": reverse("events:event_detail", args=[event.pk]) if can_open_events else "",
-                "time": event.start_time,
-                "meta": event.venue.name if event.venue_id else "",
-                "project": project.name if project else "",
-                "needs_project": project is None,
+                "tone": "solid",
+                "icon": "bi-stars",
+                "meta": meta,
                 "status": event.get_status_display(),
+                "status_tone": status_tone(event.status),
+                "order": 0,
             })
+
+        def work_entry(obj, kind, url_name, done):
+            assignee = _person_name(obj.assigned_to) or "Unassigned"
+            mine = obj.assigned_to_id == user.id
+            meta = [("bi-kanban", obj.project.name), ("bi-person", assignee + (" (me)" if mine else ""))]
+            if obj.due_date and obj.start_date and obj.start_date != obj.due_date:
+                meta.append(("bi-play", f"Started {obj.start_date:%d %b}"))
+            tone = "soft" if done else ("danger" if obj.is_overdue else ("outline" if kind == "task" else "gray"))
+            return {
+                "date": obj.due_date or obj.start_date,
+                "title": obj.name,
+                "url": reverse(url_name, args=[obj.pk]),
+                "tone": tone,
+                "icon": "bi-check2-square" if kind == "task" else "bi-box-seam",
+                "meta": meta,
+                "status": ("Overdue · " if obj.is_overdue and not done else "") + obj.get_status_display(),
+                "status_tone": "status-danger" if obj.is_overdue and not done else status_tone(obj.status),
+                "mine": mine,
+                "order": 1 if kind == "task" else 2,
+            }
 
         for task in tasks:
-            add(task.due_date or task.start_date, {
-                "kind": "task",
-                "title": task.name,
-                "url": reverse("projects:task_detail", args=[task.pk]),
-                "project": task.project.name,
-                "assignee": _person_name(task.assigned_to),
-                "is_mine": task.assigned_to_id == user.id,
-                "status": task.get_status_display(),
-                "done": task.status == TaskStatus.COMPLETED,
-                "overdue": task.is_overdue,
-                "start_date": task.start_date if task.due_date and task.start_date != task.due_date else None,
-            })
-
+            entries.append(work_entry(task, "task", "projects:task_detail", task.status == TaskStatus.COMPLETED))
         for deliverable in deliverables:
-            add(deliverable.due_date or deliverable.start_date, {
-                "kind": "deliverable",
-                "title": deliverable.name,
-                "url": reverse("projects:deliverable_detail", args=[deliverable.pk]),
-                "project": deliverable.project.name,
-                "assignee": _person_name(deliverable.assigned_to),
-                "is_mine": deliverable.assigned_to_id == user.id,
-                "status": deliverable.get_status_display(),
-                "done": deliverable.status == DeliverableStatus.DELIVERED,
-                "overdue": deliverable.is_overdue,
-                "start_date": deliverable.start_date if deliverable.due_date and deliverable.start_date != deliverable.due_date else None,
-            })
+            entries.append(work_entry(
+                deliverable, "deliverable", "projects:deliverable_detail",
+                deliverable.status == DeliverableStatus.DELIVERED,
+            ))
 
-        kind_order = {"event": 0, "task": 1, "deliverable": 2}
-        weeks = []
-        day = grid_start
-        while day <= grid_end:
-            week = []
-            for _ in range(7):
-                items = sorted(
-                    items_by_day.get(day, []),
-                    key=lambda item: (kind_order[item["kind"]], str(item.get("time") or ""), item["title"]),
-                )
-                week.append({
-                    "date": day,
-                    "in_month": day.month == first.month,
-                    "is_today": day == today,
-                    "items": items,
-                })
-                day += timedelta(days=1)
-            weeks.append(week)
-
-        prev_month = (first - timedelta(days=1)).replace(day=1)
-        next_month = last + timedelta(days=1)
-
+        context.update(cal.layout(entries))
         context.update({
-            "month": first,
-            "weeks": weeks,
-            "weekday_names": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-            "prev_month": prev_month.strftime("%Y-%m"),
-            "next_month": next_month.strftime("%Y-%m"),
-            "this_month": today.strftime("%Y-%m"),
             "project_filter": project_id,
             "staff_filter": staff_id,
+            "show_filter": show,
             "project_choices": visible_projects_for(user).exclude(
                 status__in=[ProjectStatus.CLOSED, ProjectStatus.CANCELLED]
             ).order_by("name") if can_filter_staff else Project.objects.none(),
@@ -1783,9 +1730,9 @@ class ProjectCalendarView(ProjectWorkAccessMixin, TemplateView):
             ).distinct().order_by("first_name", "last_name", "username") if can_filter_staff else User.objects.none(),
             "can_filter_staff": can_filter_staff,
             "counts": {
-                "events": events.count(),
-                "tasks": tasks.count(),
-                "deliverables": deliverables.count(),
+                "events": len([e for e in entries if e["order"] == 0]),
+                "tasks": len([e for e in entries if e["order"] == 1]),
+                "deliverables": len([e for e in entries if e["order"] == 2]),
             },
         })
         return context
@@ -1833,11 +1780,13 @@ class SelfAssignMixin(ProjectAccessMixin, View):
             extra_tags=_scope_tags(self.scope),
         )
 
-        next_url = request.POST.get("next")
-        if next_url and next_url.startswith("/"):
-            return redirect(next_url)
-
-        return redirect(self.detail_url_name, pk=obj.pk)
+        return redirect(
+            safe_next_url(
+                request,
+                request.POST.get("next"),
+                reverse(self.detail_url_name, kwargs={"pk": obj.pk}),
+            )
+        )
 
 
 class TaskSelfAssignView(SelfAssignMixin):

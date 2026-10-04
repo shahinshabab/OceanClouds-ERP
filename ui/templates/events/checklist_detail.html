@@ -46,17 +46,17 @@
       <div class="d-flex gap-2">
         <a href="{% url 'events:checklist_item_create' %}?checklist={{ checklist.pk }}"
            class="btn btn-success btn-sm">
-          + Add Item
+          <i class="bi bi-plus-lg"></i>Add Item
         </a>
 
         <a href="{% url 'events:checklist_update' checklist.pk %}"
            class="btn btn-primary btn-sm">
-          Edit Checklist
+          <i class="bi bi-pencil"></i>Edit Checklist
         </a>
 
         <a href="{% url 'events:checklist_delete' checklist.pk %}"
            class="btn btn-outline-danger btn-sm">
-          Delete
+          <i class="bi bi-trash"></i>Delete
         </a>
       </div>
     {% endif %}
@@ -144,7 +144,7 @@
       {% if can_manage_events %}
         <a href="{% url 'events:checklist_item_create' %}?checklist={{ checklist.pk }}"
            class="btn btn-sm btn-outline-success">
-          + Add Item
+          <i class="bi bi-plus-lg"></i>Add Item
         </a>
       {% endif %}
     </div>
@@ -206,12 +206,12 @@
                     {% if can_manage_events %}
                       <a href="{% url 'events:checklist_item_update' item.pk %}"
                          class="btn btn-sm btn-outline-secondary">
-                        Edit
+                        <i class="bi bi-pencil"></i>Edit
                       </a>
 
                       <a href="{% url 'events:checklist_item_delete' item.pk %}"
                          class="btn btn-sm btn-outline-danger">
-                        Delete
+                        <i class="bi bi-trash"></i>Delete
                       </a>
                     {% else %}
                       —
@@ -234,13 +234,13 @@
   <!-- Actions -->
   <div class="d-flex justify-content-center gap-2">
     <a href="{% url 'events:checklist_list' %}" class="btn btn-outline-secondary">
-      Back to Checklists
+      <i class="bi bi-arrow-left"></i>Back to Checklists
     </a>
 
     {% if can_manage_events %}
       <a href="{% url 'events:checklist_item_create' %}?checklist={{ checklist.pk }}"
          class="btn btn-success">
-        + Add Item
+        <i class="bi bi-plus-lg"></i>Add Item
       </a>
     {% endif %}
   </div>

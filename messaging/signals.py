@@ -3,7 +3,6 @@
 import logging
 
 from django.apps import apps
-from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db.models.signals import post_migrate
 
@@ -54,7 +53,7 @@ DEFAULT_EMAIL_TEMPLATES = {
                 </p>
                 <p style="margin:8px 0 0;font-size:15px;">
                   Estimated Amount:
-                  <strong>{{ proposal.total_amount|default:"Please refer to the attached proposal" }}</strong>
+                  <strong>{{ proposal.total|default:"Please refer to the attached proposal" }}</strong>
                 </p>
               </div>
 
@@ -101,7 +100,7 @@ Thank you for considering {{ company_name }} for your special occasion.
 
 We are pleased to share the proposal prepared for {{ proposal.title|default:"your wedding/event service" }}.
 
-Proposal Amount: {{ proposal.total_amount|default:"Please refer to the attached proposal" }}
+Proposal Amount: {{ proposal.total|default:"Please refer to the attached proposal" }}
 
 Kindly review the proposal details. If a PDF proposal is attached, it will include the full service scope, pricing, and other relevant details.
 
@@ -247,7 +246,7 @@ Warm regards,
     "invoice": {
         "name": "Default Invoice Email",
         "slug": "invoice-default",
-        "subject": "Invoice {{ invoice.invoice_number|default:'Invoice' }} from {{ company_name }}",
+        "subject": "Invoice {{ invoice.number|default:'Invoice' }} from {{ company_name }}",
         "body_html": """
 <div style="margin:0;padding:0;background:#f4f4f4;font-family:Arial,Helvetica,sans-serif;color:#111111;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:24px 0;">
@@ -282,7 +281,7 @@ Warm regards,
                     Invoice Number
                   </td>
                   <td style="padding:12px 14px;border-bottom:1px solid #dddddd;text-align:right;">
-                    {{ invoice.invoice_number|default:"-" }}
+                    {{ invoice.number|default:"-" }}
                   </td>
                 </tr>
                 <tr>
@@ -290,7 +289,7 @@ Warm regards,
                     Total Amount
                   </td>
                   <td style="padding:12px 14px;border-bottom:1px solid #dddddd;text-align:right;">
-                    {{ invoice.total_amount|default:"-" }}
+                    {{ invoice.total|default:"-" }}
                   </td>
                 </tr>
                 <tr>
@@ -344,8 +343,8 @@ Dear {{ client.name|default:"Client" }},
 
 Please find your invoice details below for the confirmed wedding/event service.
 
-Invoice Number: {{ invoice.invoice_number|default:"-" }}
-Total Amount: {{ invoice.total_amount|default:"-" }}
+Invoice Number: {{ invoice.number|default:"-" }}
+Total Amount: {{ invoice.total|default:"-" }}
 Due Date: {{ invoice.due_date|default:"-" }}
 
 Kindly complete the payment on or before the due date. If a PDF invoice is attached, please refer to it for complete invoice details.
@@ -403,7 +402,7 @@ Warm regards,
                     Payment Date
                   </td>
                   <td style="padding:12px 14px;border-bottom:1px solid #dddddd;text-align:right;">
-                    {{ payment.payment_date|default:"-" }}
+                    {{ payment.date|default:"-" }}
                   </td>
                 </tr>
                 <tr>
@@ -411,7 +410,7 @@ Warm regards,
                     Invoice
                   </td>
                   <td style="padding:12px 14px;text-align:right;">
-                    {{ invoice.invoice_number|default:"-" }}
+                    {{ invoice.number|default:"-" }}
                   </td>
                 </tr>
               </table>
@@ -457,8 +456,8 @@ Dear {{ client.name|default:"Client" }},
 Thank you. We have received your payment for the wedding/event service.
 
 Amount Received: {{ payment.amount|default:"-" }}
-Payment Date: {{ payment.payment_date|default:"-" }}
-Invoice: {{ invoice.invoice_number|default:"-" }}
+Payment Date: {{ payment.date|default:"-" }}
+Invoice: {{ invoice.number|default:"-" }}
 
 This email confirms that your payment has been recorded in our system.
 
@@ -504,24 +503,12 @@ def seed_default_email_templates(sender, **kwargs):
     owner = get_template_owner(EmailTemplate)
 
     for template_type, data in DEFAULT_EMAIL_TEMPLATES.items():
-        # If one active template already exists for this type, do not override it.
-        existing_active = EmailTemplate.objects.filter(
-            type=template_type,
-            is_active=True,
-        ).first()
-
-        if existing_active:
-            for field, value in data.items():
-                setattr(existing_active, field, value)
-
-            existing_active.is_default_for_type = True
-            existing_active.attach_generated_pdf = template_type in ["proposal", "contract", "invoice", "payment"]
-            existing_active.pdf_attachment_mode = EmailTemplate.PdfAttachmentMode.RELATED_OBJECT
-            existing_active.save()
-            logger.info("Default email template updated: %s", existing_active.slug)
+        # Only fill in a missing template. Never overwrite one that exists:
+        # admins edit wording in the app and a deploy must not undo that.
+        if EmailTemplate.objects.filter(type=template_type).exists():
             continue
-
-        existing = EmailTemplate.objects.filter(slug=data["slug"]).first()
+        if EmailTemplate.objects.filter(slug=data["slug"]).exists():
+            continue
 
         template_data = {
             "name": data["name"],
@@ -538,21 +525,12 @@ def seed_default_email_templates(sender, **kwargs):
         if owner and hasattr(EmailTemplate, "owner"):
             template_data["owner"] = owner
 
-        if existing:
-            for field, value in template_data.items():
-                setattr(existing, field, value)
-
-            existing.save()
-            logger.info("Default email template reactivated: %s", existing.slug)
-        else:
-            template = EmailTemplate.objects.create(
-                slug=data["slug"],
-                **template_data,
-            )
-            logger.info("Default email template created: %s", template.slug)
+        template = EmailTemplate.objects.create(slug=data["slug"], **template_data)
+        logger.info("Default email template created: %s", template.slug)
 
 
 post_migrate.connect(
     seed_default_email_templates,
+    sender=apps.get_app_config("messaging"),
     dispatch_uid="messaging_seed_default_email_templates",
 )

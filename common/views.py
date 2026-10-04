@@ -10,7 +10,6 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
-from django.utils.http import url_has_allowed_host_and_scheme
 from django.views import View
 from django.views.generic import ListView
 from django.views.decorators.cache import never_cache
@@ -19,7 +18,7 @@ from django.views.decorators.http import require_POST
 from .models import ImportantNotice, Notification, UserLoginSession, UserNoticeAcknowledgement
 from .browser_presence import heartbeat_interval
 from .session_management import close_expired_login_sessions, idle_cutoff
-from .signals import get_client_ip
+from .http import get_client_ip, safe_next_url
 
 
 def _session_ended(request):
@@ -144,10 +143,10 @@ def mark_notification_read(request, pk):
     if request.headers.get("x-requested-with") == "XMLHttpRequest":
         return JsonResponse({"success": True})
 
-    next_url = (
-        request.POST.get("next")
-        or request.META.get("HTTP_REFERER")
-        or reverse("common:notification_list")
+    next_url = safe_next_url(
+        request,
+        request.POST.get("next") or request.META.get("HTTP_REFERER"),
+        reverse("common:notification_list"),
     )
     return redirect(next_url)
 
@@ -170,14 +169,8 @@ class ImportantNoticeView(LoginRequiredMixin, View):
         )
 
     def safe_next_url(self):
-        next_url = self.request.POST.get("next") or self.request.GET.get("next") or ""
-        if url_has_allowed_host_and_scheme(
-            next_url,
-            allowed_hosts={self.request.get_host()},
-            require_https=self.request.is_secure(),
-        ):
-            return next_url
-        return reverse("ui:home")
+        next_url = self.request.POST.get("next") or self.request.GET.get("next")
+        return safe_next_url(self.request, next_url, reverse("ui:home"))
 
     def get(self, request):
         notice = self.pending_notice()

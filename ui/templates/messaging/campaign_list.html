@@ -17,7 +17,7 @@
 
     {% if perms.messaging.add_campaign %}
       <a href="{% url 'messaging:campaign_create' %}" class="btn btn-success btn-sm">
-        + New Campaign
+        <i class="bi bi-plus-lg"></i>New Campaign
       </a>
     {% endif %}
   </div>
@@ -159,7 +159,7 @@
                 {% if perms.messaging.change_campaign %}
                   <a href="{% url 'messaging:campaign_update' campaign.pk %}"
                      class="btn btn-sm btn-outline-primary me-1">
-                    Edit
+                    <i class="bi bi-pencil"></i>Edit
                   </a>
                 {% endif %}
 
@@ -170,7 +170,7 @@
                         class="d-inline">
                     {% csrf_token %}
                     <button type="submit" class="btn btn-sm btn-outline-danger">
-                      Delete
+                      <i class="bi bi-trash"></i>Delete
                     </button>
                   </form>
                 {% endif %}

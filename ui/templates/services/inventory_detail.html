@@ -35,10 +35,10 @@
     {% if can_manage_services %}
       <div class="d-flex gap-2">
         <a href="{% url 'services:inventory_update' inventory_item.pk %}" class="btn btn-primary btn-sm">
-          Edit Item
+          <i class="bi bi-pencil"></i>Edit Item
         </a>
         <a href="{% url 'services:inventory_delete' inventory_item.pk %}" class="btn btn-outline-danger btn-sm">
-          Delete
+          <i class="bi bi-trash"></i>Delete
         </a>
       </div>
     {% endif %}
@@ -105,12 +105,12 @@
   <!-- Actions -->
   <div class="text-center">
     <a href="{% url 'services:inventory_list' %}" class="btn btn-outline-secondary me-2">
-      Back to Inventory
+      <i class="bi bi-arrow-left"></i>Back to Inventory
     </a>
 
     {% if can_manage_services %}
       <a href="{% url 'services:inventory_update' inventory_item.pk %}" class="btn btn-primary">
-        Edit Item
+        <i class="bi bi-pencil"></i>Edit Item
       </a>
     {% endif %}
   </div>

@@ -20,7 +20,7 @@
     </div>
 
     <a href="{% url 'messaging:template_list' %}" class="btn btn-outline-secondary btn-sm">
-      Back to list
+      <i class="bi bi-arrow-left"></i>Back to list
     </a>
   </div>
 
@@ -259,7 +259,7 @@
       {% if form.instance.pk %}
         <a href="{% url 'messaging:template_preview' form.instance.pk %}"
            class="btn btn-outline-dark">
-          Preview
+          <i class="bi bi-eye"></i>Preview
         </a>
       {% endif %}
 

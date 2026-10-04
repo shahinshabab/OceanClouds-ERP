@@ -1,6 +1,8 @@
 # common/mixins.py
 
+from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.shortcuts import redirect
  
 from .roles import (
     ROLE_ADMIN,
@@ -217,3 +219,28 @@ class AttendanceAccessMixin(RolesRequiredMixin):
     """Attendance and leave: Admin, Project Manager, and Employee."""
 
     allowed_roles = ATTENDANCE_ACCESS_ROLES
+
+
+class KeepPaymentsOnDeleteMixin:
+    """
+    Refuse a delete that would also remove recorded payments.
+
+    Payments are the money records of the business; a deal, invoice or
+    client that has them must be kept (or its payments handled first).
+    """
+
+    def get_blocking_payments(self):
+        raise NotImplementedError
+
+    def get_blocked_redirect_url(self):
+        return self.object.get_absolute_url()
+
+    def form_valid(self, form):
+        if self.get_blocking_payments().exists():
+            messages.error(
+                self.request,
+                f"{self.object} has recorded payments and can't be deleted. "
+                "Delete or move its payments first.",
+            )
+            return redirect(self.get_blocked_redirect_url())
+        return super().form_valid(form)

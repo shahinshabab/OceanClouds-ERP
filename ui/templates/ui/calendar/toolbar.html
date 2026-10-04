@@ -1,0 +1,24 @@
+{# Calendar toolbar: navigation + view switcher. Filters go in the "filters" include var. #}
+<div class="cal-toolbar">
+  <div class="cal-nav">
+    <a class="btn btn-outline-secondary btn-sm btn-icon" href="{{ cal.prev }}" aria-label="Previous"><i class="bi bi-chevron-left"></i></a>
+    <a class="btn btn-outline-secondary btn-sm btn-icon" href="{{ cal.next }}" aria-label="Next"><i class="bi bi-chevron-right"></i></a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ cal.today }}">Today</a>
+    <h2 class="cal-range">{{ cal.title }}</h2>
+  </div>
+  <div class="d-flex flex-wrap align-items-center gap-2">
+    <form method="get" class="d-flex align-items-center gap-1 m-0" aria-label="Jump to date">
+      {% for k, v in cal.filters.items %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+      <input type="hidden" name="view" value="{{ cal.view }}">
+      <input type="date" name="date" value="{{ cal.anchor|date:'Y-m-d' }}" class="form-control form-control-sm" style="width: 150px;" onchange="this.form.submit()" aria-label="Go to date">
+    </form>
+    <div class="segmented" role="tablist" aria-label="Calendar view">
+      {% for v in cal.views %}
+        <a href="{{ v.url }}" class="{% if v.active %}active{% endif %}" role="tab" aria-selected="{{ v.active|yesno:'true,false' }}">
+          {% if v.key == "month" %}<i class="bi bi-calendar3"></i>{% elif v.key == "week" %}<i class="bi bi-calendar-week"></i>{% else %}<i class="bi bi-list-ul"></i>{% endif %}
+          <span class="d-none d-sm-inline">{{ v.label }}</span>
+        </a>
+      {% endfor %}
+    </div>
+  </div>
+</div>

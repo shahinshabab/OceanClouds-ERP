@@ -8,6 +8,7 @@ from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
 from common.models import TimeStamped, Owned
+from common.numbering import next_sequential_code
 
 
 # -------------------------------------------------------------------
@@ -203,24 +204,7 @@ class Service(TimeStamped, Owned):
 
     @classmethod
     def _generate_next_code(cls):
-        last = (
-            cls.objects
-            .filter(code__startswith=cls.CODE_PREFIX)
-            .order_by("-code")
-            .only("code")
-            .first()
-        )
-
-        if last and last.code:
-            suffix = last.code.replace(cls.CODE_PREFIX, "")
-            try:
-                number = int(suffix)
-            except ValueError:
-                number = 0
-        else:
-            number = 0
-
-        return f"{cls.CODE_PREFIX}{number + 1:0{cls.CODE_PAD}d}"
+        return next_sequential_code(cls, "code", cls.CODE_PREFIX, cls.CODE_PAD)
 
     def save(self, *args, **kwargs):
         if self.pk:
@@ -231,7 +215,7 @@ class Service(TimeStamped, Owned):
         if self.code:
             return super().save(*args, **kwargs)
 
-        for _ in range(10):
+        for _attempt in range(10):
             self.code = self._generate_next_code()
             try:
                 with transaction.atomic():
@@ -389,24 +373,7 @@ class Package(TimeStamped, Owned):
 
     @classmethod
     def _generate_next_code(cls):
-        last = (
-            cls.objects
-            .filter(code__startswith=cls.CODE_PREFIX)
-            .order_by("-code")
-            .only("code")
-            .first()
-        )
-
-        if last and last.code:
-            suffix = last.code.replace(cls.CODE_PREFIX, "")
-            try:
-                number = int(suffix)
-            except ValueError:
-                number = 0
-        else:
-            number = 0
-
-        return f"{cls.CODE_PREFIX}{number + 1:0{cls.CODE_PAD}d}"
+        return next_sequential_code(cls, "code", cls.CODE_PREFIX, cls.CODE_PAD)
 
     def save(self, *args, **kwargs):
         if self.pk:
@@ -417,7 +384,7 @@ class Package(TimeStamped, Owned):
         if self.code:
             return super().save(*args, **kwargs)
 
-        for _ in range(10):
+        for _attempt in range(10):
             self.code = self._generate_next_code()
             try:
                 with transaction.atomic():

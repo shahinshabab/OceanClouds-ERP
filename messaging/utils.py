@@ -12,7 +12,6 @@ import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 
 from django.conf import settings
-from django.core.files.base import ContentFile
 from django.template import Context, Template
 from django.utils import timezone
 
@@ -82,11 +81,20 @@ def get_active_template(template_type: str) -> EmailTemplate:
     return template
 
 
-def render_template_string(template_str: str, context: Dict[str, Any]) -> str:
+def render_template_string(
+    template_str: str,
+    context: Dict[str, Any],
+    autoescape: bool = True,
+) -> str:
+    """
+    Render a stored template. Pass autoescape=False for plain text (email
+    subjects, text bodies, WhatsApp messages) so "Ravi & Priya" doesn't
+    arrive as "Ravi &amp; Priya".
+    """
     if not template_str:
         return ""
 
-    return Template(template_str).render(Context(context))
+    return Template(template_str).render(Context(context, autoescape=autoescape))
 
 
 def render_email_from_template(
@@ -97,9 +105,9 @@ def render_email_from_template(
     context.setdefault("now", timezone.now())
     context.setdefault("today", timezone.localdate())
 
-    subject = render_template_string(template.subject, context).strip()
+    subject = render_template_string(template.subject, context, autoescape=False).strip()
     body_html = render_template_string(template.body_html, context)
-    body_text = render_template_string(template.body_text, context)
+    body_text = render_template_string(template.body_text, context, autoescape=False)
 
     if not subject:
         raise EmailSendError(f"Template '{template.slug}' produced an empty subject.")
@@ -415,12 +423,6 @@ def normalize_whatsapp_number(number: str | None) -> str:
     return number
 
 
-def render_template_string(template_str: str, context: Dict[str, Any]) -> str:
-    if not template_str:
-        return ""
-    return Template(template_str).render(Context(context))
-
-
 def resolve_context_value(context: Dict[str, Any], path: str) -> str:
     """
     Resolves paths like:
@@ -662,6 +664,7 @@ def send_templated_whatsapp(
         log.rendered_message = render_template_string(
             template.body_text,
             preview_context,
+            autoescape=False,
         )
         log.save()
 

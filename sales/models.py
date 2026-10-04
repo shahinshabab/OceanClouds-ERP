@@ -6,12 +6,12 @@ import uuid
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models, transaction, IntegrityError
-from django.db.models import Sum, Q
+from django.db.models import Case, F, Q, Sum, When
 from django.urls import reverse
-from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from common.models import TimeStamped, Owned
+from common.numbering import next_sequential_code
 from crm.models import Client, Lead
 from services.models import Service, Package, DeliverableUnit
 
@@ -56,13 +56,6 @@ class ContractStatus(models.TextChoices):
     CANCELLED = "cancelled", _("Cancelled")
 
 
-class PaymentScheduleStatus(models.TextChoices):
-    PENDING = "pending", _("Pending")
-    INVOICED = "invoiced", _("Invoiced")
-    PAID = "paid", _("Paid")
-    CANCELLED = "cancelled", _("Cancelled")
-
-
 class InvoiceStatus(models.TextChoices):
     DRAFT = "draft", _("Draft")
     ISSUED = "issued", _("Issued")
@@ -87,6 +80,20 @@ class PaymentType(models.TextChoices):
     FINAL = "final", _("Final")
     REFUND = "refund", _("Refund")
     OTHER = "other", _("Other")
+
+
+def net_paid_amount(payments):
+    """Money kept from a Payment queryset: refunds count against it."""
+    total = payments.aggregate(
+        total=Sum(
+            Case(
+                When(payment_type=PaymentType.REFUND, then=-F("amount")),
+                default=F("amount"),
+                output_field=models.DecimalField(max_digits=12, decimal_places=2),
+            )
+        )
+    )["total"]
+    return total or Decimal("0.00")
 
 
 # -------------------------------------------------------------------
@@ -189,10 +196,8 @@ class Deal(TimeStamped, Owned):
 
     @property
     def advance_paid(self):
-        return (
+        return net_paid_amount(
             Payment.objects.filter(invoice__deal=self, invoice__is_advance=True)
-            .aggregate(total=Sum("amount"))["total"]
-            or Decimal("0.00")
         )
 
     @property
@@ -728,23 +733,7 @@ class Contract(TimeStamped, Owned):
 
     @classmethod
     def _generate_next_number(cls):
-        last = (
-            cls.objects
-            .filter(number__startswith=cls.CODE_PREFIX)
-            .order_by("-number")
-            .only("number")
-            .first()
-        )
-
-        if last and last.number:
-            try:
-                number = int(last.number.replace(cls.CODE_PREFIX, ""))
-            except ValueError:
-                number = 0
-        else:
-            number = 0
-
-        return f"{cls.CODE_PREFIX}{number + 1:0{cls.CODE_PAD}d}"
+        return next_sequential_code(cls, "number", cls.CODE_PREFIX, cls.CODE_PAD)
 
     def save(self, *args, **kwargs):
         if self.pk:
@@ -758,7 +747,7 @@ class Contract(TimeStamped, Owned):
         if self.number:
             return super().save(*args, **kwargs)
 
-        for _ in range(10):
+        for _attempt in range(10):
             self.number = self._generate_next_number()
             try:
                 with transaction.atomic():
@@ -822,8 +811,6 @@ class Contract(TimeStamped, Owned):
 
         if clear_existing:
             self.event_days.all().delete()
-            if hasattr(self, "payment_schedules"):
-                self.payment_schedules.all().delete()
 
         self.proposal = proposal
         self.proposal_plan = selected_plan
@@ -883,8 +870,6 @@ class Contract(TimeStamped, Owned):
                     )
 
         self.recalculate_totals(save=True)
-
-
 
 
 class ContractEventDay(models.Model):
@@ -1022,7 +1007,6 @@ class ContractDeliverable(models.Model):
         return self.title
 
 
-
 # -------------------------------------------------------------------
 # Invoice
 # -------------------------------------------------------------------
@@ -1093,25 +1077,24 @@ class Invoice(TimeStamped, Owned):
             - (self.amount_paid or Decimal("0.00"))
         )
 
+    def refresh_payment_status(self):
+        """Recalculate amount_paid from payments and update the paid status."""
+        self.amount_paid = net_paid_amount(self.payments.all())
+
+        if self.status == InvoiceStatus.CANCELLED:
+            pass
+        elif self.total and self.amount_paid >= self.total:
+            self.status = InvoiceStatus.PAID
+        elif self.amount_paid > 0:
+            self.status = InvoiceStatus.PARTIALLY_PAID
+        elif self.status in [InvoiceStatus.PAID, InvoiceStatus.PARTIALLY_PAID]:
+            self.status = InvoiceStatus.ISSUED
+
+        self.save(update_fields=["amount_paid", "status", "updated_at"])
+
     @classmethod
     def _generate_next_number(cls):
-        last = (
-            cls.objects
-            .filter(number__startswith=cls.CODE_PREFIX)
-            .order_by("-number")
-            .only("number")
-            .first()
-        )
-
-        if last and last.number:
-            try:
-                number = int(last.number.replace(cls.CODE_PREFIX, ""))
-            except ValueError:
-                number = 0
-        else:
-            number = 0
-
-        return f"{cls.CODE_PREFIX}{number + 1:0{cls.CODE_PAD}d}"
+        return next_sequential_code(cls, "number", cls.CODE_PREFIX, cls.CODE_PAD)
 
     def save(self, *args, **kwargs):
         if self.pk:
@@ -1122,7 +1105,7 @@ class Invoice(TimeStamped, Owned):
         if self.number:
             return super().save(*args, **kwargs)
 
-        for _ in range(10):
+        for _attempt in range(10):
             self.number = self._generate_next_number()
             try:
                 with transaction.atomic():
@@ -1187,11 +1170,9 @@ class Invoice(TimeStamped, Owned):
         # The booking advance was billed on its own invoice before the
         # contract, so the contract invoice only asks for the remainder.
         if not self.is_advance:
-            self.advance_adjustment = (
+            self.advance_adjustment = net_paid_amount(
                 Payment.objects.filter(invoice__deal_id=self.deal_id, invoice__is_advance=True)
                 .exclude(invoice_id=self.pk)
-                .aggregate(total=Sum("amount"))["total"]
-                or Decimal("0.00")
             )
 
         self.save(
@@ -1207,16 +1188,23 @@ class Invoice(TimeStamped, Owned):
         if clear_existing:
             self.items.all().delete()
 
-        for contract_day in contract.event_days.prefetch_related("items").all():
-            for item in contract_day.items.all():
-                InvoiceItem.objects.create(
-                    invoice=self,
-                    contract_item=item,
-                    description=f"{contract_day.title} - {item.description}",
-                    quantity=item.quantity,
-                    unit_price=item.unit_price,
-                    tax_rate=Decimal("0.00"),
-                )
+        # Items may only be added to a draft, so an invoice created as
+        # issued is treated as a draft (in memory) while it is filled.
+        final_status = self.status
+        self.status = InvoiceStatus.DRAFT
+        try:
+            for contract_day in contract.event_days.prefetch_related("items").all():
+                for item in contract_day.items.all():
+                    InvoiceItem.objects.create(
+                        invoice=self,
+                        contract_item=item,
+                        description=f"{contract_day.title} - {item.description}",
+                        quantity=item.quantity,
+                        unit_price=item.unit_price,
+                        tax_rate=Decimal("0.00"),
+                    )
+        finally:
+            self.status = final_status
 
         self.recalculate_totals(save=True)
 
@@ -1292,9 +1280,11 @@ class InvoiceItem(models.Model):
 # -------------------------------------------------------------------
 
 class Payment(TimeStamped, Owned):
+    # PROTECT: deleting an invoice, deal or client must never silently
+    # delete the money already received against it.
     invoice = models.ForeignKey(
         Invoice,
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name="payments",
     )
 
@@ -1334,13 +1324,20 @@ class Payment(TimeStamped, Owned):
         return reverse("sales:invoice_detail", args=[self.invoice_id])
 
     def clean(self):
+        if self.amount is not None and self.amount <= 0:
+            raise ValidationError({"amount": "Amount must be greater than zero."})
+
         if not self.invoice_id or self.amount is None:
             return
 
-        already_paid = (
-            self.invoice.payments.exclude(pk=self.pk).aggregate(total=Sum("amount"))["total"]
-            or Decimal("0.00")
-        )
+        already_paid = net_paid_amount(self.invoice.payments.exclude(pk=self.pk))
+
+        if self.payment_type == PaymentType.REFUND:
+            if self.amount > already_paid:
+                raise ValidationError(
+                    {"amount": f"Refund exceeds the amount paid on this invoice ({already_paid})."}
+                )
+            return
 
         remaining = (self.invoice.total or Decimal("0.00")) - already_paid
 
@@ -1349,65 +1346,26 @@ class Payment(TimeStamped, Owned):
                 {"amount": f"Payment exceeds remaining balance ({remaining})."}
             )
 
-    def _update_invoice_amount_paid(self):
-        invoice = self.invoice
-
-        total_paid = (
-            invoice.payments.aggregate(total=Sum("amount"))["total"]
-            or Decimal("0.00")
-        )
-
-        invoice.amount_paid = total_paid
-
-        if invoice.total and invoice.amount_paid >= invoice.total:
-            invoice.status = InvoiceStatus.PAID
-        elif invoice.amount_paid > 0:
-            invoice.status = InvoiceStatus.PARTIALLY_PAID
-        elif invoice.status in [InvoiceStatus.PAID, InvoiceStatus.PARTIALLY_PAID]:
-            invoice.status = InvoiceStatus.ISSUED
-
-        invoice.save(update_fields=["amount_paid", "status", "updated_at"])
-
-        schedule = getattr(invoice, "payment_schedule", None)
-        if schedule and invoice.status == InvoiceStatus.PAID:
-            schedule.status = PaymentScheduleStatus.PAID
-            schedule.save(update_fields=["status"])
-
     @transaction.atomic
     def save(self, *args, **kwargs):
         self.full_clean()
+
+        previous_invoice_id = None
+        if self.pk:
+            previous_invoice_id = (
+                type(self).objects.filter(pk=self.pk).values_list("invoice_id", flat=True).first()
+            )
+
         super().save(*args, **kwargs)
-        self._update_invoice_amount_paid()
+        self.invoice.refresh_payment_status()
+
+        # A payment moved to another invoice must also be taken off the old one.
+        if previous_invoice_id and previous_invoice_id != self.invoice_id:
+            Invoice.objects.get(pk=previous_invoice_id).refresh_payment_status()
 
     @transaction.atomic
     def delete(self, *args, **kwargs):
         invoice = self.invoice
-        schedule = getattr(invoice, "payment_schedule", None)
-
-        super().delete(*args, **kwargs)
-
-        invoice.refresh_from_db()
-
-        total_paid = (
-            invoice.payments.aggregate(total=Sum("amount"))["total"]
-            or Decimal("0.00")
-        )
-
-        invoice.amount_paid = total_paid
-
-        if invoice.total and invoice.amount_paid >= invoice.total:
-            invoice.status = InvoiceStatus.PAID
-        elif invoice.amount_paid > 0:
-            invoice.status = InvoiceStatus.PARTIALLY_PAID
-        elif invoice.status in [InvoiceStatus.PAID, InvoiceStatus.PARTIALLY_PAID]:
-            invoice.status = InvoiceStatus.ISSUED
-
-        invoice.save(update_fields=["amount_paid", "status", "updated_at"])
-
-        if schedule:
-            if invoice.status == InvoiceStatus.PAID:
-                schedule.status = PaymentScheduleStatus.PAID
-            else:
-                schedule.status = PaymentScheduleStatus.INVOICED
-
-            schedule.save(update_fields=["status"])
+        result = super().delete(*args, **kwargs)
+        invoice.refresh_payment_status()
+        return result

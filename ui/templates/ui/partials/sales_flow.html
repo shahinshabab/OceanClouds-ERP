@@ -1,0 +1,48 @@
+{# ui/partials/sales_flow.html: rendered by {% sales_flow deal=... %} #}
+{% if flow %}
+<section class="card flow-card mb-4" aria-label="Sales progress">
+  <div class="flow-head">
+    <h2 class="flow-title">
+      <i class="bi bi-signpost-split" aria-hidden="true"></i>
+      Sales progress
+      <span class="status status-muted ms-1">{{ flow.done_count }} of {{ flow.count }}</span>
+    </h2>
+
+    {% if flow.complete %}
+      <span class="status status-solid">Complete</span>
+    {% elif flow.next %}
+      <div class="flow-next">
+        {% if flow.next.hint %}<span class="flow-next-label">{{ flow.next.hint }}</span>{% endif %}
+        {% if flow.next.post %}
+          <form method="post" action="{{ flow.next.url }}" class="m-0">
+            <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+            <button type="submit" class="btn btn-dark btn-sm"><i class="bi {{ flow.next.icon }}"></i>{{ flow.next.label }}</button>
+          </form>
+        {% else %}
+          <a href="{{ flow.next.url }}" class="btn btn-dark btn-sm"><i class="bi {{ flow.next.icon }}"></i>{{ flow.next.label }}</a>
+        {% endif %}
+      </div>
+    {% elif flow.next_step %}
+      <span class="flow-next-label">{% if flow.next_step.key == here %}Next step is on this page{% else %}Next: {{ flow.next_step.label|lower }}{% endif %}</span>
+    {% endif %}
+  </div>
+
+  <ol class="flow-steps" style="--flow-count: {{ flow.count }};">
+    {% for step in flow.steps %}
+      <li class="flow-step {{ step.state }}"{% if step.is_here %} aria-current="step"{% endif %}>
+        {% if step.url and not step.is_here %}<a class="flow-link" href="{{ step.url }}">{% endif %}
+          <span class="flow-dot">
+            {% if step.state == "done" %}<i class="bi bi-check-lg"></i>
+            {% elif step.state == "skipped" %}<i class="bi bi-dash"></i>
+            {% else %}<i class="bi {{ step.icon }}"></i>{% endif %}
+          </span>
+          <span class="flow-text">
+            <span class="flow-label">{{ step.label }}{% if step.is_here %} <span class="visually-hidden">(this page)</span>{% endif %}</span>
+            {% if step.meta %}<span class="flow-meta d-block">{{ step.meta }}</span>{% endif %}
+          </span>
+        {% if step.url and not step.is_here %}</a>{% endif %}
+      </li>
+    {% endfor %}
+  </ol>
+</section>
+{% endif %}

@@ -129,8 +129,8 @@ class UiTests(AuthenticatedViewTestMixin):
         self.assertContains(response, 'class="sidebar-brand-mark"')
         self.assertNotContains(response, "View profile")
         self.assertNotContains(response, 'class="sidebar-user"')
-        self.assertContains(response, "height: 100dvh;")
-        self.assertContains(response, "min-height: 0;")
+        self.assertContains(response, "ui/css/app.css")
+        self.assertContains(response, 'class="nav-section')
 
     def test_profile_page_renders_account_overview(self):
         self.client.force_login(self.user)

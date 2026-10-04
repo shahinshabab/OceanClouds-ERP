@@ -27,10 +27,10 @@
     {% if can_manage_events %}
       <div class="d-flex gap-2">
         <a href="{% url 'events:venue_update' venue.pk %}" class="btn btn-primary btn-sm">
-          Edit Venue
+          <i class="bi bi-pencil"></i>Edit Venue
         </a>
         <a href="{% url 'events:venue_delete' venue.pk %}" class="btn btn-outline-danger btn-sm">
-          Delete
+          <i class="bi bi-trash"></i>Delete
         </a>
       </div>
     {% endif %}
@@ -140,12 +140,12 @@
   <!-- Actions -->
   <div class="d-flex justify-content-center gap-2">
     <a href="{% url 'events:venue_list' %}" class="btn btn-outline-secondary">
-      Back to Venues
+      <i class="bi bi-arrow-left"></i>Back to Venues
     </a>
 
     {% if can_manage_events %}
       <a href="{% url 'events:venue_update' venue.pk %}" class="btn btn-primary">
-        Edit Venue
+        <i class="bi bi-pencil"></i>Edit Venue
       </a>
     {% endif %}
   </div>

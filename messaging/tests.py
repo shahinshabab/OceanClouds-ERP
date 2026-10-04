@@ -1,6 +1,5 @@
 from django.core.exceptions import ValidationError
 from django.test import override_settings
-from django.utils import timezone
 
 from common.test_helpers import AuthenticatedViewTestMixin, make_user
 

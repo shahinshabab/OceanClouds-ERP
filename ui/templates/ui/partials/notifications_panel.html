@@ -1,99 +1,40 @@
 {# ui/partials/notifications_panel.html: refreshed live by common:notification_panel #}
-
-<!-- Header -->
-<div class="dropdown-header d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
-  <div class="fw-semibold">
-    Notifications
-  </div>
-
-  {% if unread_notification_count %}
-    <span class="badge bg-primary-subtle text-primary-emphasis">
-      {{ unread_notification_count }} unread
-    </span>
-  {% else %}
-    <span class="badge bg-light text-muted border">
-      0 unread
-    </span>
-  {% endif %}
+<div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
+  <div class="fw-semibold">Notifications</div>
+  <span class="status {% if unread_notification_count %}status-solid{% else %}status-muted{% endif %}">{{ unread_notification_count|default:0 }} unread</span>
 </div>
 
-<!-- Body -->
 {% if notifications %}
-  <div class="notification-list small">
-
+  <div class="notification-list">
     {% for note in notifications %}
-      <div class="notification-item border-bottom px-3 py-2 {% if not note.is_read %}bg-light-subtle{% endif %}"
-           data-notif-id="{{ note.id }}">
-
-        <!-- Type + time -->
-        <div class="d-flex justify-content-between align-items-start gap-2 mb-1">
-          <div class="text-uppercase text-muted small fw-semibold">
-            {{ note.get_notif_type_display }}
-          </div>
-
-          <div class="text-muted small text-nowrap">
-            {{ note.created_at|date:"M j, H:i" }}
-          </div>
-        </div>
-
-        <!-- Message -->
-        <a href="{{ note.get_target_url }}"
-           class="text-decoration-none text-reset d-block">
-
-          <div class="fw-semibold small">
-            {{ note.message|default:note.get_notif_type_display }}
-          </div>
-
-          <div class="text-muted small mt-1">
-            {% if note.actor %}
-              {{ note.actor.get_full_name|default:note.actor.username }}
-            {% else %}
-              System notification
-            {% endif %}
-          </div>
-        </a>
-
-        <!-- Action -->
-        <div class="d-flex justify-content-between align-items-center mt-2">
-
-          {% if note.target %}
-            <a href="{{ note.get_target_url }}"
-               class="btn btn-sm btn-link p-0 text-decoration-none">
-              Open
-            </a>
-          {% else %}
-            <span></span>
-          {% endif %}
-
+      <div class="notification-item px-3 py-2 border-bottom{% if not note.is_read %} unread{% endif %}" data-notif-id="{{ note.id }}">
+        <div class="d-flex justify-content-between align-items-start gap-2">
+          <a href="{{ note.get_target_url }}" class="text-decoration-none text-reset min-w-0">
+            <div class="fw-semibold small">{{ note.message|default:note.get_notif_type_display }}</div>
+            <div class="text-muted small mt-1">
+              {{ note.get_notif_type_display }} ·
+              {% if note.actor %}{{ note.actor.get_full_name|default:note.actor.username }}{% else %}System{% endif %} ·
+              {{ note.created_at|date:"M j, H:i" }}
+            </div>
+          </a>
           {% if not note.is_read %}
-            <button type="button"
-                    class="btn btn-sm btn-outline-secondary py-0 px-2 js-mark-notification-read"
-                    data-id="{{ note.id }}"
-                    data-url="{% url 'common:notification_mark_read' note.id %}">
-              Mark as read
+            <button type="button" class="btn btn-sm btn-light btn-icon js-mark-notification-read flex-none"
+                    data-id="{{ note.id }}" data-url="{% url 'common:notification_mark_read' note.id %}"
+                    title="Mark as read" aria-label="Mark as read">
+              <i class="bi bi-check2"></i>
             </button>
           {% endif %}
         </div>
-
       </div>
     {% endfor %}
-
   </div>
 {% else %}
-  <div class="px-3 py-4 text-center">
-    <div class="text-muted small">
-      You're all caught up.
-    </div>
-    <div class="text-muted small">
-      No unread notifications.
-    </div>
+  <div class="empty-state py-4">
+    <i class="bi bi-bell-slash"></i>
+    You're all caught up.
   </div>
 {% endif %}
 
-<!-- Footer -->
-<div class="border-top px-3 py-2 text-center">
-  <a href="{% url 'common:notification_list' %}"
-     class="btn btn-link btn-sm text-decoration-none">
-    View all notifications
-  </a>
+<div class="px-3 py-2 text-center border-top">
+  <a href="{% url 'common:notification_list' %}" class="small fw-semibold text-decoration-none">View all notifications</a>
 </div>

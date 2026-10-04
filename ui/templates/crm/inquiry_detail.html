@@ -1,211 +1,95 @@
 {% extends "ui/base.html" %}
-{% load roles_tags %}
+{% load roles_tags ui_tags sales_flow %}
 
-{% block title %}Inquiry – {{ inquiry.name|default:inquiry.email|default:inquiry.phone }}{% endblock %}
+{% block title %}Inquiry · {{ inquiry.name|default:inquiry.email|default:inquiry.phone }}{% endblock %}
 {% block live_topics %}inquiry:{{ inquiry.pk }}{% endblock %}
 
 {% block content %}
 {% is_admin request.user as is_admin %}
 {% is_crm_manager request.user as is_crm_manager %}
 {% is_project_manager request.user as is_project_manager %}
-{% is_employee request.user as is_employee %}
 
-<div class="container py-3">
+<div class="container">
   {% include "common/detail_messages.html" %}
-  <!-- Header -->
-  <div class="d-flex justify-content-between align-items-start mb-4 gap-3">
-    <div>
-      <h2 class="fw-semibold mb-0">
-        Inquiry – {{ inquiry.name|default:inquiry.email|default:inquiry.phone|default:"(No name)" }}
-      </h2>
 
-      <div class="mt-2">
-        <span class="badge bg-secondary">
-          {{ inquiry.get_status_display }}
-        </span>
-        <span class="badge bg-info text-dark">
-          {{ inquiry.get_channel_display }}
-        </span>
+  <div class="page-header">
+    <div class="d-flex align-items-center gap-3 min-w-0">
+      <span class="avatar-circle lg light">{{ inquiry.name|default:"?"|initials }}</span>
+      <div class="min-w-0">
+        <div class="page-eyebrow"><a href="{% url 'crm:inquiry_list' %}"><i class="bi bi-inbox"></i> Inquiries</a></div>
+        <h1 class="page-title">{{ inquiry.name|default:inquiry.email|default:inquiry.phone|default:"Unnamed inquiry" }}</h1>
+        <div class="page-subtitle d-flex flex-wrap align-items-center gap-2">
+          {% status_pill inquiry.status inquiry.get_status_display %}
+          <span class="status status-muted">{{ inquiry.get_channel_display }}</span>
+          <span><i class="bi bi-clock"></i> {{ inquiry.created_at|timesince }} ago</span>
+        </div>
       </div>
     </div>
 
-    <div class="text-end d-flex flex-wrap justify-content-end gap-2">
-
-
-      {% if is_admin or is_crm_manager %}
-        {% if inquiry.lead %}
-          <a href="{% url 'crm:lead_detail' inquiry.lead.pk %}"
-             class="btn btn-success btn-sm">
-            View Lead
-          </a>
-        {% elif inquiry.status != "converted" %}
-          <a href="{% url 'crm:inquiry_convert_to_lead' inquiry.pk %}"
-             class="btn btn-success btn-sm">
-            Convert to Lead
-          </a>
-        {% endif %}
+    <div class="page-actions">
+      {% if inquiry.phone %}<a href="tel:{{ inquiry.phone }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-telephone"></i>Call</a>{% endif %}
+      {% if inquiry.whatsapp or inquiry.phone %}
+        <a href="https://wa.me/{{ inquiry.whatsapp|default:inquiry.phone|cut:' '|cut:'+'|cut:'-' }}" target="_blank" rel="noopener" class="btn btn-outline-secondary btn-sm"><i class="bi bi-whatsapp"></i>WhatsApp</a>
       {% endif %}
       {% if is_admin or is_crm_manager or is_project_manager %}
-        <a href="{% url 'crm:inquiry_update' inquiry.pk %}"
-           class="btn btn-primary btn-sm">
-          Edit
-        </a>
+        <a href="{% url 'crm:inquiry_update' inquiry.pk %}" class="btn btn-outline-dark btn-sm"><i class="bi bi-pencil"></i>Edit</a>
       {% endif %}
-      <a href="{% url 'crm:inquiry_list' %}"
-         class="btn btn-secondary btn-sm">
-        Back
-      </a>
+      {% if is_admin or is_crm_manager %}
+        {% if inquiry.lead %}
+          <a href="{% url 'crm:lead_detail' inquiry.lead.pk %}" class="btn btn-dark btn-sm"><i class="bi bi-person-lines-fill"></i>Open lead</a>
+        {% elif inquiry.status != "closed" %}
+          <a href="{% url 'crm:inquiry_convert_to_lead' inquiry.pk %}" class="btn btn-dark btn-sm"><i class="bi bi-person-plus"></i>Convert to lead</a>
+        {% endif %}
+      {% endif %}
     </div>
   </div>
 
-  <!-- Details card -->
-  <div class="card mb-4 shadow-sm">
-    <div class="card-body">
+  {% if is_admin or is_crm_manager %}{% sales_flow inquiry=inquiry here="inquiry" %}{% endif %}
 
-      <!-- Row 1 -->
-      <div class="row mb-3">
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Name</div>
-          <div class="fw-semibold mt-1">
-            {{ inquiry.name|default:"—" }}
-          </div>
-        </div>
-
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Email</div>
-          <div class="fw-semibold mt-1">
-            {% if inquiry.email %}
-              <a href="mailto:{{ inquiry.email }}">{{ inquiry.email }}</a>
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="col-md-4">
-          <div class="text-muted small text-uppercase">Phone</div>
-          <div class="fw-semibold mt-1">
-            {{ inquiry.phone|default:"—" }}
-          </div>
+  <div class="row g-4">
+    <div class="col-xl-8">
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-chat-left-text"></i>Message</h2></div>
+        <div class="card-body">
+          {% if inquiry.message %}{{ inquiry.message|linebreaks }}{% else %}<span class="text-muted">No message.</span>{% endif %}
         </div>
       </div>
 
-      <!-- Row 2 -->
-      <div class="row mb-3">
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">WhatsApp</div>
-          <div class="fw-semibold mt-1">
-            {{ inquiry.whatsapp|default:"—" }}
-          </div>
-        </div>
-
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Channel</div>
-          <div class="fw-semibold mt-1">
-            {{ inquiry.get_channel_display }}
-          </div>
-        </div>
-
-        <div class="col-md-4">
-          <div class="text-muted small text-uppercase">Status</div>
-          <div class="fw-semibold mt-1">
-            {{ inquiry.get_status_display }}
-          </div>
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-person-vcard"></i>Contact &amp; wedding</h2></div>
+        <div class="card-body">
+          <dl class="info-grid">
+            <div><dt>Name</dt><dd>{{ inquiry.name|default:"—" }}</dd></div>
+            <div><dt>Email</dt><dd>{% if inquiry.email %}<a href="mailto:{{ inquiry.email }}">{{ inquiry.email }}</a>{% else %}—{% endif %}</dd></div>
+            <div><dt>Phone</dt><dd>{% if inquiry.phone %}<a href="tel:{{ inquiry.phone }}">{{ inquiry.phone }}</a>{% else %}—{% endif %}</dd></div>
+            <div><dt>WhatsApp</dt><dd>{{ inquiry.whatsapp|default:"—" }}</dd></div>
+            <div><dt>Wedding date</dt><dd>{{ inquiry.wedding_date|date:"d M Y"|default:"—" }}</dd></div>
+            <div><dt>Location</dt><dd>{% if inquiry.wedding_city or inquiry.wedding_district %}{{ inquiry.wedding_city }}{% if inquiry.wedding_district %}{% if inquiry.wedding_city %}, {% endif %}{{ inquiry.wedding_district }}{% endif %}{% else %}—{% endif %}</dd></div>
+          </dl>
         </div>
       </div>
+    </div>
 
-      <!-- Row 3 -->
-      <div class="row mb-3">
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Lead</div>
-          <div class="fw-semibold mt-1">
-            {% if inquiry.lead %}
-              {% if is_admin or is_crm_manager %}
-                <a href="{% url 'crm:lead_detail' inquiry.lead.pk %}">
-                  {{ inquiry.lead.name }}
-                </a>
-              {% else %}
-                <span class="text-muted">Converted</span>
-              {% endif %}
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Client</div>
-          <div class="fw-semibold mt-1">
-            {% if inquiry.client %}
-              {% if is_admin or is_crm_manager %}
-                <a href="{% url 'crm:client_detail' inquiry.client.pk %}">
-                  {{ inquiry.client }}
-                </a>
-              {% else %}
-                <span class="text-muted">Linked client</span>
-              {% endif %}
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="col-md-4">
-          <div class="text-muted small text-uppercase">Handled By</div>
-          <div class="fw-semibold mt-1">
-            {% if inquiry.handled_by %}
-              {{ inquiry.handled_by.get_full_name|default:inquiry.handled_by.username }}
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
+    <div class="col-xl-4">
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-info-circle"></i>Tracking</h2></div>
+        <div class="card-body">
+          <ul class="info-list">
+            <li><span class="k">Channel</span><span class="v">{{ inquiry.get_channel_display }}</span></li>
+            <li><span class="k">Handled by</span><span class="v">{% if inquiry.handled_by %}{{ inquiry.handled_by.get_full_name|default:inquiry.handled_by.username }}{% else %}—{% endif %}</span></li>
+            <li><span class="k">Lead</span>
+              <span class="v">{% if inquiry.lead %}{% if is_admin or is_crm_manager %}<a href="{% url 'crm:lead_detail' inquiry.lead.pk %}">{{ inquiry.lead.name }}</a>{% else %}Converted{% endif %}{% else %}—{% endif %}</span>
+            </li>
+            <li><span class="k">Client</span>
+              <span class="v">{% if inquiry.client %}{% if is_admin or is_crm_manager %}<a href="{% url 'crm:client_detail' inquiry.client.pk %}">{{ inquiry.client }}</a>{% else %}Linked{% endif %}{% else %}—{% endif %}</span>
+            </li>
+            <li><span class="k">Created by</span><span class="v">{% if inquiry.owner %}{{ inquiry.owner.get_full_name|default:inquiry.owner.username }}{% else %}—{% endif %}</span></li>
+            <li><span class="k">Received</span><span class="v">{{ inquiry.created_at|date:"d M Y, H:i" }}</span></li>
+            <li><span class="k">Updated</span><span class="v">{{ inquiry.updated_at|date:"d M Y, H:i" }}</span></li>
+          </ul>
         </div>
       </div>
-
-      <!-- Row 4 -->
-      <div class="row mb-3">
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Created By</div>
-          <div class="fw-semibold mt-1">
-            {% if inquiry.owner %}
-              {{ inquiry.owner.get_full_name|default:inquiry.owner.username }}
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Created At</div>
-          <div class="fw-semibold mt-1">
-            {{ inquiry.created_at|date:"Y-m-d H:i" }}
-          </div>
-        </div>
-
-        <div class="col-md-4">
-          <div class="text-muted small text-uppercase">Last Updated</div>
-          <div class="fw-semibold mt-1">
-            {{ inquiry.updated_at|date:"Y-m-d H:i" }}
-          </div>
-        </div>
-      </div>
-
-      <!-- Message -->
-      <div class="row mb-3">
-        <div class="col-12">
-          <div class="text-muted small text-uppercase">Message</div>
-          <div class="mt-1">
-            {% if inquiry.message %}
-              {{ inquiry.message|linebreaks }}
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-
     </div>
   </div>
-
 </div>
 {% endblock %}

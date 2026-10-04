@@ -314,13 +314,7 @@
               <ul>
                 {% for term in terms %}
                   <li>
-                    {% if "10%" in term and "80%" in term %}
-                      <strong>10%</strong> of the quoted amount should be paid in advance,
-                      <strong>80%</strong> on or day after the function, and the balance
-                      <strong>10%</strong> upon delivery.
-                    {% else %}
-                      {{ term }}
-                    {% endif %}
+                    {{ term }}
                   </li>
                 {% endfor %}
               </ul>

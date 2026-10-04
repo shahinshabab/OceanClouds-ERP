@@ -27,10 +27,10 @@
     {% if can_manage_services %}
       <div class="d-flex gap-2">
         <a href="{% url 'services:service_update' service.pk %}" class="btn btn-primary btn-sm">
-          Edit Service
+          <i class="bi bi-pencil"></i>Edit Service
         </a>
         <a href="{% url 'services:service_delete' service.pk %}" class="btn btn-outline-danger btn-sm">
-          Delete
+          <i class="bi bi-trash"></i>Delete
         </a>
       </div>
     {% endif %}
@@ -187,12 +187,12 @@
   <!-- Actions -->
   <div class="text-center">
     <a href="{% url 'services:service_list' %}" class="btn btn-outline-secondary me-2">
-      Back to Services
+      <i class="bi bi-arrow-left"></i>Back to Services
     </a>
 
     {% if can_manage_services %}
       <a href="{% url 'services:service_update' service.pk %}" class="btn btn-primary">
-        Edit Service
+        <i class="bi bi-pencil"></i>Edit Service
       </a>
     {% endif %}
   </div>

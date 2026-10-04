@@ -2,11 +2,10 @@
 
 from django import forms
 from django.contrib.auth import get_user_model
-from django.contrib.auth.models import Group
-from django.db.models import Q, F
+from django.db.models import F
 
+from common.forms import BootstrapModelForm
 from common.roles import (
-    ROLE_ADMIN,
     ROLE_PROJECT_MANAGER,
     ROLE_EMPLOYEE,
     user_has_role,
@@ -16,28 +15,11 @@ from .models import (
     Project,
     Task,
     Deliverable,
-    ProjectStatus,
     TaskStatus,
     DeliverableStatus,
 )
 
 User = get_user_model()
-
-
-class BootstrapModelForm(forms.ModelForm):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        for _, field in self.fields.items():
-            widget = field.widget
-            existing = widget.attrs.get("class", "")
-
-            if isinstance(widget, forms.CheckboxInput):
-                widget.attrs["class"] = (existing + " form-check-input").strip()
-            elif isinstance(widget, (forms.Select, forms.SelectMultiple)):
-                widget.attrs["class"] = (existing + " form-select").strip()
-            else:
-                widget.attrs["class"] = (existing + " form-control").strip()
 
 
 class DateInput(forms.DateInput):
@@ -172,18 +154,6 @@ class TaskForm(AssigneeChoiceMixin, BootstrapModelForm):
             if not assigned_to:
                 raise forms.ValidationError("Assign someone before moving task to In Progress.")
 
-        return status
-
-
-class TaskStatusForm(forms.ModelForm):
-    class Meta:
-        model = Task
-        fields = ["status"]
-
-    def clean_status(self):
-        status = self.cleaned_data["status"]
-        if status not in dict(TaskStatus.choices):
-            raise forms.ValidationError("Invalid task status.")
         return status
 
 

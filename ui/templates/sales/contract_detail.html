@@ -1,453 +1,272 @@
 {% extends "ui/base.html" %}
-{% load roles_tags %}
+{% load url_tags roles_tags ui_tags sales_flow %}
 
-{% block title %}Contract – {{ contract.number }}{% endblock %}
+{% block title %}Contract {{ contract.number|default:"Draft" }}{% endblock %}
 
 {% block content %}
 {% is_admin request.user as is_admin %}
 {% is_crm_manager request.user as is_crm_manager %}
 {% is_project_manager request.user as is_project_manager %}
-{% is_employee request.user as is_employee %}
 {% has_sales_access request.user as is_sales %}
 {% has_event_manage_access request.user as can_open_events %}
 
-<div class="container py-3">
-
+<div class="container">
   {% include "common/detail_messages.html" %}
 
-  <!-- Header -->
-  <div class="d-flex justify-content-between align-items-start mb-4 gap-3">
-    <div>
-      <h2 class="fw-semibold mb-0">
-        Contract {{ contract.number|default:"Draft" }}
-      </h2>
-
-      <div class="mt-2">
-        {% if contract.status == "signed" %}
-          <span class="badge bg-success">{{ contract.get_status_display }}</span>
-        {% elif contract.status == "pending_signature" %}
-          <span class="badge bg-primary">{{ contract.get_status_display }}</span>
-        {% elif contract.status == "cancelled" %}
-          <span class="badge bg-dark">{{ contract.get_status_display }}</span>
-        {% else %}
-          <span class="badge bg-secondary">{{ contract.get_status_display }}</span>
-        {% endif %}
-
-        {% if contract.deal %}
-          <span class="badge bg-light text-dark border">
-            {{ contract.deal.name }}
-          </span>
-        {% endif %}
+  <div class="page-header">
+    <div class="min-w-0">
+      <div class="page-eyebrow">
+        <a href="{% url 'sales:contract_list' %}"><i class="bi bi-file-earmark-check"></i> Contracts</a>
+        {% if contract.deal and is_sales %}<i class="bi bi-chevron-right"></i><a href="{% url 'sales:deal_detail' contract.deal.pk %}">{{ contract.deal.name }}</a>{% endif %}
+      </div>
+      <h1 class="page-title">Contract {{ contract.number|default:"Draft" }}</h1>
+      <div class="page-subtitle d-flex flex-wrap align-items-center gap-2">
+        {% status_pill contract.status contract.get_status_display %}
+        {% if contract.deal.customer %}<span><i class="bi bi-person"></i> {{ contract.deal.customer }}</span>{% endif %}
+        {% if contract.total %}<span class="tabular">{{ contract.total|inr }}</span>{% endif %}
+        {% if contract.signed_at %}<span><i class="bi bi-pen"></i> Signed by {{ contract.signed_by_name|default:"customer" }} on {{ contract.signed_at|date:"d M Y" }}</span>{% endif %}
       </div>
     </div>
 
-    <div class="text-end d-flex flex-wrap justify-content-end gap-2">
+    <div class="page-actions">
+      <a href="{% url 'sales:contract_document' contract.pk %}" class="btn btn-outline-secondary btn-sm" target="_blank" rel="noopener"><i class="bi bi-eye"></i>Digital copy</a>
+      <a href="{% url 'sales:contract_download' contract.pk %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-download"></i>PDF</a>
+
       {% if is_admin or is_crm_manager %}
+        {% if contract.status != "signed" and contract.status != "cancelled" %}
+          <form method="post" action="{% url 'sales:contract_send_email' contract.pk %}" class="m-0">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-secondary btn-sm"><i class="bi bi-send"></i>Email for signing</button>
+          </form>
+        {% endif %}
+        <a href="{% url 'sales:contract_update' contract.pk %}" class="btn btn-outline-dark btn-sm"><i class="bi bi-pencil"></i>Edit</a>
 
-        <form method="post" action="{% url 'sales:contract_send_email' contract.pk %}" class="d-inline">
-          {% csrf_token %}
-          <button type="submit" class="btn btn-outline-secondary btn-sm">
-            Send Email
-          </button>
-        </form>
-
-
-
-        {% if contract.invoices.exists %}
-          {% with invoice=contract.invoices.first %}
-            <a href="{% url 'sales:invoice_detail' invoice.pk %}"
-               class="btn btn-success btn-sm">
-              View Invoice
-            </a>
-          {% endwith %}
-
-          {% if contract.status == "signed" %}
-            {% if contract.deal.client and contract.events.exists %}
-              <a href="{% url 'crm:client_detail' contract.deal.client.pk %}"
-                 class="btn btn-outline-success btn-sm">
-                View Client
-              </a>
-            {% else %}
-              <form method="post" action="{% url 'sales:contract_create_client_event' contract.pk %}" class="d-inline">
-                {% csrf_token %}
-                <button type="submit" class="btn btn-success btn-sm">
-                  Create Client &amp; Event
-                </button>
-              </form>
-            {% endif %}
+        {% if contract.status == "signed" %}
+          {% if not invoice %}
+            <a href="{% url 'sales:contract_generate_invoice' contract.pk %}" class="btn btn-dark btn-sm"><i class="bi bi-receipt"></i>Generate invoice</a>
+          {% elif not contract.events.exists %}
+            <form method="post" action="{% url 'sales:contract_create_client_event' contract.pk %}" class="m-0">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-dark btn-sm"><i class="bi bi-people"></i>Create client &amp; events</button>
+            </form>
+          {% elif contract.deal.client %}
+            <a href="{% url 'crm:client_detail' contract.deal.client.pk %}" class="btn btn-dark btn-sm"><i class="bi bi-people"></i>Open client</a>
           {% endif %}
-        {% elif contract.status == "signed" %}
-          <a href="{% url 'sales:contract_generate_invoice' contract.pk %}"
-             class="btn btn-success btn-sm">
-            Generate Invoice
-          </a>
         {% endif %}
-        <a href="{% url 'sales:contract_document' contract.pk %}"
-           class="btn btn-outline-primary btn-sm">
-          Digital Contract
-        </a>
-        <a href="{% url 'sales:contract_download' contract.pk %}"
-           class="btn btn-outline-secondary btn-sm">
-          Download PDF
-        </a>
-        <a href="{% url 'sales:contract_update' contract.pk %}"
-           class="btn btn-primary btn-sm">
-          Edit
-        </a>
-        <a href="{% url 'sales:contract_delete' contract.pk %}"
-           class="btn btn-outline-danger btn-sm">
-          Delete
-        </a>
-        <a href="{% url 'sales:contract_list' %}"
-          class="btn btn-secondary btn-sm">
-          Back
-        </a>
-      {% endif %}
-      
-      {% if not is_sales %}
-        <a href="{% url 'sales:contract_document' contract.pk %}"
-           class="btn btn-outline-primary btn-sm">
-          Digital Contract
-        </a>
-        <a href="{% url 'sales:contract_download' contract.pk %}"
-           class="btn btn-outline-secondary btn-sm">
-          Download PDF
-        </a>
-        {% if request.GET.next %}
-          <a href="{{ request.GET.next }}" class="btn btn-secondary btn-sm">
-            Back to Project Overview
-          </a>
-        {% else %}
-          <button type="button"
-                  class="btn btn-secondary btn-sm"
-                  onclick="window.history.length > 1 ? window.history.back() : window.location.href='{% url 'projects:project_list' %}'">
-            Back
+
+        <div class="dropdown">
+          <button class="btn btn-outline-secondary btn-sm btn-icon" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="More actions">
+            <i class="bi bi-three-dots"></i>
           </button>
-        {% endif %}
+          <ul class="dropdown-menu dropdown-menu-end">
+            {% if invoice %}<li><a class="dropdown-item" href="{% url 'sales:invoice_detail' invoice.pk %}"><i class="bi bi-receipt"></i>Open invoice</a></li>{% endif %}
+            {% if contract.proposal %}<li><a class="dropdown-item" href="{% url 'sales:proposal_detail' contract.proposal.pk %}"><i class="bi bi-file-earmark-richtext"></i>Open proposal</a></li>{% endif %}
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item text-danger" href="{% url 'sales:contract_delete' contract.pk %}"><i class="bi bi-trash"></i>Delete contract</a></li>
+          </ul>
+        </div>
+      {% elif request.GET.next|local_url %}
+        <a href="{{ request.GET.next|local_url }}" class="btn btn-outline-dark btn-sm"><i class="bi bi-arrow-left"></i>Back</a>
       {% endif %}
     </div>
   </div>
 
-  <!-- Contract Information -->
-  <div class="card mb-4 shadow-sm">
-    <div class="card-header bg-light">
-      <strong>Contract Information</strong>
+  {% if is_sales and contract.deal %}{% sales_flow deal=contract.deal here="contract" %}{% endif %}
+
+  {% if is_sales and contract.signing_token and contract.status != "signed" and contract.status != "cancelled" %}
+    <div class="card mb-4">
+      <div class="card-body d-flex flex-wrap align-items-center gap-3">
+        <div class="flex-grow-1 min-w-0">
+          <div class="fw-semibold"><i class="bi bi-link-45deg"></i> Customer signing link</div>
+          <div class="small text-muted">Share this link on WhatsApp or email. The customer reviews and signs the contract online.</div>
+        </div>
+        <div class="input-group" style="max-width: 520px;">
+          <input type="text" class="form-control form-control-sm" readonly id="signLink"
+                 value="{{ request.scheme }}://{{ request.get_host }}{{ contract.get_public_sign_path }}">
+          <button class="btn btn-dark btn-sm" type="button" id="copySignLink"><i class="bi bi-clipboard"></i>Copy</button>
+        </div>
+      </div>
     </div>
+  {% endif %}
 
-    <div class="card-body">
-
-      <div class="row mb-3">
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Deal</div>
-          <div class="fw-semibold mt-1">
-            {% if contract.deal and not is_sales and not is_project_manager %}
-              {{ contract.deal.name }}
-            {% elif contract.deal %}
-              <a href="{% url 'sales:deal_detail' contract.deal.pk %}" class="text-decoration-none">
-                {{ contract.deal.name }}
-              </a>
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Client</div>
-          <div class="fw-semibold mt-1">
-            {% if contract.deal.client and is_sales %}
-              <a href="{% url 'crm:client_detail' contract.deal.client.pk %}" class="text-decoration-none">
-                {{ contract.deal.client }}
-              </a>
-            {% elif contract.deal.client %}
-              {{ contract.deal.client }}
-              {% if contract.deal.client.phone or contract.deal.client.email %}
-                <div class="text-muted small fw-normal">{{ contract.deal.client.phone }}{% if contract.deal.client.phone and contract.deal.client.email %} · {% endif %}{{ contract.deal.client.email }}</div>
-              {% endif %}
-            {% elif contract.deal.customer %}
-              {{ contract.deal.customer }}
-              <div class="text-muted small fw-normal">Lead. Client is created after signing and invoicing.</div>
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="col-md-4">
-          <div class="text-muted small text-uppercase">Status</div>
-          <div class="fw-semibold mt-1">
-            {{ contract.get_status_display }}
-          </div>
-        </div>
-      </div>
-
-      <div class="row mb-3">
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Signed Date</div>
-          <div class="fw-semibold mt-1">
-            {% if contract.signed_date %}
-              {{ contract.signed_date }}
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Start Date</div>
-          <div class="fw-semibold mt-1">
-            {% if contract.start_date %}
-              {{ contract.start_date }}
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="col-md-4">
-          <div class="text-muted small text-uppercase">End Date</div>
-          <div class="fw-semibold mt-1">
-            {% if contract.end_date %}
-              {{ contract.end_date }}
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-
-      <div class="row mb-3">
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Proposal</div>
-          <div class="fw-semibold mt-1">
-            {% if contract.proposal and not is_sales and not is_project_manager %}
-              {{ contract.proposal.title }} (v{{ contract.proposal.version }})
-            {% elif contract.proposal %}
-              <a href="{% url 'sales:proposal_detail' contract.proposal.pk %}">
-                {{ contract.proposal.title }} (v{{ contract.proposal.version }})
-              </a>
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Owner</div>
-          <div class="fw-semibold mt-1">
-            {% if contract.owner %}
-              {{ contract.owner.get_full_name|default:contract.owner.username|default:contract.owner }}
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="col-md-4">
-          <div class="text-muted small text-uppercase">File</div>
-          <div class="fw-semibold mt-1">
-            {% if contract.file %}
-              <a href="{{ contract.file.url }}" target="_blank">Download file</a>
-            {% else %}
-              <span class="text-muted">No file uploaded</span>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-
-      <div class="row">
-        <div class="col-12">
-          <div class="text-muted small text-uppercase">Terms</div>
-          <div class="mt-1">
-            {% if contract.terms %}
-              {{ contract.terms|linebreaks }}
-            {% else %}
-              <span class="text-muted">No terms defined.</span>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-
-    </div>
-  </div>
-
-  <!-- Contract Items -->
-  <div class="card mb-4 shadow-sm">
-    <div class="card-header bg-primary text-white">
-      Contract Items
-    </div>
-
-    <div class="card-body p-0">
-      {% if contract.event_days.all %}
-        {% for event_day in contract.event_days.all %}
-          <div class="p-3 {% if not forloop.last %}border-bottom{% endif %}">
-            <div class="fw-semibold mb-2">
-              {{ event_day.title }}
-              {% if event_day.event_date %}
-                <span class="text-muted small fw-normal">({{ event_day.event_date }})</span>
-              {% endif %}
+  <div class="row g-4">
+    <div class="col-xl-8 order-2 order-xl-1">
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-list-ul"></i>Contract items</h2></div>
+        {% if contract.event_days.all %}
+          {% for event_day in contract.event_days.all %}
+            <div class="{% if not forloop.last %}border-bottom{% endif %}">
+              <div class="d-flex flex-wrap align-items-center gap-3 px-3 pt-3 pb-2">
+                <div class="date-chip">
+                  {% if event_day.event_date %}<b>{{ event_day.event_date|date:"j" }}</b><small>{{ event_day.event_date|date:"M" }}</small>{% else %}<i class="bi bi-calendar"></i>{% endif %}
+                </div>
+                <div class="min-w-0">
+                  <div class="fw-semibold">{{ event_day.title }}</div>
+                  <div class="small text-muted">{% if event_day.event_date %}{{ event_day.event_date|date:"l, d M Y" }}{% else %}Date not set{% endif %}</div>
+                </div>
+              </div>
+              <div class="table-responsive">
+                <table class="table align-middle">
+                  <thead>
+                    <tr><th>Item</th><th>Deliverables</th><th class="text-end">Qty</th><th class="text-end">Rate</th><th class="text-end">Amount</th></tr>
+                  </thead>
+                  <tbody>
+                    {% for item in event_day.items.all %}
+                      <tr>
+                        <td>
+                          <div class="fw-semibold">{{ item.description }}</div>
+                          <div class="small text-muted">
+                            {% if item.package %}Package · {{ item.package.name }}{% elif item.service %}Service · {{ item.service.name }}{% else %}Custom line{% endif %}
+                          </div>
+                        </td>
+                        <td class="small">
+                          {% for deliverable in item.deliverables.all %}
+                            {% if deliverable.is_included %}<div><i class="bi bi-check2 text-muted"></i> {{ deliverable.title }}</div>{% endif %}
+                          {% empty %}<span class="text-muted">—</span>{% endfor %}
+                        </td>
+                        <td class="text-end tabular">{{ item.quantity }}</td>
+                        <td class="text-end tabular">{{ item.unit_price|inr }}</td>
+                        <td class="text-end tabular fw-semibold">{{ item.line_total|inr }}</td>
+                      </tr>
+                    {% empty %}
+                      <tr><td colspan="5" class="text-muted small">No items for this day.</td></tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
             </div>
+          {% endfor %}
+        {% else %}
+          <div class="empty-state"><i class="bi bi-list-ul"></i>No items in this contract yet.</div>
+        {% endif %}
+      </div>
 
+      {% if is_sales or is_project_manager %}
+        <div class="card mb-4">
+          <div class="card-header">
+            <h2 class="section-title"><i class="bi bi-receipt"></i>Invoices</h2>
+            {% if is_admin or is_crm_manager %}{% if not invoice and contract.status == "signed" %}
+              <a href="{% url 'sales:contract_generate_invoice' contract.pk %}" class="btn btn-light btn-sm"><i class="bi bi-plus-lg"></i>Generate invoice</a>
+            {% endif %}{% endif %}
+          </div>
+          {% if contract.invoices.all %}
             <div class="table-responsive">
-              <table class="table table-hover mb-0 align-middle">
-                <thead class="table-light">
-                  <tr>
-                    <th>Description</th>
-                    <th>Type</th>
-                    <th>Deliverables</th>
-                    <th class="text-end">Qty</th>
-                    <th class="text-end">Unit Price</th>
-                    <th class="text-end">Line Total</th>
-                  </tr>
-                </thead>
-
+              <table class="table table-hover align-middle">
+                <thead><tr><th>Invoice</th><th>Status</th><th class="text-end">Total</th><th class="text-end">Paid</th><th class="text-end">Balance</th></tr></thead>
                 <tbody>
-                  {% for item in event_day.items.all %}
-                    <tr>
-                      <td>{{ item.description }}</td>
-
-                      <td>
-                        {% if item.package %}
-                          <span class="badge bg-dark">Package</span>
-                          <span class="small text-muted d-block">{{ item.package.name }}</span>
-                        {% elif item.service %}
-                          <span class="badge bg-primary">Service</span>
-                          <span class="small text-muted d-block">{{ item.service.name }}</span>
-                        {% else %}
-                          <span class="text-muted small">Custom line</span>
-                        {% endif %}
-                      </td>
-
-                      <td>
-                        {% for deliverable in item.deliverables.all %}
-                          {% if deliverable.is_included %}
-                            <div class="small">{{ deliverable.title }}</div>
-                          {% endif %}
-                        {% empty %}
-                          <span class="text-muted small">—</span>
-                        {% endfor %}
-                      </td>
-                      <td class="text-end">{{ item.quantity }}</td>
-                      <td class="text-end">{{ item.unit_price }}</td>
-                      <td class="text-end">{{ item.line_total }}</td>
+                  {% for inv in contract.invoices.all %}
+                    <tr data-href="{% url 'sales:invoice_detail' inv.pk %}" class="row-link">
+                      <td><a href="{% url 'sales:invoice_detail' inv.pk %}">{{ inv.number|default:"Draft invoice" }}</a></td>
+                      <td>{% status_pill inv.status inv.get_status_display %}</td>
+                      <td class="text-end tabular">{{ inv.total|inr }}</td>
+                      <td class="text-end tabular">{{ inv.amount_paid|inr }}</td>
+                      <td class="text-end tabular fw-semibold">{{ inv.balance|inr }}</td>
                     </tr>
                   {% endfor %}
                 </tbody>
-
               </table>
             </div>
-          </div>
-        {% endfor %}
-      {% else %}
-        <div class="p-3 text-muted">
-          No items in this contract yet.
-        </div>
-      {% endif %}
-    </div>
-  </div>
-
-  <!-- Invoices -->
-  {% if is_sales or is_project_manager %}
-  <div class="card mb-4 shadow-sm">
-    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
-      <span>Invoices</span>
-
-      {% if is_admin or is_crm_manager %}
-        {% if not contract.invoices.exists and contract.status == "signed" %}
-          <a href="{% url 'sales:contract_generate_invoice' contract.pk %}"
-             class="btn btn-light btn-sm">
-            Generate Invoice
-          </a>
-        {% endif %}
-      {% endif %}
-    </div>
-
-    <div class="card-body p-0">
-      {% if contract.invoices.all %}
-        <div class="table-responsive">
-          <table class="table table-hover mb-0 align-middle">
-            <thead class="table-light">
-              <tr>
-                <th>Number</th>
-                <th>Status</th>
-                <th>Total</th>
-                <th>Paid</th>
-                <th>Balance</th>
-                <th class="text-end">Actions</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {% for invoice in contract.invoices.all %}
-                <tr>
-                  <td>
-                    <a href="{% url 'sales:invoice_detail' invoice.pk %}" class="text-decoration-none fw-semibold">
-                      {{ invoice.number|default:"Draft Invoice" }}
-                    </a>
-                  </td>
-
-                  <td>
-                    <span class="badge bg-light text-dark border">
-                      {{ invoice.get_status_display }}
-                    </span>
-                  </td>
-
-                  <td>{{ invoice.total }}</td>
-                  <td>{{ invoice.amount_paid }}</td>
-                  <td>{{ invoice.balance }}</td>
-
-                  <td class="text-end">
-                    <a href="{% url 'sales:invoice_detail' invoice.pk %}"
-                       class="btn btn-sm btn-outline-success">
-                      View Invoice
-                    </a>
-                  </td>
-                </tr>
-              {% endfor %}
-            </tbody>
-
-          </table>
-        </div>
-      {% else %}
-        <div class="text-center text-muted py-4">
-          {% if contract.status == "signed" %}
-            <p class="mb-2">No invoice generated from this contract yet.</p>
-
-            {% if is_admin or is_crm_manager %}
-              <a href="{% url 'sales:contract_generate_invoice' contract.pk %}"
-                 class="btn btn-success btn-sm">
-                Generate Invoice
-              </a>
-            {% endif %}
           {% else %}
-            <p class="mb-0">The invoice can be generated once the contract is signed.</p>
+            <div class="empty-state">
+              <i class="bi bi-receipt"></i>
+              {% if contract.status == "signed" %}No invoice generated from this contract yet.{% else %}The invoice can be generated once the contract is signed.{% endif %}
+            </div>
           {% endif %}
         </div>
       {% endif %}
+
+      {% if contract.terms %}
+        <div class="card mb-4">
+          <div class="card-header"><h2 class="section-title"><i class="bi bi-journal-text"></i>Terms</h2></div>
+          <div class="card-body small">{{ contract.terms|linebreaks }}</div>
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="col-xl-4 order-1 order-xl-2">
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-calculator"></i>Summary</h2></div>
+        <div class="card-body">
+          <ul class="info-list">
+            <li><span class="k">Subtotal</span><span class="v tabular">{{ contract.subtotal|inr:2 }}</span></li>
+            <li><span class="k">Discount</span><span class="v tabular">{{ contract.discount|inr:2 }}</span></li>
+            <li><span class="k">Tax ({{ contract.tax_rate }}%)</span><span class="v tabular">{{ contract.tax_amount|inr:2 }}</span></li>
+          </ul>
+          <div class="d-flex justify-content-between align-items-baseline mt-3 pt-3 border-top">
+            <span class="fw-semibold">Total</span>
+            <span class="fs-4 fw-bold tabular">{{ contract.total|inr }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-info-circle"></i>Details</h2></div>
+        <div class="card-body">
+          <ul class="info-list">
+            <li><span class="k">Deal</span>
+              <span class="v">{% if contract.deal and is_sales %}<a href="{% url 'sales:deal_detail' contract.deal.pk %}">{{ contract.deal.name }}</a>{% else %}{{ contract.deal.name|default:"—" }}{% endif %}</span>
+            </li>
+            <li><span class="k">Customer</span>
+              <span class="v">
+                {% if contract.deal.client and is_sales %}<a href="{% url 'crm:client_detail' contract.deal.client.pk %}">{{ contract.deal.client }}</a>
+                {% elif contract.deal.customer %}{{ contract.deal.customer }}{% if not contract.deal.client %}<span class="d-block small text-muted fw-normal">Lead until signed and invoiced</span>{% endif %}
+                {% else %}—{% endif %}
+              </span>
+            </li>
+            {% if contract.deal.customer.phone %}<li><span class="k">Phone</span><span class="v"><a href="tel:{{ contract.deal.customer.phone }}">{{ contract.deal.customer.phone }}</a></span></li>{% endif %}
+            <li><span class="k">Proposal</span>
+              <span class="v">
+                {% if contract.proposal and is_sales %}<a href="{% url 'sales:proposal_detail' contract.proposal.pk %}">{{ contract.proposal.title }}</a>
+                {% elif contract.proposal %}{{ contract.proposal.title }}{% else %}—{% endif %}
+              </span>
+            </li>
+            <li><span class="k">Signed</span><span class="v">{{ contract.signed_date|date:"d M Y"|default:"—" }}</span></li>
+            <li><span class="k">Start</span><span class="v">{{ contract.start_date|date:"d M Y"|default:"—" }}</span></li>
+            <li><span class="k">End</span><span class="v">{{ contract.end_date|date:"d M Y"|default:"—" }}</span></li>
+            <li><span class="k">File</span><span class="v">{% if contract.file %}<a href="{{ contract.file.url }}" target="_blank" rel="noopener">Download</a>{% else %}—{% endif %}</span></li>
+            <li><span class="k">Owner</span><span class="v">{% if contract.owner %}{{ contract.owner.get_full_name|default:contract.owner.username }}{% else %}—{% endif %}</span></li>
+          </ul>
+        </div>
+      </div>
+
+      {% if contract.events.exists %}
+        <div class="card mb-4">
+          <div class="card-header"><h2 class="section-title"><i class="bi bi-stars"></i>Events</h2></div>
+          <ul class="mini-list">
+            {% for event in contract.events.all %}
+              <li>
+                <div class="date-chip"><b>{{ event.date|date:"j" }}</b><small>{{ event.date|date:"M" }}</small></div>
+                <div class="grow">
+                  <div class="t">{% if can_open_events %}<a href="{% url 'events:event_detail' event.pk %}">{{ event.name }}</a>{% else %}{{ event.name }}{% endif %}</div>
+                  <div class="m">{{ event.get_event_type_display }}{% if event.venue %} · {{ event.venue.name }}{% endif %}</div>
+                </div>
+                {% status_pill event.status event.get_status_display %}
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endif %}
     </div>
   </div>
-
-  {% endif %}
-
-  {% if contract.events.exists %}
-    <div class="card mb-4 shadow-sm">
-      <div class="card-header bg-light">
-        <strong>Events</strong>
-      </div>
-      <ul class="list-group list-group-flush">
-        {% for event in contract.events.all %}
-          <li class="list-group-item d-flex justify-content-between align-items-center">
-            {% if can_open_events %}
-              <a href="{% url 'events:event_detail' event.pk %}" class="text-decoration-none">{{ event.name }}</a>
-            {% else %}
-              {{ event.name }}
-            {% endif %}
-            <span class="text-muted small">{{ event.date }}</span>
-          </li>
-        {% endfor %}
-      </ul>
-    </div>
-  {% endif %}
-
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const button = document.getElementById("copySignLink");
+  const input = document.getElementById("signLink");
+  if (!button || !input) return;
+  button.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(input.value);
+    } catch (e) {
+      input.select();
+      document.execCommand("copy");
+    }
+    button.innerHTML = '<i class="bi bi-check2"></i>Copied';
+    setTimeout(() => { button.innerHTML = '<i class="bi bi-clipboard"></i>Copy'; }, 1800);
+  });
+})();
+</script>
 {% endblock %}

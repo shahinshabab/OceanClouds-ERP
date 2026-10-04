@@ -1,213 +1,102 @@
 {% extends "ui/base.html" %}
-{% load roles_tags %}
+{% load roles_tags ui_tags %}
 
 {% block title %}Proposals{% endblock %}
 
 {% block content %}
 {% is_admin request.user as is_admin %}
 {% is_crm_manager request.user as is_crm_manager %}
-{% is_project_manager request.user as is_project_manager %}
-{% is_employee request.user as is_employee %}
 
-<div class="container py-3">
-
-  <!-- Header -->
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2 class="fw-semibold mb-0">Proposals</h2>
-
+<div class="container">
+  <div class="page-header">
+    <div>
+      <div class="page-eyebrow"><i class="bi bi-file-earmark-richtext"></i> Sales pipeline</div>
+      <h1 class="page-title">Proposals</h1>
+      <div class="page-subtitle">Quotes sent against a deal. An accepted proposal becomes the contract.</div>
+    </div>
     {% if is_admin or is_crm_manager %}
-      <a href="{% url 'sales:proposal_create' %}" class="btn btn-success btn-sm">
-        + New Proposal
-      </a>
+      <div class="page-actions">
+        <a href="{% url 'sales:proposal_create' %}" class="btn btn-dark btn-sm"><i class="bi bi-plus-lg"></i>New proposal</a>
+      </div>
     {% endif %}
   </div>
 
-  <!-- Search + Filters -->
-  <form method="get" class="row g-2 align-items-end mb-3">
-    <div class="col-md-4">
-      <label for="id_q" class="form-label mb-1 small text-muted">Search</label>
-      <input type="text"
-             id="id_q"
-             name="q"
-             value="{{ q }}"
-             placeholder="Search by deal, client or title"
-             class="form-control">
+  <div class="card">
+    <div class="list-tabs">
+      <a href="?q={{ q|urlencode }}&amp;deal_stage={{ filter_deal_stage }}" class="{% if not filter_status %}active{% endif %}">All</a>
+      {% for value, label in status_choices %}
+        <a href="?q={{ q|urlencode }}&amp;deal_stage={{ filter_deal_stage }}&amp;status={{ value }}" class="{% if filter_status == value %}active{% endif %}">{{ label }}</a>
+      {% endfor %}
     </div>
-
-    <div class="col-md-3">
-      <label for="id_status" class="form-label mb-1 small text-muted">Proposal Status</label>
-      <select name="status" id="id_status" class="form-select">
-        <option value="">All statuses</option>
-        {% for value, label in status_choices %}
-          <option value="{{ value }}" {% if filter_status == value %}selected{% endif %}>
-            {{ label }}
-          </option>
-        {% endfor %}
-      </select>
-    </div>
-
-    <div class="col-md-3">
-      <label for="id_deal_stage" class="form-label mb-1 small text-muted">Deal Stage</label>
-      <select name="deal_stage" id="id_deal_stage" class="form-select">
-        <option value="">All stages</option>
+    <form method="get" class="filter-bar">
+      <input type="hidden" name="status" value="{{ filter_status }}">
+      <div class="search-input" style="flex-basis: 280px">
+        <i class="bi bi-search"></i>
+        <input type="search" name="q" value="{{ q }}" placeholder="Title, deal or client" class="form-control form-control-sm" aria-label="Search">
+      </div>
+      <select name="deal_stage" class="form-select form-select-sm" aria-label="Deal stage" onchange="this.form.submit()">
+        <option value="">Any deal stage</option>
         {% for value, label in deal_stage_choices %}
-          <option value="{{ value }}" {% if filter_deal_stage == value %}selected{% endif %}>
-            {{ label }}
-          </option>
+          <option value="{{ value }}" {% if filter_deal_stage == value %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
-    </div>
+      <div class="filter-actions">
+        <button type="submit" class="btn btn-dark btn-sm"><i class="bi bi-funnel"></i>Filter</button>
+        {% if q or filter_status or filter_deal_stage %}<a href="?" class="btn btn-light btn-sm">Clear</a>{% endif %}
+      </div>
+    </form>
 
-    <div class="col-md-2">
-      <button type="submit" class="btn btn-outline-secondary w-100">
-        Apply
-      </button>
-    </div>
-  </form>
-
-  <!-- Proposals Table -->
-  <div class="card shadow-sm">
-    <div class="card-body p-0">
-      <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-          <thead class="table-light">
-            <tr>
-              <th>Proposal</th>
-              <th>Deal</th>
-              <th>Client</th>
-              <th>Version</th>
-              <th>Status</th>
-              <th>Total</th>
-              <th class="text-end">Actions</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {% for proposal in proposals %}
-              <tr>
-                <td>
-                  <a href="{% url 'sales:proposal_detail' proposal.pk %}" class="text-decoration-none fw-semibold">
-                    {{ proposal.title }}
-                  </a>
-
-                  {% if proposal.valid_until %}
-                    <div class="small text-muted">
-                      Valid until: {{ proposal.valid_until }}
-                    </div>
-                  {% endif %}
-                </td>
-
-                <td>
-                  {% if proposal.deal %}
-                    <a href="{% url 'sales:deal_detail' proposal.deal.pk %}" class="text-decoration-none">
-                      {{ proposal.deal.name }}
-                    </a>
-                  {% else %}
-                    <span class="text-muted">—</span>
-                  {% endif %}
-                </td>
-
-                <td>
-                  {% if proposal.deal.client %}
-                    <a href="{% url 'crm:client_detail' proposal.deal.client.pk %}" class="text-decoration-none">
-                      {{ proposal.deal.client }}
-                    </a>
-                  {% elif proposal.deal.lead %}
-                    {{ proposal.deal.lead.name }} <span class="badge bg-light text-muted border">Lead</span>
-                  {% else %}
-                    <span class="text-muted">—</span>
-                  {% endif %}
-                </td>
-
-                <td>v{{ proposal.version }}</td>
-
-                <td>
-                  {% if proposal.status == "accepted" %}
-                    <span class="badge bg-success">{{ proposal.get_status_display }}</span>
-                  {% elif proposal.status == "sent" %}
-                    <span class="badge bg-primary">{{ proposal.get_status_display }}</span>
-                  {% elif proposal.status == "rejected" %}
-                    <span class="badge bg-dark">{{ proposal.get_status_display }}</span>
-                  {% elif proposal.status == "expired" %}
-                    <span class="badge bg-warning text-dark">{{ proposal.get_status_display }}</span>
-                  {% else %}
-                    <span class="badge bg-secondary">{{ proposal.get_status_display }}</span>
-                  {% endif %}
-                </td>
-
-                <td>{{ proposal.total }}</td>
-
-                <td class="text-end">
-                  <div class="btn-group btn-group-sm" role="group">
-
-                    <a href="{% url 'sales:proposal_detail' proposal.pk %}"
-                      class="btn btn-outline-secondary">
-                      View
-                    </a>
-
-                    {% if is_admin or is_crm_manager %}
-                      <a href="{% url 'sales:proposal_update' proposal.pk %}"
-                        class="btn btn-outline-primary">
-                        Edit
-                      </a>
-
-                      {% if proposal.contracts.exists %}
-                        {% with contract=proposal.contracts.first %}
-                          <a href="{% url 'sales:contract_detail' contract.pk %}"
-                            class="btn btn-outline-success">
-                            Contract
-                          </a>
-                        {% endwith %}
-                      {% else %}
-                        <a href="{% url 'sales:proposal_convert_to_contract' proposal.pk %}"
-                          class="btn btn-outline-success">
-                          Convert
-                        </a>
-                      {% endif %}
-
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Proposal</th>
+            <th class="d-none d-md-table-cell">Deal</th>
+            <th>Status</th>
+            <th class="text-end">Total</th>
+            <th class="d-none d-lg-table-cell">Valid until</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for proposal in proposals %}
+            <tr data-href="{% url 'sales:proposal_detail' proposal.pk %}">
+              <td>
+                <a href="{% url 'sales:proposal_detail' proposal.pk %}" class="cell-title">{{ proposal.title }}</a>
+                <span class="cell-sub">Version {{ proposal.version }}</span>
+              </td>
+              <td class="d-none d-md-table-cell">
+                {% if proposal.deal %}
+                  <a href="{% url 'sales:deal_detail' proposal.deal.pk %}" class="text-decoration-none">{{ proposal.deal.name }}</a>
+                  <span class="cell-sub">{% if proposal.deal.client %}{{ proposal.deal.client }}{% elif proposal.deal.lead %}Lead · {{ proposal.deal.lead.name }}{% endif %}</span>
+                {% else %}<span class="text-muted">—</span>{% endif %}
+              </td>
+              <td>{% status_pill proposal.status proposal.get_status_display %}</td>
+              <td class="text-end tabular">{{ proposal.total|inr }}</td>
+              <td class="d-none d-lg-table-cell text-nowrap">{{ proposal.valid_until|date:"d M Y"|default:"—" }}</td>
+              <td class="row-actions">
+                {% if is_admin or is_crm_manager %}
+                  {% with contract=proposal.contracts.first %}
+                    {% if contract %}
+                      <a href="{% url 'sales:contract_detail' contract.pk %}" class="btn btn-light btn-sm" title="Open contract"><i class="bi bi-file-earmark-check"></i></a>
+                    {% else %}
+                      <a href="{% url 'sales:proposal_convert_to_contract' proposal.pk %}" class="btn btn-outline-secondary btn-sm" title="Make a contract from this proposal"><i class="bi bi-file-earmark-check"></i>Contract</a>
                     {% endif %}
-
-                  </div>
-                </td>
-              </tr>
-
-            {% empty %}
-              <tr>
-                <td colspan="7" class="text-center text-muted py-3">
-                  No proposals found.
-                </td>
-              </tr>
-            {% endfor %}
-          </tbody>
-
-        </table>
-      </div>
+                  {% endwith %}
+                  <a href="{% url 'sales:proposal_update' proposal.pk %}" class="btn btn-light btn-sm" title="Edit" aria-label="Edit"><i class="bi bi-pencil"></i></a>
+                {% endif %}
+                <a href="{% url 'sales:proposal_detail' proposal.pk %}" class="btn btn-light btn-sm" title="Open" aria-label="Open"><i class="bi bi-arrow-right"></i></a>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="6">
+              <div class="empty-state"><i class="bi bi-file-earmark-richtext"></i><p class="mb-0">No proposals match these filters.</p></div>
+            </td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
+    {% include "ui/partials/pagination.html" %}
   </div>
-
-  {% if is_paginated %}
-    <div class="mt-3 d-flex justify-content-between align-items-center">
-      <div>
-        {% if page_obj.has_previous %}
-          <a href="?page={{ page_obj.previous_page_number }}&q={{ q }}&status={{ filter_status }}&deal_stage={{ filter_deal_stage }}">
-            ‹ Previous
-          </a>
-        {% endif %}
-      </div>
-
-      <div class="small text-muted">
-        Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
-      </div>
-
-      <div>
-        {% if page_obj.has_next %}
-          <a href="?page={{ page_obj.next_page_number }}&q={{ q }}&status={{ filter_status }}&deal_stage={{ filter_deal_stage }}">
-            Next ›
-          </a>
-        {% endif %}
-      </div>
-    </div>
-  {% endif %}
-
 </div>
 {% endblock %}

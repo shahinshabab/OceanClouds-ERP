@@ -1,147 +1,29 @@
-{% extends "ui/base.html" %}
-{% load roles_tags %}
+{% extends "ui/form_page.html" %}
+{% load ui_tags %}
 
-{% block title %}
-  {% if form.instance.pk %}Edit Review{% else %}New Review{% endif %}
+{% block title %}{% if form.instance.pk %}Edit review{% else %}New review{% endif %}{% endblock %}
+
+{% block form_eyebrow %}<i class="bi bi-people"></i> Clients &amp; events · Reviews{% endblock %}
+{% block form_title %}{% if form.instance.pk %}Edit review{% else %}New review{% endif %}{% endblock %}
+{% block form_subtitle %}Feedback from the client after their event.{% endblock %}
+
+{% block form_body %}
+  <section class="form-section">
+    <div class="row g-3">
+      {% field form.client "col-md-8" %}
+      {% field form.rating "col-md-4" %}
+      {% field form.title "col-12" %}
+      {% field form.comment "col-12" %}
+    </div>
+  </section>
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-arrow-repeat"></i>Follow-up</h2>
+    <div class="row g-3">
+      {% field form.next_action "col-md-8" %}
+      {% field form.next_action_date "col-md-4" %}
+    </div>
+  </section>
 {% endblock %}
 
-{% block content %}
-{% is_admin request.user as is_admin %}
-{% is_crm_manager request.user as is_crm_manager %}
-{% is_employee request.user as is_employee %}
-
-<div class="container py-3 max-w-2xl">
-
-  <h2 class="fw-semibold mb-4">
-    {% if form.instance.pk %}Edit Review{% else %}New Review{% endif %}
-  </h2>
-
-  <form method="post" novalidate>
-    {% csrf_token %}
-    {% if form.non_field_errors %}
-      <div class="alert alert-danger">
-        {{ form.non_field_errors }}
-      </div>
-    {% endif %}
-
-    <div class="card shadow-sm">
-      <div class="card-body">
-
-        <!-- Row 1 -->
-        <div class="row">
-          <div class="col-md-6 mb-3">
-            <label class="form-label">
-              {{ form.client.label }}{% if form.client.field.required %} *{% endif %}
-            </label>
-            {{ form.client }}
-            {% if form.client.help_text %}
-              <small class="form-text text-muted">{{ form.client.help_text }}</small>
-            {% endif %}
-            {% for error in form.client.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-3 mb-3">
-            <label class="form-label">
-              {{ form.rating.label }}
-            </label>
-            {{ form.rating }}
-            <small class="form-text text-muted">1–5 (optional)</small>
-            {% for error in form.rating.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-3 mb-3">
-            <label class="form-label">
-              {{ form.next_action_date.label }}
-            </label>
-            {{ form.next_action_date }}
-            {% if form.next_action_date.help_text %}
-              <small class="form-text text-muted">{{ form.next_action_date.help_text }}</small>
-            {% endif %}
-            {% for error in form.next_action_date.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Row 2: Next Action -->
-        <div class="row">
-          <div class="col-12 mb-3">
-            <label class="form-label">
-              {{ form.next_action.label }}
-            </label>
-            {{ form.next_action }}
-            {% if form.next_action.help_text %}
-              <small class="form-text text-muted">{{ form.next_action.help_text }}</small>
-            {% endif %}
-            {% for error in form.next_action.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Row 3: Title -->
-        <div class="row">
-          <div class="col-12 mb-3">
-            <label class="form-label">
-              {{ form.title.label }}
-            </label>
-            {{ form.title }}
-            {% if form.title.help_text %}
-              <small class="form-text text-muted">{{ form.title.help_text }}</small>
-            {% endif %}
-            {% for error in form.title.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Row 4: Comment -->
-        <div class="row">
-          <div class="col-12 mb-3">
-            <label class="form-label">
-              {{ form.comment.label }}
-            </label>
-            {{ form.comment }}
-            {% if form.comment.help_text %}
-              <small class="form-text text-muted">{{ form.comment.help_text }}</small>
-            {% endif %}
-            {% for error in form.comment.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-      </div>
-    </div>
-
-    <!-- Buttons row -->
-    <div class="row mt-3">
-      <div class="col-12 d-flex justify-content-center gap-2">
-        {% if is_admin or is_crm_manager %}
-          <button type="submit" class="btn btn-primary px-4">
-            Save
-          </button>
-        {% endif %}
-
-        {% if form.instance.client %}
-          <a href="{% url 'crm:client_detail' form.instance.client.pk %}"
-             class="btn btn-secondary">
-            Cancel
-          </a>
-        {% else %}
-          <a href="{% url 'crm:review_list' %}"
-             class="btn btn-secondary">
-            Cancel
-          </a>
-        {% endif %}
-      </div>
-    </div>
-
-  </form>
-
-</div>
-{% endblock %}
+{% block cancel_url %}{% with cid=form.instance.client_id|default:request.GET.client %}{% if cid %}{% url 'crm:client_detail' cid %}#tab-reviews{% else %}{% url 'crm:client_list' %}{% endif %}{% endwith %}{% endblock %}
+{% block submit_label %}Save review{% endblock %}

@@ -1,0 +1,25 @@
+{% if bound %}{% with id=bound.id_for_label %}
+<div class="{{ col }} form-field{% if is_check %} form-field-check{% endif %}">
+  {% if is_check %}
+    <div class="form-check form-switch">
+      {{ widget }}
+      <label class="form-check-label" for="{{ id }}">{{ label }}</label>
+    </div>
+  {% else %}
+    {% if label %}<label class="form-label" {% if not is_multi_check %}for="{{ id }}"{% endif %}>{{ label }}{% if required %}<span class="req" aria-hidden="true">*</span>{% endif %}</label>{% endif %}
+    {% if is_multi_check %}
+      <div class="check-grid">{{ widget }}</div>
+    {% elif prefix or suffix %}
+      <div class="input-group">
+        {% if prefix %}<span class="input-group-text">{{ prefix }}</span>{% endif %}
+        {{ widget }}
+        {% if suffix %}<span class="input-group-text">{{ suffix }}</span>{% endif %}
+      </div>
+    {% else %}
+      {{ widget }}
+    {% endif %}
+  {% endif %}
+  {% if hint %}<div class="form-text">{{ hint|linebreaksbr }}</div>{% endif %}
+  {% for error in bound.errors %}<div class="field-error"><i class="bi bi-exclamation-circle"></i>{{ error }}</div>{% endfor %}
+</div>
+{% endwith %}{% endif %}

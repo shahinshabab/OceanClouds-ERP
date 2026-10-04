@@ -1,87 +1,27 @@
-{% extends "ui/base.html" %}
+{% extends "ui/form_page.html" %}
+{% load ui_tags %}
 
-{% block content %}
-<div class="container-fluid py-3">
+{% block title %}{% if object %}Edit role{% else %}New role{% endif %}{% endblock %}
+{% block form_eyebrow %}<i class="bi bi-shield-lock"></i> Admin · Roles{% endblock %}
+{% block form_title %}{% if object %}Edit {{ object.name }}{% else %}New role{% endif %}{% endblock %}
+{% block form_subtitle %}A role is a set of permissions you can give to users.{% endblock %}
+{% block page_class %}wide role-form{% endblock %}
 
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <div>
-      {% if object %}
-        <h4 class="mb-0">Edit Role</h4>
-        <div class="text-muted small">Update role name and permissions.</div>
-      {% else %}
-        <h4 class="mb-0">Create Role</h4>
-        <div class="text-muted small">Create a new user role.</div>
-      {% endif %}
+{% block form_body %}
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-tag"></i>Role</h2>
+    <div class="row g-3">
+      {% field form.name "col-md-6" label="Role name" %}
     </div>
+  </section>
 
-    <a href="{% url 'adminpanel:role_list' %}" class="btn btn-outline-dark">
-      <i class="bi bi-arrow-left"></i>Back
-    </a>
-  </div>
-
-  <div class="card border-0 shadow-sm">
-    <div class="card-body">
-      <form method="post" novalidate>
-        {% csrf_token %}
-
-        {% if form.non_field_errors %}
-          <div class="alert alert-danger">
-            {{ form.non_field_errors }}
-          </div>
-        {% endif %}
-
-        <div class="mb-3">
-          <label class="form-label" for="{{ form.name.id_for_label }}">
-            Role Name
-          </label>
-          {{ form.name }}
-
-          {% if form.name.errors %}
-            <div class="text-danger small mt-1">
-              {{ form.name.errors|striptags }}
-            </div>
-          {% endif %}
-        </div>
-
-        <div class="mb-3">
-          <label class="form-label">
-            Permissions
-          </label>
-
-          <div class="border rounded p-3 overflow-auto">
-            <div class="row g-2">
-              {% for checkbox in form.permissions %}
-                <div class="col-12 col-md-6 col-lg-4">
-                  <div class="form-check">
-                    {{ checkbox.tag }}
-                    <label class="form-check-label" for="{{ checkbox.id_for_label }}">
-                      {{ checkbox.choice_label }}
-                    </label>
-                  </div>
-                </div>
-              {% endfor %}
-            </div>
-          </div>
-
-          {% if form.permissions.errors %}
-            <div class="text-danger small mt-1">
-              {{ form.permissions.errors|striptags }}
-            </div>
-          {% endif %}
-        </div>
-
-        <div class="d-flex justify-content-end gap-2 mt-4">
-          <a href="{% url 'adminpanel:role_list' %}" class="btn btn-light">
-            Cancel
-          </a>
-          <button type="submit" class="btn btn-dark">
-            Save Role
-          </button>
-        </div>
-
-      </form>
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-ui-checks-grid"></i>Permissions</h2>
+    <div class="row g-3">
+      {% field form.permissions "col-12" label="" %}
     </div>
-  </div>
-
-</div>
+  </section>
 {% endblock %}
+
+{% block cancel_url %}{% url 'adminpanel:role_list' %}{% endblock %}
+{% block submit_label %}Save role{% endblock %}

@@ -1027,3 +1027,89 @@ a.cal-entry:hover { color: inherit; border-color: var(--oc-ink); }
   .auth-shell { grid-template-columns: 1fr; }
   .auth-side { display: none; }
 }
+
+/* Forms (ui/form_page.html + {% field %}) -------------------------------- */
+.form-page { max-width: 980px; }
+.form-page.wide { max-width: none; }
+.page-subtitle:empty, .page-eyebrow:empty, .page-actions:empty { display: none; }
+.form-layout { display: grid; gap: 1rem; }
+.form-layout.with-aside { grid-template-columns: minmax(0, 1fr) 300px; align-items: start; }
+.form-layout.with-aside > .form-aside { position: sticky; top: 76px; display: grid; gap: 1rem; }
+@media (max-width: 991.98px) { .form-layout.with-aside { grid-template-columns: 1fr; } .form-layout.with-aside > .form-aside { position: static; } }
+.form-main > .form-section + .form-section { margin-top: 0; }
+.form-main { display: grid; gap: 1rem; align-content: start; }
+.form-section { padding: 1.25rem; box-shadow: var(--oc-shadow); }
+.form-section-title { margin: 0 0 1rem; }
+.form-section-title > .bi { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: var(--oc-soft); font-size: .9rem; }
+.form-section-title small { margin-left: auto; color: var(--oc-muted); font-size: .76rem; font-weight: 500; }
+.form-section-note { margin: -.6rem 0 1rem; color: var(--oc-muted); font-size: .82rem; }
+.form-field .form-label .req { margin-left: .2rem; color: var(--oc-danger); }
+.form-field-check { display: flex; align-items: center; min-height: 40px; }
+.form-field-check .form-check { margin: 0; }
+.form-field-check .form-check-label { font-size: .86rem; font-weight: 500; }
+.field-error { display: flex; align-items: center; gap: .3rem; margin-top: .3rem; color: var(--oc-danger); font-size: .78rem; font-weight: 500; }
+.check-grid > div, .check-grid > ul { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: .35rem .75rem; margin: 0; padding: .75rem; border: 1px solid var(--oc-line-strong); border-radius: 10px; list-style: none; max-height: 260px; overflow: auto; }
+.check-grid label { display: flex; align-items: center; gap: .45rem; font-size: .85rem; font-weight: 500; cursor: pointer; }
+.check-grid input[type="checkbox"] { width: 1rem; height: 1rem; accent-color: var(--oc-ink); }
+.oc-form .form-actions { margin-top: 1rem; }
+.aside-card { padding: 1rem 1.1rem; border: 1px solid var(--oc-line); border-radius: var(--oc-radius); background: var(--oc-paper); font-size: .84rem; }
+.aside-card h3 { margin: 0 0 .6rem; font-size: .8rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--oc-muted); }
+.aside-card ul { margin: 0; padding-left: 1rem; color: var(--oc-ink-3); }
+.aside-card li + li { margin-top: .3rem; }
+.container.form-page { max-width: 980px; margin-left: 0; }
+.container.form-page.wide { max-width: none; }
+.content .input-group { flex-wrap: nowrap; }
+.content .input-group > .form-control, .content .input-group > input { flex: 1 1 auto; width: 1% !important; min-width: 0; }
+
+/* Proposal builder -------------------------------------------------------- */
+.delete-flag, .is-deleted { display: none !important; }
+.builder-events { display: grid; gap: 1rem; }
+.builder-events:empty::before { content: "No events yet. Add the first event day."; display: block; padding: 1.5rem; border: 1px dashed var(--oc-line-strong); border-radius: var(--oc-radius-sm); color: var(--oc-muted); text-align: center; }
+.event-card { padding: 1rem; border: 1px solid var(--oc-line-strong); border-radius: var(--oc-radius-sm); background: #fff; }
+.builder-head { display: flex; align-items: center; gap: .6rem; margin-bottom: .9rem; }
+.builder-head h3, .builder-head h4 { margin: 0; font-size: .95rem; font-weight: 700; }
+.builder-head.small h4 { font-size: .85rem; }
+.builder-badge { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; color: #fff; background: var(--oc-ink); }
+.builder-sub { display: flex; align-items: center; justify-content: space-between; margin: 1.1rem 0 .6rem; padding-top: .9rem; border-top: 1px solid var(--oc-line); color: var(--oc-ink-2); font-size: .74rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.builder-sub.muted { margin-top: .9rem; padding-top: .7rem; border-top-style: dashed; color: var(--oc-muted); }
+.items-wrapper { display: grid; gap: .75rem; }
+.item-card { padding: .9rem; border: 1px solid var(--oc-line); border-radius: var(--oc-radius-xs); background: var(--oc-canvas); }
+.line-total-pill { padding: .2rem .6rem; border-radius: 99px; background: #fff; border: 1px solid var(--oc-line); font-weight: 700; font-size: .82rem; font-variant-numeric: tabular-nums; }
+.deliverables-wrapper { display: grid; gap: .4rem; }
+.deliverable-row { padding: .5rem .6rem; border: 1px solid var(--oc-line); border-radius: 8px; background: #fff; }
+.deliverable-row .form-label { font-size: .7rem; color: var(--oc-muted); }
+.deliverable-row textarea, .event-card .row textarea[name$="-notes"], .item-card textarea { min-height: 40px !important; height: 40px; }
+.proposal-summary dl { display: grid; grid-template-columns: 1fr auto; gap: .35rem .75rem; margin: 0 0 .75rem; }
+.proposal-summary dt { color: var(--oc-muted); font-weight: 500; }
+.proposal-summary dd { margin: 0; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+.proposal-summary .total { padding-top: .5rem; border-top: 1px solid var(--oc-line); color: var(--oc-ink); font-size: 1.15rem; font-weight: 750; }
+.proposal-summary input { width: 11ch !important; min-height: 0 !important; padding: 0 !important; border: 0 !important; background: transparent !important; font: inherit; text-align: right; box-shadow: none !important; }
+.proposal-summary .total input { width: 11ch !important; }
+
+/* Inline formset tables (ui/partials/formset_table.html) ----------------- */
+.formset-wrap { margin: 0 -.25rem; }
+.formset-table th { padding: .45rem .5rem; font-size: .7rem; }
+.formset-table td { padding: .4rem .25rem; vertical-align: top; border-bottom: 1px dashed var(--oc-line); }
+.formset-table tr:last-child td { border-bottom: 0; }
+.formset-table textarea { min-height: 40px !important; height: 40px; }
+.formset-table .form-check-input, .formset-table input[type="checkbox"] { margin-top: .7rem; }
+.formset-table td.fs-quantity, .formset-table td.fs-sort_order { width: 90px; }
+.formset-table td.fs-unit_price { width: 140px; }
+.formset-table td.fs-is_active { width: 60px; text-align: center; }
+.formset-delete { display: inline-grid; place-items: center; width: 34px; height: 34px; margin-top: 3px; border: 1px solid var(--oc-line); border-radius: 8px; background: #fff; color: var(--oc-muted); cursor: pointer; }
+.formset-delete:hover { color: var(--oc-danger); border-color: var(--oc-danger); }
+.formset-delete input { position: absolute; opacity: 0; pointer-events: none; }
+.formset-delete:has(input:checked) { color: #fff; background: var(--oc-danger); border-color: var(--oc-danger); }
+.formset-row:has(.formset-delete input:checked) td:not(:last-child) { opacity: .4; text-decoration: line-through; }
+.formset-empty { display: none; padding: .75rem .5rem; }
+.js-formset-body:empty + * , .formset-table:has(tbody:empty) + .formset-empty { display: block; }
+@media (max-width: 767.98px) { .formset-table { min-width: 720px; } }
+.aside-card h4 { margin: .9rem 0 .35rem; font-size: .78rem; font-weight: 600; color: var(--oc-ink); }
+.var-list { display: flex; flex-wrap: wrap; gap: .3rem; }
+.var-list code { padding: .12rem .4rem; border: 1px solid var(--oc-line); border-radius: 6px; background: var(--oc-bg, #f6f6f6); color: var(--oc-ink); font-size: .74rem; user-select: all; }
+details.form-collapse > summary { list-style: none; cursor: pointer; margin-bottom: 0; }
+details.form-collapse > summary::-webkit-details-marker { display: none; }
+details.form-collapse > summary .collapse-caret { margin-left: auto; color: var(--oc-muted); transition: transform .15s; }
+details.form-collapse[open] > summary { margin-bottom: .9rem; }
+details.form-collapse[open] > summary .collapse-caret { transform: rotate(180deg); }
+.role-form .check-grid > div, .role-form .check-grid > ul { max-height: 60vh; }

@@ -1,93 +1,21 @@
-{% extends "ui/base.html" %}
-{% load roles_tags %}
+{% extends "ui/form_page.html" %}
+{% load ui_tags %}
 
-{% block title %}
-  {% if form.instance.pk %}Edit Checklist{% else %}New Checklist{% endif %}
+{% block title %}{% if form.instance.pk %}Edit checklist{% else %}New checklist{% endif %}{% endblock %}
+
+{% block form_eyebrow %}<i class="bi bi-list-check"></i> Clients &amp; events · Checklists{% endblock %}
+{% block form_title %}{% if form.instance.pk %}Edit {{ form.instance.title }}{% else %}New checklist{% endif %}{% endblock %}
+{% block form_subtitle %}A list of things to get ready for an event. Add items after saving.{% endblock %}
+
+{% block form_body %}
+  <section class="form-section">
+    <div class="row g-3">
+      {% field form.event "col-md-6" %}
+      {% field form.title "col-md-6" %}
+      {% field form.notes "col-12" %}
+    </div>
+  </section>
 {% endblock %}
 
-{% block content %}
-{% has_event_manage_access request.user as can_manage_events %}
-
-<div class="container py-3 max-w-2xl">
-
-  <!-- Header -->
-  <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2 class="fw-semibold mb-0">
-      {% if form.instance.pk %}Edit Checklist{% else %}New Checklist{% endif %}
-    </h2>
-
-    <a href="{% url 'events:checklist_list' %}" class="btn btn-outline-secondary btn-sm">
-      <i class="bi bi-arrow-left"></i>Back to Checklists
-    </a>
-  </div>
-
-  <form method="post" novalidate>
-    {% csrf_token %}
-
-    {% if form.non_field_errors %}
-      <div class="alert alert-danger">
-        {{ form.non_field_errors }}
-      </div>
-    {% endif %}
-
-    <div class="card shadow-sm">
-      <div class="card-body">
-
-        <!-- Row 1 -->
-        <div class="row">
-          <div class="col-md-6 mb-3">
-            <label class="form-label">
-              {{ form.event.label }}{% if form.event.field.required %} *{% endif %}
-            </label>
-            {{ form.event }}
-            {% for error in form.event.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-6 mb-3">
-            <label class="form-label">
-              {{ form.title.label }}{% if form.title.field.required %} *{% endif %}
-            </label>
-            {{ form.title }}
-            {% for error in form.title.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Row 2 -->
-        <div class="row">
-          <div class="col-12 mb-3">
-            <label class="form-label">
-              {{ form.notes.label }}{% if form.notes.field.required %} *{% endif %}
-            </label>
-            {{ form.notes }}
-            {% for error in form.notes.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-      </div>
-    </div>
-
-    <!-- Buttons -->
-    <div class="row mt-3">
-      <div class="col-12 d-flex justify-content-center gap-2">
-        {% if can_manage_events %}
-          <button type="submit" class="btn btn-primary px-4">
-            Save
-          </button>
-        {% endif %}
-
-        <a href="{% url 'events:checklist_list' %}" class="btn btn-secondary">
-          Cancel
-        </a>
-      </div>
-    </div>
-
-  </form>
-
-</div>
-{% endblock %}
+{% block cancel_url %}{% if form.instance.pk %}{% url 'events:checklist_detail' form.instance.pk %}{% else %}{% url 'events:checklist_list' %}{% endif %}{% endblock %}
+{% block submit_label %}Save checklist{% endblock %}

@@ -214,3 +214,33 @@
         initTooltips();
     });
 })();
+
+/* Inline formsets: "add row" clones the empty form (ui/partials/formset_table.html). */
+(function () {
+  document.addEventListener("click", function (event) {
+    const add = event.target.closest(".js-formset-add");
+    if (add) {
+      const section = add.closest("[data-formset]");
+      const prefix = section.dataset.formset;
+      const total = section.querySelector('input[name="' + prefix + '-TOTAL_FORMS"]');
+      const template = section.querySelector("template.js-formset-template");
+      const body = section.querySelector(".js-formset-body");
+      if (!total || !template || !body) return;
+      const index = parseInt(total.value, 10) || 0;
+      body.insertAdjacentHTML("beforeend", template.innerHTML.replace(/__prefix__/g, index));
+      total.value = index + 1;
+      const first = body.lastElementChild && body.lastElementChild.querySelector("input:not([type=hidden]), select, textarea");
+      if (first) first.focus();
+      return;
+    }
+    const drop = event.target.closest(".js-formset-drop");
+    if (drop) {
+      // A row that was never saved: clear it so the formset ignores it.
+      const row = drop.closest("tr");
+      row.querySelectorAll("input:not([type=hidden]), select, textarea").forEach(function (el) {
+        if (el.type === "checkbox") el.checked = false; else el.value = "";
+      });
+      row.style.display = "none";
+    }
+  });
+})();

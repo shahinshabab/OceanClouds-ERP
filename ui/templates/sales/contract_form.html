@@ -1,184 +1,55 @@
-{% extends "ui/base.html" %}
-{% load roles_tags %}
+{% extends "ui/form_page.html" %}
+{% load ui_tags %}
 
-{% block title %}
-  {% if form.instance.pk %}Edit Contract{% else %}New Contract{% endif %}
-{% endblock %}
+{% block title %}{% if form.instance.pk %}Edit contract{% elif is_proposal_conversion %}Contract from proposal{% else %}New contract{% endif %}{% endblock %}
 
-{% block content %}
-{% is_admin request.user as is_admin %}
-{% is_crm_manager request.user as is_crm_manager %}
-{% is_project_manager request.user as is_project_manager %}
-{% is_employee request.user as is_employee %}
+{% block form_eyebrow %}<i class="bi bi-file-earmark-check"></i> Sales pipeline · Contracts{% endblock %}
+{% block form_title %}{% if form.instance.pk %}Edit contract {{ form.instance.number }}{% elif is_proposal_conversion %}Create contract from proposal{% else %}New contract{% endif %}{% endblock %}
+{% block form_subtitle %}{% if not form.instance.pk %}Event days and items are copied from the proposal's selected plan when you save.{% endif %}{% endblock %}
 
-<div class="container py-3 max-w-2xl">
+{% block form_attrs %}enctype="multipart/form-data" novalidate{% endblock %}
 
-  <h2 class="fw-semibold mb-4">
-    {% if form.instance.pk %}
-      Edit Contract
-    {% elif is_proposal_conversion %}
-      Create Contract from Proposal
-    {% else %}
-      New Contract
-    {% endif %}
-  </h2>
-
+{% block form_intro %}
   {% if source_proposal %}
-    <div class="alert alert-info">
-      You are creating a contract from proposal
-      <strong>{{ source_proposal.title }}</strong>.
-      Please review the prefilled details and save.
+    <div class="alert alert-light border d-flex gap-2">
+      <i class="bi bi-file-earmark-richtext"></i>
+      <div>From proposal <strong>{{ source_proposal.title }}</strong>. Check the plan and dates, then save.</div>
     </div>
   {% endif %}
-
-  <form method="post" enctype="multipart/form-data" novalidate>
-    {% csrf_token %}
-
-    {% if form.non_field_errors %}
-      <div class="alert alert-danger">
-        {{ form.non_field_errors }}
-      </div>
-    {% endif %}
-
-    <div class="card shadow-sm">
-      <div class="card-header bg-light">
-        <strong>Contract Information</strong>
-      </div>
-
-      <div class="card-body">
-
-        <!-- Row 1 -->
-        <div class="row">
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.deal.label }}{% if form.deal.field.required %} *{% endif %}
-            </label>
-            {{ form.deal }}
-            {% for error in form.deal.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.proposal.label }}
-            </label>
-            {{ form.proposal }}
-            {% for error in form.proposal.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">Contract Number</label>
-            <input type="text"
-                   class="form-control"
-                   value="{% if form.instance.pk %}{{ form.instance.number }}{% else %}Auto-generated after save{% endif %}"
-                   readonly>
-          </div>
-        </div>
-
-        <!-- Row 2 -->
-        <div class="row">
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.status.label }}{% if form.status.field.required %} *{% endif %}
-            </label>
-            {{ form.status }}
-            {% for error in form.status.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.signed_date.label }}
-            </label>
-            {{ form.signed_date }}
-            {% for error in form.signed_date.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.start_date.label }}
-            </label>
-            {{ form.start_date }}
-            {% for error in form.start_date.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Row 3 -->
-        <div class="row">
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.end_date.label }}
-            </label>
-            {{ form.end_date }}
-            {% for error in form.end_date.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-8 mb-3">
-            <label class="form-label">
-              {{ form.file.label }}
-            </label>
-            {{ form.file }}
-            {% if form.file.help_text %}
-              <small class="form-text text-muted">{{ form.file.help_text }}</small>
-            {% endif %}
-            {% for error in form.file.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Terms -->
-        <div class="row">
-          <div class="col-12 mb-3">
-            <label class="form-label">
-              {{ form.terms.label }}
-            </label>
-            {{ form.terms }}
-            {% for error in form.terms.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-      </div>
-    </div>
-
-    <!-- Buttons -->
-    <div class="row mt-3">
-      <div class="col-12 d-flex justify-content-center flex-wrap gap-2">
-        {% if is_admin or is_crm_manager %}
-          <button type="submit" class="btn btn-primary px-4">
-            Save
-          </button>
-        {% endif %}
-
-        {% if source_proposal %}
-          <a href="{% url 'sales:proposal_detail' source_proposal.pk %}" class="btn btn-secondary">
-            Cancel
-          </a>
-        {% elif form.instance.pk %}
-          <a href="{% url 'sales:contract_detail' form.instance.pk %}" class="btn btn-secondary">
-            Cancel
-          </a>
-        {% else %}
-          <a href="{% url 'sales:contract_list' %}" class="btn btn-secondary">
-            Cancel
-          </a>
-        {% endif %}
-      </div>
-    </div>
-
-  </form>
-
-</div>
 {% endblock %}
+
+{% block form_body %}
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-link-45deg"></i>Deal and proposal</h2>
+    <div class="row g-3">
+      {% field form.deal "col-md-6" %}
+      {% field form.proposal "col-md-6" %}
+      {% field form.proposal_plan "col-md-6" label="Pricing plan" hint="The plan whose items go into the contract." %}
+      <div class="col-md-6">
+        <label class="form-label">Contract number</label>
+        <div class="form-control bg-light text-muted">{% if form.instance.pk %}{{ form.instance.number }}{% else %}Assigned when saved{% endif %}</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-pen"></i>Status and dates</h2>
+    <div class="row g-3">
+      {% field form.status "col-md-6" %}
+      {% field form.signed_date "col-md-6" %}
+      {% field form.start_date "col-md-6" %}
+      {% field form.end_date "col-md-6" %}
+    </div>
+  </section>
+
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-journal-text"></i>Terms and document</h2>
+    <div class="row g-3">
+      {% field form.terms "col-12" %}
+      {% field form.file "col-12" label="Signed copy (optional)" %}
+    </div>
+  </section>
+{% endblock %}
+
+{% block cancel_url %}{% if source_proposal %}{% url 'sales:proposal_detail' source_proposal.pk %}{% elif form.instance.pk %}{% url 'sales:contract_detail' form.instance.pk %}{% else %}{% url 'sales:contract_list' %}{% endif %}{% endblock %}
+{% block submit_label %}{% if is_proposal_conversion %}Create contract{% else %}Save contract{% endif %}{% endblock %}

@@ -1,212 +1,53 @@
-{# messaging/templates/messaging/campaign_form.html #}
-{% extends "ui/base.html" %}
+{% extends "ui/form_page.html" %}
+{% load ui_tags %}
 
-{% block title %}
-  {% if form.instance.pk %}Edit Campaign{% else %}New Campaign{% endif %}
+{% block title %}{% if form.instance.pk %}Edit campaign{% else %}New campaign{% endif %}{% endblock %}
+{% block form_eyebrow %}<i class="bi bi-megaphone"></i> Messaging · Campaigns{% endblock %}
+{% block form_title %}{% if form.instance.pk %}Edit {{ form.instance.name }}{% else %}New campaign{% endif %}{% endblock %}
+{% block form_subtitle %}Recipients are picked automatically from eligible CRM contacts.{% endblock %}
+{% block layout_class %}with-aside{% endblock %}
+
+{% block form_body %}
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-envelope-paper"></i>Campaign</h2>
+    <div class="row g-3">
+      {% field form.name "col-md-6" %}
+      {% field form.status "col-md-6" %}
+      {% field form.template "col-md-6" hint="Only active campaign templates are shown." %}
+      {% field form.target_type "col-md-6" %}
+      {% field form.description "col-12" %}
+    </div>
+  </section>
+
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-at"></i>Sender</h2>
+    <div class="row g-3">
+      {% field form.from_email "col-md-6" hint="Leave blank to use the default sender." %}
+      {% field form.reply_to "col-md-6" hint="Leave blank to use the default reply-to." %}
+    </div>
+  </section>
+
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-clock"></i>Schedule and pace</h2>
+    <div class="row g-3">
+      {% field form.start_date "col-md-6" %}
+      {% field form.start_time "col-md-6" %}
+      {% field form.daily_limit "col-md-6" hint="Maximum emails to send per day." %}
+      {% field form.delay_seconds "col-md-6" suffix="sec" hint="Wait between each email." %}
+      {% field form.weekdays_only "col-12" hint="Send only Monday to Friday." %}
+    </div>
+  </section>
 {% endblock %}
 
-{% block content %}
-<div class="container-fluid py-3">
-
-  <!-- Header -->
-  <div class="d-flex justify-content-between align-items-start mb-3">
-    <div>
-      <h2 class="fw-semibold mb-0">
-        {% if form.instance.pk %}Edit Campaign{% else %}New Campaign{% endif %}
-      </h2>
-      <div class="text-muted small">
-        Campaign recipients are automatically selected from eligible CRM contacts.
-      </div>
+{% block form_aside %}
+  <aside class="form-aside">
+    <div class="aside-card">
+      <h3 class="aside-title"><i class="bi bi-people"></i> Who receives it</h3>
+      <p class="small text-secondary mb-2">No custom list is needed. Contacts must have an email address and allow marketing.</p>
+      <p class="small text-secondary mb-0">Anniversary campaigns only go to contacts with the bride or groom role.</p>
     </div>
-
-    <a href="{% url 'messaging:campaign_list' %}" class="btn btn-outline-secondary btn-sm">
-      <i class="bi bi-arrow-left"></i>Back to list
-    </a>
-  </div>
-
-  {% if form.non_field_errors %}
-    <div class="alert alert-danger">
-      {{ form.non_field_errors }}
-    </div>
-  {% endif %}
-
-  <div class="alert alert-info small">
-    <strong>No custom list required.</strong>
-    This campaign will use contacts from your CRM:
-    contacts must have an email address and <code>allow_marketing=True</code>.
-    For anniversary campaigns, only contacts with role <code>bride</code> or <code>groom</code> will be selected.
-  </div>
-
-  <div class="card shadow-sm">
-    <div class="card-body">
-
-      <form method="post" novalidate>
-        {% csrf_token %}
-
-        <div class="row g-3">
-
-          <div class="col-md-4">
-            <label class="form-label">
-              Name <span class="text-danger">*</span>
-            </label>
-            {{ form.name }}
-            {% if form.name.help_text %}
-              <div class="form-text">{{ form.name.help_text }}</div>
-            {% endif %}
-            {% for error in form.name.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4">
-            <label class="form-label">
-              Template <span class="text-danger">*</span>
-            </label>
-            {{ form.template }}
-            {% if form.template.help_text %}
-              <div class="form-text">{{ form.template.help_text }}</div>
-            {% else %}
-              <div class="form-text">
-                Only active campaign templates are shown.
-              </div>
-            {% endif %}
-            {% for error in form.template.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4">
-            <label class="form-label">
-              Target Type <span class="text-danger">*</span>
-            </label>
-            {{ form.target_type }}
-            {% if form.target_type.help_text %}
-              <div class="form-text">{{ form.target_type.help_text }}</div>
-            {% endif %}
-            {% for error in form.target_type.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-12">
-            <label class="form-label">Description</label>
-            {{ form.description }}
-            {% if form.description.help_text %}
-              <div class="form-text">{{ form.description.help_text }}</div>
-            {% endif %}
-            {% for error in form.description.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4">
-            <label class="form-label">From Email</label>
-            {{ form.from_email }}
-            <div class="form-text">
-              Leave blank to use default SES sender.
-            </div>
-            {% for error in form.from_email.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4">
-            <label class="form-label">Reply-To</label>
-            {{ form.reply_to }}
-            <div class="form-text">
-              Leave blank to use default reply-to email.
-            </div>
-            {% for error in form.reply_to.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4">
-            <label class="form-label">
-              Status <span class="text-danger">*</span>
-            </label>
-            {{ form.status }}
-            {% for error in form.status.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4">
-            <label class="form-label">Start Date</label>
-            {{ form.start_date }}
-            {% for error in form.start_date.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4">
-            <label class="form-label">Start Time</label>
-            {{ form.start_time }}
-            {% for error in form.start_time.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 d-flex align-items-center">
-            <div>
-              <div class="form-check mt-3">
-                {{ form.weekdays_only }}
-                <label class="form-check-label ms-1">
-                  Weekdays only
-                </label>
-              </div>
-              <div class="form-text">
-                Send only Monday to Friday.
-              </div>
-              {% for error in form.weekdays_only.errors %}
-                <div class="text-danger small">{{ error }}</div>
-              {% endfor %}
-            </div>
-          </div>
-
-          <div class="col-md-6">
-            <label class="form-label">
-              Daily Limit <span class="text-danger">*</span>
-            </label>
-            {{ form.daily_limit }}
-            <div class="form-text">
-              Maximum emails to send per day.
-            </div>
-            {% for error in form.daily_limit.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-6">
-            <label class="form-label">
-              Delay Between Emails <span class="text-danger">*</span>
-            </label>
-            {{ form.delay_seconds }}
-            <div class="form-text">
-              Delay in seconds between each email.
-            </div>
-            {% for error in form.delay_seconds.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-        </div>
-
-        <!-- Buttons -->
-        <div class="d-flex justify-content-center gap-2 mt-4">
-          <button type="submit" class="btn btn-primary px-4">
-            Save Campaign
-          </button>
-
-          <a href="{% url 'messaging:campaign_list' %}" class="btn btn-secondary">
-            Cancel
-          </a>
-        </div>
-
-      </form>
-
-    </div>
-  </div>
-
-</div>
+  </aside>
 {% endblock %}
+
+{% block cancel_url %}{% if form.instance.pk %}{% url 'messaging:campaign_detail' form.instance.pk %}{% else %}{% url 'messaging:campaign_list' %}{% endif %}{% endblock %}
+{% block submit_label %}Save campaign{% endblock %}

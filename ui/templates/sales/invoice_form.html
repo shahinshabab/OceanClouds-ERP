@@ -1,191 +1,52 @@
-{% extends "ui/base.html" %}
-{% load roles_tags %}
+{% extends "ui/form_page.html" %}
+{% load ui_tags %}
 
-{% block title %}
-  {% if form.instance.pk %}Edit Invoice{% else %}New Invoice{% endif %}
-{% endblock %}
+{% block title %}{% if form.instance.pk %}Edit invoice{% elif is_contract_conversion %}Generate invoice{% else %}New invoice{% endif %}{% endblock %}
 
-{% block content %}
-{% is_admin request.user as is_admin %}
-{% is_crm_manager request.user as is_crm_manager %}
-{% is_project_manager request.user as is_project_manager %}
-{% is_employee request.user as is_employee %}
+{% block form_eyebrow %}<i class="bi bi-receipt"></i> Billing · Invoices{% endblock %}
+{% block form_title %}{% if form.instance.pk %}Edit invoice {{ form.instance.number }}{% elif is_contract_conversion %}Generate invoice{% else %}New invoice{% endif %}{% endblock %}
+{% block form_subtitle %}{% if source_contract %}Items are copied from the contract when you save, and any advance is deducted.{% endif %}{% endblock %}
 
-<div class="container py-3 max-w-2xl">
-
-  <h2 class="fw-semibold mb-4">
-    {% if form.instance.pk %}
-      Edit Invoice
-    {% elif is_contract_conversion %}
-      Generate Invoice
-    {% else %}
-      New Invoice
-    {% endif %}
-  </h2>
-
+{% block form_intro %}
   {% if source_contract %}
-    <div class="alert alert-info">
-      You are generating an invoice from contract
-      <strong>{{ source_contract.number }}</strong>.
-      Items will be copied from the contract after saving.
+    <div class="alert alert-light border d-flex gap-2">
+      <i class="bi bi-file-earmark-check"></i>
+      <div>From contract <strong>{{ source_contract.number }}</strong>.</div>
     </div>
   {% endif %}
-
-  <form method="post" novalidate>
-    {% csrf_token %}
-
-    {% if form.non_field_errors %}
-      <div class="alert alert-danger">
-        {{ form.non_field_errors }}
-      </div>
-    {% endif %}
-
-    <div class="card shadow-sm">
-      <div class="card-header bg-light">
-        <strong>Invoice Information</strong>
-      </div>
-
-      <div class="card-body">
-
-        {% if form.instance.pk %}
-          <div class="row">
-            <div class="col-md-4 mb-3">
-              <label class="form-label">Invoice Number</label>
-              <input type="text"
-                     class="form-control"
-                     value="{{ form.instance.number }}"
-                     readonly>
-            </div>
-          </div>
-        {% endif %}
-
-        <!-- Hidden/internal source fields shown only as selectors -->
-        <div class="row">
-          <div class="col-md-6 mb-3">
-            <label class="form-label">
-              {{ form.deal.label }}
-            </label>
-            {{ form.deal }}
-            {% for error in form.deal.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-            <div class="form-text">
-              Client billing details will be taken from the selected deal's client.
-            </div>
-          </div>
-
-          <div class="col-md-6 mb-3">
-            <label class="form-label">
-              {{ form.contract.label }}
-            </label>
-            {{ form.contract }}
-            {% for error in form.contract.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-            <div class="form-text">
-              Select contract to copy invoice items automatically.
-            </div>
-          </div>
-        </div>
-
-        <!-- Dates and status -->
-        <div class="row">
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.issue_date.label }}{% if form.issue_date.field.required %} *{% endif %}
-            </label>
-            {{ form.issue_date }}
-            {% for error in form.issue_date.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.due_date.label }}
-            </label>
-            {{ form.due_date }}
-            {% for error in form.due_date.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-4 mb-3">
-            <label class="form-label">
-              {{ form.status.label }}{% if form.status.field.required %} *{% endif %}
-            </label>
-            {{ form.status }}
-            {% for error in form.status.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Pricing -->
-        <div class="row">
-          <div class="col-md-6 mb-3">
-            <label class="form-label">
-              {{ form.discount.label }}
-            </label>
-            {{ form.discount }}
-            {% for error in form.discount.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-
-          <div class="col-md-6 mb-3">
-            <label class="form-label">
-              {{ form.tax_rate.label }}
-            </label>
-            {{ form.tax_rate }}
-            {% for error in form.tax_rate.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Notes -->
-        <div class="row">
-          <div class="col-12 mb-3">
-            <label class="form-label">
-              {{ form.notes.label }}
-            </label>
-            {{ form.notes }}
-            {% for error in form.notes.errors %}
-              <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
-          </div>
-        </div>
-
-      </div>
-    </div>
-
-    <!-- Buttons -->
-    <div class="row mt-3">
-      <div class="col-12 d-flex justify-content-center flex-wrap gap-2">
-        {% if is_admin or is_crm_manager %}
-          <button type="submit" class="btn btn-primary px-4">
-            Save
-          </button>
-        {% endif %}
-
-        {% if source_contract %}
-          <a href="{% url 'sales:contract_detail' source_contract.pk %}" class="btn btn-secondary">
-            Cancel
-          </a>
-        {% elif form.instance.pk %}
-          <a href="{% url 'sales:invoice_detail' form.instance.pk %}" class="btn btn-secondary">
-            Cancel
-          </a>
-        {% else %}
-          <a href="{% url 'sales:invoice_list' %}" class="btn btn-secondary">
-            Cancel
-          </a>
-        {% endif %}
-      </div>
-    </div>
-
-  </form>
-
-</div>
 {% endblock %}
+
+{% block form_body %}
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-link-45deg"></i>Deal and contract</h2>
+    <div class="row g-3">
+      {% field form.deal "col-md-6" %}
+      {% field form.contract "col-md-6" %}
+      {% if form.instance.pk %}
+        <div class="col-md-6"><label class="form-label">Invoice number</label><div class="form-control bg-light text-muted">{{ form.instance.number }}</div></div>
+      {% endif %}
+      {% field form.is_advance "col-md-6" label="This is an advance invoice" %}
+    </div>
+  </section>
+
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-calendar3"></i>Dates and status</h2>
+    <div class="row g-3">
+      {% field form.issue_date "col-md-4" %}
+      {% field form.due_date "col-md-4" %}
+      {% field form.status "col-md-4" %}
+    </div>
+  </section>
+
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-calculator"></i>Adjustments</h2>
+    <div class="row g-3">
+      {% field form.discount "col-md-6" prefix="₹" %}
+      {% field form.tax_rate "col-md-6" suffix="%" %}
+      {% field form.notes "col-12" %}
+    </div>
+  </section>
+{% endblock %}
+
+{% block cancel_url %}{% if source_contract %}{% url 'sales:contract_detail' source_contract.pk %}{% elif form.instance.pk %}{% url 'sales:invoice_detail' form.instance.pk %}{% else %}{% url 'sales:invoice_list' %}{% endif %}{% endblock %}
+{% block submit_label %}{% if is_contract_conversion %}Generate invoice{% else %}Save invoice{% endif %}{% endblock %}

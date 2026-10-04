@@ -14,36 +14,6 @@
 
     <div class="nav-actions">
         {% if request.user.is_authenticated %}
-            {% has_inquiry_manage_access request.user as can_new_inquiry %}
-            {% has_sales_access request.user as can_new_sale %}
-            {% has_event_manage_access request.user as can_new_event %}
-            {% has_project_access request.user as can_new_project %}
-
-            <div class="position-relative">
-                <button class="btn btn-dark btn-sm" type="button" data-panel-toggle="quickCreatePanel" aria-expanded="false" aria-haspopup="true">
-                    <i class="bi bi-plus-lg"></i><span class="d-none d-sm-inline">Create</span>
-                </button>
-                <div id="quickCreatePanel" class="dropdown-panel d-none" style="min-width: 230px;">
-                    {% if can_new_inquiry %}
-                        <a class="dropdown-item-custom" href="{% url 'crm:inquiry_create' %}"><i class="bi bi-inbox"></i>Inquiry</a>
-                    {% endif %}
-                    {% if can_new_sale %}
-                        <a class="dropdown-item-custom" href="{% url 'crm:lead_create' %}"><i class="bi bi-person-lines-fill"></i>Lead</a>
-                        <a class="dropdown-item-custom" href="{% url 'sales:deal_create' %}"><i class="bi bi-briefcase"></i>Deal</a>
-                        <a class="dropdown-item-custom" href="{% url 'crm:client_create' %}"><i class="bi bi-people"></i>Client <span class="ms-auto small text-muted">existing customer</span></a>
-                    {% endif %}
-                    {% if can_new_event %}
-                        <a class="dropdown-item-custom" href="{% url 'events:event_create' %}"><i class="bi bi-stars"></i>Event</a>
-                    {% endif %}
-                    {% if can_new_project %}
-                        <a class="dropdown-item-custom" href="{% url 'projects:project_create' %}"><i class="bi bi-kanban"></i>Project</a>
-                        <a class="dropdown-item-custom" href="{% url 'projects:task_create' %}"><i class="bi bi-list-task"></i>Task</a>
-                    {% endif %}
-                    <a class="dropdown-item-custom" href="{% url 'todos:todo_create' %}"><i class="bi bi-check2-square"></i>To-do</a>
-                    <a class="dropdown-item-custom" href="{% url 'messaging:ticket_create' %}"><i class="bi bi-life-preserver"></i>Support ticket</a>
-                </div>
-            </div>
-
             {% block notifications %}
                 {% include "ui/partials/notifications.html" %}
             {% endblock %}

@@ -1,60 +1,76 @@
+{% load roles_tags %}
 <header class="top-navbar">
-    <button class="btn btn-outline-dark btn-sm d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebar" aria-controls="sidebar" aria-label="Open sidebar">
+    <button class="icon-btn d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebar" aria-controls="sidebar" aria-label="Open menu">
         <i class="bi bi-list"></i>
     </button>
 
+    {% if nav_current %}
+        <nav class="topbar-title d-none d-sm-block" aria-label="breadcrumb">
+            <span class="text-muted fw-medium">{{ nav_current.section }}</span>
+            <i class="bi bi-chevron-right text-muted mx-1 small" aria-hidden="true"></i>
+            <a href="{{ nav_current.url }}" class="text-decoration-none">{{ nav_current.label }}</a>
+        </nav>
+    {% endif %}
+
     <div class="nav-actions">
         {% if request.user.is_authenticated %}
+            {% has_inquiry_manage_access request.user as can_new_inquiry %}
+            {% has_sales_access request.user as can_new_sale %}
+            {% has_event_manage_access request.user as can_new_event %}
+            {% has_project_access request.user as can_new_project %}
+
+            <div class="position-relative">
+                <button class="btn btn-dark btn-sm" type="button" data-panel-toggle="quickCreatePanel" aria-expanded="false" aria-haspopup="true">
+                    <i class="bi bi-plus-lg"></i><span class="d-none d-sm-inline">Create</span>
+                </button>
+                <div id="quickCreatePanel" class="dropdown-panel d-none" style="min-width: 230px;">
+                    {% if can_new_inquiry %}
+                        <a class="dropdown-item-custom" href="{% url 'crm:inquiry_create' %}"><i class="bi bi-inbox"></i>Inquiry</a>
+                    {% endif %}
+                    {% if can_new_sale %}
+                        <a class="dropdown-item-custom" href="{% url 'crm:lead_create' %}"><i class="bi bi-person-lines-fill"></i>Lead</a>
+                        <a class="dropdown-item-custom" href="{% url 'sales:deal_create' %}"><i class="bi bi-briefcase"></i>Deal</a>
+                        <a class="dropdown-item-custom" href="{% url 'crm:client_create' %}"><i class="bi bi-people"></i>Client <span class="ms-auto small text-muted">existing customer</span></a>
+                    {% endif %}
+                    {% if can_new_event %}
+                        <a class="dropdown-item-custom" href="{% url 'events:event_create' %}"><i class="bi bi-stars"></i>Event</a>
+                    {% endif %}
+                    {% if can_new_project %}
+                        <a class="dropdown-item-custom" href="{% url 'projects:project_create' %}"><i class="bi bi-kanban"></i>Project</a>
+                        <a class="dropdown-item-custom" href="{% url 'projects:task_create' %}"><i class="bi bi-list-task"></i>Task</a>
+                    {% endif %}
+                    <a class="dropdown-item-custom" href="{% url 'todos:todo_create' %}"><i class="bi bi-check2-square"></i>To-do</a>
+                    <a class="dropdown-item-custom" href="{% url 'messaging:ticket_create' %}"><i class="bi bi-life-preserver"></i>Support ticket</a>
+                </div>
+            </div>
+
             {% block notifications %}
                 {% include "ui/partials/notifications.html" %}
             {% endblock %}
 
             <div class="position-relative">
-                <button id="profileToggle" class="icon-btn d-flex align-items-center gap-2" type="button" aria-expanded="false" aria-label="Profile menu">
-                    <div class="avatar-circle">
-                        {% if request.user.get_full_name %}
-                            {{ request.user.get_full_name|first|upper }}
-                        {% else %}
-                            {{ request.user.username|first|upper }}
-                        {% endif %}
-                    </div>
+                <button class="icon-btn avatar-btn" type="button" data-panel-toggle="profileDropdown" aria-expanded="false" aria-label="Account menu">
+                    <span class="avatar-circle">{{ request.user.get_full_name|default:request.user.username|first|upper }}</span>
                 </button>
 
                 <div id="profileDropdown" class="dropdown-panel d-none">
-                    <div class="d-flex align-items-center mb-2">
-                        <div class="avatar-circle me-2">
-                            {% if request.user.get_full_name %}
-                                {{ request.user.get_full_name|first|upper }}
-                            {% else %}
-                                {{ request.user.username|first|upper }}
-                            {% endif %}
-                        </div>
-
-                        <div>
-                            <div class="fw-semibold small">
-                                {{ request.user.get_full_name|default:request.user.username }}
-                            </div>
-                            <div class="text-muted small">
-                                {{ request.user.email }}
-                            </div>
+                    <div class="d-flex align-items-center gap-2 p-2 mb-1">
+                        <span class="avatar-circle">{{ request.user.get_full_name|default:request.user.username|first|upper }}</span>
+                        <div class="min-w-0">
+                            <div class="fw-semibold text-truncate">{{ request.user.get_full_name|default:request.user.username }}</div>
+                            <div class="text-muted small text-truncate">{{ request.user.email|default:request.user.username }}</div>
                         </div>
                     </div>
-
-                    <a href="{% url 'ui:profile' %}" class="dropdown-item-custom small">
-                        View Profile
-                    </a>
-
+                    <a href="{% url 'ui:profile' %}" class="dropdown-item-custom"><i class="bi bi-person"></i>My profile</a>
+                    <a href="{% url 'ui:profile_password' %}" class="dropdown-item-custom"><i class="bi bi-key"></i>Change password</a>
+                    <a href="{% url 'common:notification_list' %}" class="dropdown-item-custom"><i class="bi bi-bell"></i>All notifications</a>
                     <div class="dropdown-footer">
-                        <a href="{% url 'ui:logout' %}" class="btn btn-sm btn-outline-dark">
-                            Logout
-                        </a>
+                        <a href="{% url 'ui:logout' %}" class="dropdown-item-custom"><i class="bi bi-box-arrow-right"></i>Sign out</a>
                     </div>
                 </div>
             </div>
         {% else %}
-            <a href="{% url 'ui:login' %}" class="btn btn-sm btn-dark">
-                Login
-            </a>
+            <a href="{% url 'ui:login' %}" class="btn btn-sm btn-dark">Sign in</a>
         {% endif %}
     </div>
 </header>

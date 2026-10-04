@@ -28,21 +28,21 @@
     <div class="d-flex flex-wrap gap-2">
       {% if is_admin or is_crm_manager %}
         <a href="{% url 'crm:contact_update' contact.pk %}" class="btn btn-primary btn-sm">
-          Edit
+          <i class="bi bi-pencil"></i>Edit
         </a>
 
         <a href="{% url 'crm:contact_delete' contact.pk %}" class="btn btn-outline-danger btn-sm">
-          Delete
+          <i class="bi bi-trash"></i>Delete
         </a>
       {% endif %}
 
       {% if contact.client %}
         <a href="{% url 'crm:client_detail' contact.client.pk %}" class="btn btn-secondary btn-sm">
-          Back to Client
+          <i class="bi bi-arrow-left"></i>Back to Client
         </a>
       {% else %}
         <a href="{% url 'crm:contact_list' %}" class="btn btn-secondary btn-sm">
-          Back to Contacts
+          <i class="bi bi-arrow-left"></i>Back to Contacts
         </a>
       {% endif %}
     </div>

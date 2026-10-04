@@ -1,7 +1,5 @@
 # projects/views.py
 
-import calendar
-from datetime import date, timedelta
 from decimal import Decimal
 
 from django.contrib import messages
@@ -1594,8 +1592,8 @@ def _person_name(user):
 
 class ProjectCalendarView(ProjectWorkAccessMixin, TemplateView):
     """
-    Month view of upcoming project work: events, tasks and deliverables,
-    each card showing who is assigned.
+    Calendar of project work: events, tasks and deliverables, each entry
+    showing who is assigned. Month, week and agenda views.
 
     Tasks and deliverables sit on their due date (start date if no due date).
     Employees see only their own work; events are shown to everyone.
@@ -1603,27 +1601,20 @@ class ProjectCalendarView(ProjectWorkAccessMixin, TemplateView):
 
     template_name = "projects/project_calendar.html"
 
-    def get_month(self):
-        raw = (self.request.GET.get("month") or "").strip()
-        today = timezone.localdate()
-        try:
-            year, month = (int(part) for part in raw.split("-", 1))
-            return date(year, month, 1)
-        except (TypeError, ValueError):
-            return today.replace(day=1)
-
     def get_context_data(self, **kwargs):
+        from ui.calendar import CalendarRange
+        from ui.templatetags.ui_tags import status_tone
+
         context = super().get_context_data(**kwargs)
         user = self.request.user
-        today = timezone.localdate()
-        first = self.get_month()
-        last = first.replace(day=calendar.monthrange(first.year, first.month)[1])
-        grid_start = first - timedelta(days=first.weekday())
-        grid_end = last + timedelta(days=6 - last.weekday())
 
         project_id = (self.request.GET.get("project") or "").strip()
         staff_id = (self.request.GET.get("staff") or "").strip()
+        show = (self.request.GET.get("show") or "").strip()
         can_filter_staff = is_admin_or_project_manager(user)
+
+        cal = CalendarRange.from_request(self.request, keep=("project", "staff", "show"))
+        grid_start, grid_end = cal.start, cal.end
 
         in_range = (
             Q(due_date__range=(grid_start, grid_end))
@@ -1658,84 +1649,78 @@ class ProjectCalendarView(ProjectWorkAccessMixin, TemplateView):
             tasks = tasks.filter(assigned_to_id=staff_id)
             deliverables = deliverables.filter(assigned_to_id=staff_id)
 
-        items_by_day = {}
+        if show == "mine":
+            tasks = tasks.filter(assigned_to=user)
+            deliverables = deliverables.filter(assigned_to=user)
 
-        def add(day, item):
-            items_by_day.setdefault(day, []).append(item)
+        if show in ("tasks", "deliverables", "mine"):
+            events = events.none()
+        if show == "tasks":
+            deliverables = deliverables.none()
+        if show == "deliverables":
+            tasks = tasks.none()
+        if show == "events":
+            tasks = tasks.none()
+            deliverables = deliverables.none()
 
+        entries = []
         can_open_events = can_manage_events(user)
         for event in events:
             project = event.linked_project
-            add(event.date, {
-                "kind": "event",
+            meta = []
+            if event.venue_id:
+                meta.append(("bi-geo-alt", event.venue.name))
+            if project:
+                meta.append(("bi-kanban", project.name))
+            else:
+                meta.append(("bi-exclamation-circle", "No project yet"))
+            entries.append({
+                "date": event.date,
+                "start": event.start_time,
+                "end": event.end_time,
                 "title": event.name,
                 "url": reverse("events:event_detail", args=[event.pk]) if can_open_events else "",
-                "time": event.start_time,
-                "meta": event.venue.name if event.venue_id else "",
-                "project": project.name if project else "",
-                "needs_project": project is None,
+                "tone": "solid",
+                "icon": "bi-stars",
+                "meta": meta,
                 "status": event.get_status_display(),
+                "status_tone": status_tone(event.status),
+                "order": 0,
             })
+
+        def work_entry(obj, kind, url_name, done):
+            assignee = _person_name(obj.assigned_to) or "Unassigned"
+            mine = obj.assigned_to_id == user.id
+            meta = [("bi-kanban", obj.project.name), ("bi-person", assignee + (" (me)" if mine else ""))]
+            if obj.due_date and obj.start_date and obj.start_date != obj.due_date:
+                meta.append(("bi-play", f"Started {obj.start_date:%d %b}"))
+            tone = "soft" if done else ("danger" if obj.is_overdue else ("outline" if kind == "task" else "gray"))
+            return {
+                "date": obj.due_date or obj.start_date,
+                "title": obj.name,
+                "url": reverse(url_name, args=[obj.pk]),
+                "tone": tone,
+                "icon": "bi-check2-square" if kind == "task" else "bi-box-seam",
+                "meta": meta,
+                "status": ("Overdue · " if obj.is_overdue and not done else "") + obj.get_status_display(),
+                "status_tone": "status-danger" if obj.is_overdue and not done else status_tone(obj.status),
+                "mine": mine,
+                "order": 1 if kind == "task" else 2,
+            }
 
         for task in tasks:
-            add(task.due_date or task.start_date, {
-                "kind": "task",
-                "title": task.name,
-                "url": reverse("projects:task_detail", args=[task.pk]),
-                "project": task.project.name,
-                "assignee": _person_name(task.assigned_to),
-                "is_mine": task.assigned_to_id == user.id,
-                "status": task.get_status_display(),
-                "done": task.status == TaskStatus.COMPLETED,
-                "overdue": task.is_overdue,
-                "start_date": task.start_date if task.due_date and task.start_date != task.due_date else None,
-            })
-
+            entries.append(work_entry(task, "task", "projects:task_detail", task.status == TaskStatus.COMPLETED))
         for deliverable in deliverables:
-            add(deliverable.due_date or deliverable.start_date, {
-                "kind": "deliverable",
-                "title": deliverable.name,
-                "url": reverse("projects:deliverable_detail", args=[deliverable.pk]),
-                "project": deliverable.project.name,
-                "assignee": _person_name(deliverable.assigned_to),
-                "is_mine": deliverable.assigned_to_id == user.id,
-                "status": deliverable.get_status_display(),
-                "done": deliverable.status == DeliverableStatus.DELIVERED,
-                "overdue": deliverable.is_overdue,
-                "start_date": deliverable.start_date if deliverable.due_date and deliverable.start_date != deliverable.due_date else None,
-            })
+            entries.append(work_entry(
+                deliverable, "deliverable", "projects:deliverable_detail",
+                deliverable.status == DeliverableStatus.DELIVERED,
+            ))
 
-        kind_order = {"event": 0, "task": 1, "deliverable": 2}
-        weeks = []
-        day = grid_start
-        while day <= grid_end:
-            week = []
-            for _ in range(7):
-                items = sorted(
-                    items_by_day.get(day, []),
-                    key=lambda item: (kind_order[item["kind"]], str(item.get("time") or ""), item["title"]),
-                )
-                week.append({
-                    "date": day,
-                    "in_month": day.month == first.month,
-                    "is_today": day == today,
-                    "items": items,
-                })
-                day += timedelta(days=1)
-            weeks.append(week)
-
-        prev_month = (first - timedelta(days=1)).replace(day=1)
-        next_month = last + timedelta(days=1)
-
+        context.update(cal.layout(entries))
         context.update({
-            "month": first,
-            "weeks": weeks,
-            "weekday_names": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-            "prev_month": prev_month.strftime("%Y-%m"),
-            "next_month": next_month.strftime("%Y-%m"),
-            "this_month": today.strftime("%Y-%m"),
             "project_filter": project_id,
             "staff_filter": staff_id,
+            "show_filter": show,
             "project_choices": visible_projects_for(user).exclude(
                 status__in=[ProjectStatus.CLOSED, ProjectStatus.CANCELLED]
             ).order_by("name") if can_filter_staff else Project.objects.none(),
@@ -1745,9 +1730,9 @@ class ProjectCalendarView(ProjectWorkAccessMixin, TemplateView):
             ).distinct().order_by("first_name", "last_name", "username") if can_filter_staff else User.objects.none(),
             "can_filter_staff": can_filter_staff,
             "counts": {
-                "events": events.count(),
-                "tasks": tasks.count(),
-                "deliverables": deliverables.count(),
+                "events": len([e for e in entries if e["order"] == 0]),
+                "tasks": len([e for e in entries if e["order"] == 1]),
+                "deliverables": len([e for e in entries if e["order"] == 2]),
             },
         })
         return context

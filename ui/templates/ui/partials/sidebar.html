@@ -1,282 +1,56 @@
-{% load user_groups %}
-
-<aside class="sidebar text-bg-dark offcanvas-lg offcanvas-start" tabindex="-1" id="sidebar" aria-labelledby="sidebarLabel" data-bs-theme="dark">
+{# ui/partials/sidebar.html: groups come from ui/navigation.py #}
+<aside class="sidebar offcanvas-lg offcanvas-start" tabindex="-1" id="sidebar" aria-labelledby="sidebarLabel" data-bs-theme="dark">
     <div class="offcanvas-header d-lg-none">
-        <div class="sidebar-brand" id="sidebarLabel">
+        <a class="sidebar-brand" id="sidebarLabel" href="{% url 'ui:home' %}">
             <span class="sidebar-brand-mark" aria-hidden="true"><i class="bi bi-cloud-fill"></i></span>
-            <span>
-                <strong>Ocean Clouds</strong>
-                <small>Workspace</small>
-            </span>
-        </div>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" data-bs-target="#sidebar" aria-label="Close"></button>
+            <span><strong>Ocean Clouds</strong><small>Studio ERP</small></span>
+        </a>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" data-bs-target="#sidebar" aria-label="Close menu"></button>
     </div>
 
     <div class="offcanvas-body">
-    <div class="sidebar-brand d-none d-lg-flex">
-        <span class="sidebar-brand-mark" aria-hidden="true"><i class="bi bi-cloud-fill"></i></span>
-        <span>
-            <strong>Ocean Clouds</strong>
-            <small>ERP workspace</small>
-        </span>
-    </div>
+        <a class="sidebar-brand d-none d-lg-flex" href="{% url 'ui:home' %}">
+            <span class="sidebar-brand-mark" aria-hidden="true"><i class="bi bi-cloud-fill"></i></span>
+            <span><strong>Ocean Clouds</strong><small>Studio ERP</small></span>
+        </a>
 
-    {% if request.user.is_authenticated %}
-        <label class="sidebar-search" for="sidebarSearch">
-            <i class="bi bi-search" aria-hidden="true"></i>
-            <input id="sidebarSearch" type="search" placeholder="Find a page..." autocomplete="off" aria-label="Search navigation">
-            <kbd>/</kbd>
-        </label>
-    {% endif %}
+        {% if request.user.is_authenticated %}
+            <label class="sidebar-search" for="sidebarSearch">
+                <i class="bi bi-search" aria-hidden="true"></i>
+                <input id="sidebarSearch" type="search" placeholder="Jump to…" autocomplete="off" aria-label="Find a page">
+                <kbd>/</kbd>
+            </label>
 
-    <div class="sidebar-navigation" id="sidebarNavigation">
-
-    {% if request.user.is_authenticated %}
-        {% if request.user.is_superuser or request.user|has_group:"Admin" %}
-            <p class="sidebar-section-title">Overview</p>
-            <nav class="nav flex-column mb-3">
-                <a class="nav-link" href="{% url 'ui:home' %}">Dashboard</a>
-                <a class="nav-link" href="{% url 'reports:dashboard' %}">Reports</a>
-                <a class="nav-link" href="{% url 'reports:attendance' %}">Attendance &amp; Leave</a>
-                <a class="nav-link" href="{% url 'todos:todo_list' %}">To Do</a>
+            <nav class="sidebar-navigation" id="sidebarNavigation" aria-label="Main">
+                {% for section in nav_sections %}
+                    <div class="nav-section{% if section.active %} has-active{% endif %}" data-section="{{ section.title|slugify }}">
+                        <button type="button" class="nav-section-toggle" aria-expanded="true">
+                            <span>{{ section.title }}</span>
+                            <i class="bi bi-chevron-down" aria-hidden="true"></i>
+                        </button>
+                        <div class="nav flex-column">
+                            {% for item in section.items %}
+                                <a class="nav-link{% if item.active %} active{% endif %}" href="{{ item.url }}"{% if item.active %} aria-current="page"{% endif %}>
+                                    <i class="bi {{ item.icon }}" aria-hidden="true"></i>
+                                    <span>{{ item.label }}</span>
+                                </a>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endfor %}
+                <div class="sidebar-empty d-none" id="sidebarEmpty">No page matches.</div>
             </nav>
-
-            <p class="sidebar-section-title">CRM</p>
-            <nav class="nav flex-column mb-3">
-                <a class="nav-link" href="{% url 'crm:inquiry_list' %}">Inquiries</a>
-                <a class="nav-link" href="{% url 'crm:lead_list' %}">Leads</a>
-                <a class="nav-link" href="{% url 'crm:client_list' %}">Clients</a>
-                <a class="nav-link" href="{% url 'crm:review_list' %}">Reviews</a>
-            </nav>
-
-            <p class="sidebar-section-title">Sales &amp; Finance</p>
-            <nav class="nav flex-column mb-3">
-                <a class="nav-link" href="{% url 'sales:deal_list' %}">Deals</a>
-                <a class="nav-link" href="{% url 'sales:proposal_list' %}">Proposals</a>
-                <a class="nav-link" href="{% url 'sales:contract_list' %}">Contracts</a>
-                <a class="nav-link" href="{% url 'sales:invoice_list' %}">Invoices</a>
-            </nav>
-
-            <p class="sidebar-section-title">Projects &amp; Tasks</p>
-            <nav class="nav flex-column mb-3">
-                <a class="nav-link" href="{% url 'projects:project_kanban' %}">Projects</a>
-                <a class="nav-link" href="{% url 'projects:task_kanban' %}">Tasks</a>
-                <a class="nav-link" href="{% url 'projects:deliverable_kanban' %}">Deliverables</a>
-                <a class="nav-link" href="{% url 'projects:project_calendar' %}">Project Calendar</a>
-            </nav>
-
-            <p class="sidebar-section-title">Events</p>
-            <nav class="nav flex-column mb-3">
-                <a class="nav-link" href="{% url 'events:event_list' %}">Events</a>
-                <a class="nav-link" href="{% url 'events:venue_list' %}">Venues</a>
-                <a class="nav-link" href="{% url 'events:checklist_list' %}">Checklists</a>
-                <a class="nav-link" href="{% url 'events:event_calendar' %}">Event Calendar</a>
-            </nav>
-
-            <p class="sidebar-section-title">Services &amp; Catalog</p>
-            <nav class="nav flex-column mb-3">
-                <a class="nav-link" href="{% url 'services:service_list' %}">Services</a>
-                <a class="nav-link" href="{% url 'services:package_list' %}">Packages</a>
-                <a class="nav-link" href="{% url 'services:vendor_list' %}">Vendors</a>
-                <a class="nav-link" href="{% url 'services:inventory_list' %}">Inventory</a>
-            </nav>
-
-            <p class="sidebar-section-title">Messaging</p>
-            <nav class="nav flex-column mb-3">
-                <a class="nav-link" href="{% url 'messaging:template_list' %}">Email Templates</a>
-                <a class="nav-link" href="{% url 'messaging:campaign_list' %}">Email Campaigns</a>
-                <a class="nav-link" href="{% url 'messaging:whatsapp_template_list' %}">WhatsApp Templates</a>
-                <a class="nav-link" href="{% url 'messaging:whatsapp_log_list' %}">WhatsApp Logs</a>
-            </nav>
-
-            <p class="sidebar-section-title">Communication &amp; Docs</p>
-            <nav class="nav flex-column mb-3">
-                <a class="nav-link" href="{% url 'messaging:ticket_list' %}">Raise a Ticket</a>
-                <a class="nav-link" href="#">Communication Logs</a>
-                <a class="nav-link" href="#">Documents</a>
-            </nav>
-
-            <p class="sidebar-section-title">System</p>
-            <nav class="nav flex-column mb-3">
-                <a class="nav-link" href="{% url 'adminpanel:user_list' %}">Users</a>
-                <a class="nav-link" href="{% url 'adminpanel:role_list' %}">Roles &amp; Permissions</a>
-                <a class="nav-link" href="{% url 'adminpanel:system_settings' %}">System Settings</a>
-            </nav>
-
-        {% elif request.user|has_group:"CRM Manager" %}
-            <p class="sidebar-section-title">Overview</p>
-            <nav class="nav flex-column mb-3">
-                <a class="nav-link" href="{% url 'ui:home' %}">Dashboard</a>
-                <a class="nav-link" href="{% url 'reports:dashboard' %}">Reports</a>
-                <a class="nav-link" href="{% url 'todos:todo_list' %}">To Do</a>
-            </nav>
-
-            <p class="sidebar-section-title">CRM</p>
-            <nav class="nav flex-column mb-3">
-                <a class="nav-link" href="{% url 'crm:inquiry_list' %}">Inquiries</a>
-                <a class="nav-link" href="{% url 'crm:lead_list' %}">Leads</a>
-                <a class="nav-link" href="{% url 'crm:client_list' %}">Clients</a>
-                <a class="nav-link" href="{% url 'crm:review_list' %}">Reviews</a>
-            </nav>
-
-            <p class="sidebar-section-title">Sales &amp; Finance</p>
-            <nav class="nav flex-column mb-3">
-                <a class="nav-link" href="{% url 'sales:deal_list' %}">Deals</a>
-                <a class="nav-link" href="{% url 'sales:proposal_list' %}">Proposals</a>
-                <a class="nav-link" href="{% url 'sales:contract_list' %}">Contracts</a>
-                <a class="nav-link" href="{% url 'sales:invoice_list' %}">Invoices</a>
-            </nav>
-
-            <p class="sidebar-section-title">Events</p>
-            <nav class="nav flex-column mb-3">
-                <a class="nav-link" href="{% url 'events:event_list' %}">Events</a>
-                <a class="nav-link" href="{% url 'events:venue_list' %}">Venues</a>
-                <a class="nav-link" href="{% url 'events:checklist_list' %}">Checklists</a>
-                <a class="nav-link" href="{% url 'events:event_calendar' %}">Event Calendar</a>
-            </nav>
-
-            <p class="sidebar-section-title">Communication</p>
-            <nav class="nav flex-column mb-3">
-                <a class="nav-link" href="{% url 'messaging:ticket_list' %}">Raise a Ticket</a>
-                <a class="nav-link" href="#">Communication Logs</a>
-                <a class="nav-link" href="#">Documents</a>
-            </nav>
-
-        {% elif request.user|has_group:"Project Manager" %}
-            <p class="sidebar-section-title">Overview</p>
-            <nav class="nav flex-column mb-3">
-                <a class="nav-link" href="{% url 'ui:home' %}">Dashboard</a>
-                <a class="nav-link" href="{% url 'reports:dashboard' %}">Reports</a>
-                <a class="nav-link" href="{% url 'reports:attendance' %}">Attendance &amp; Leave</a>
-                <a class="nav-link" href="{% url 'todos:todo_list' %}">To Do</a>
-            </nav>
-
-            <p class="sidebar-section-title">CRM</p>
-            <nav class="nav flex-column mb-3">
-                <a class="nav-link" href="{% url 'crm:inquiry_list' %}">Inquiries</a>
-                <a class="nav-link" href="{% url 'sales:contract_list' %}">Contracts</a>
-            </nav>
-
-            <p class="sidebar-section-title">Projects &amp; Tasks</p>
-            <nav class="nav flex-column mb-3">
-                <a class="nav-link" href="{% url 'projects:project_kanban' %}">Projects</a>
-                <a class="nav-link" href="{% url 'projects:task_kanban' %}">Tasks</a>
-                <a class="nav-link" href="{% url 'projects:deliverable_kanban' %}">Deliverables</a>
-                <a class="nav-link" href="{% url 'projects:project_calendar' %}">Project Calendar</a>
-            </nav>
-
-            <p class="sidebar-section-title">Events</p>
-            <nav class="nav flex-column mb-3">
-                <a class="nav-link" href="{% url 'events:event_list' %}">Events</a>
-                <a class="nav-link" href="{% url 'events:venue_list' %}">Venues</a>
-                <a class="nav-link" href="{% url 'events:checklist_list' %}">Checklists</a>
-                <a class="nav-link" href="{% url 'events:event_calendar' %}">Event Calendar</a>
-            </nav>
-
-            <p class="sidebar-section-title">Communication</p>
-            <nav class="nav flex-column mb-3">
-                <a class="nav-link" href="{% url 'messaging:ticket_list' %}">Raise a Ticket</a>
-                <a class="nav-link" href="#">Team Messages</a>
-                <a class="nav-link" href="#">Documents</a>
-            </nav>
-
         {% else %}
-            <p class="sidebar-section-title">My Day</p>
-            <nav class="nav flex-column mb-3">
-                <a class="nav-link" href="{% url 'ui:home' %}">Dashboard</a>
-                <a class="nav-link" href="{% url 'reports:attendance' %}">My Attendance &amp; Leave</a>
-                <a class="nav-link" href="{% url 'todos:todo_list' %}">To Do</a>
-            </nav>
-
-            <p class="sidebar-section-title">My Tasks</p>
-            <nav class="nav flex-column mb-3">
-                <a class="nav-link" href="{% url 'projects:task_kanban' %}">Task</a>
-                <a class="nav-link" href="{% url 'projects:deliverable_kanban' %}">Deliverable</a>
-                <a class="nav-link" href="{% url 'projects:project_calendar' %}">Calendar</a>
-            </nav>
-
-            <p class="sidebar-section-title">My CRM</p>
-            <nav class="nav flex-column mb-3">
-                <a class="nav-link" href="{% url 'crm:inquiry_list' %}">Inquiries</a>
-                <a class="nav-link" href="{% url 'sales:contract_list' %}">Contracts</a>
-            </nav>
-
-            <p class="sidebar-section-title">Events</p>
-            <nav class="nav flex-column mb-3">
-                <a class="nav-link" href="{% url 'events:event_calendar' %}">Event Calendar</a>
-            </nav>
-
-            <p class="sidebar-section-title">Communication</p>
-            <nav class="nav flex-column mb-3">
-                <a class="nav-link" href="{% url 'messaging:ticket_list' %}">Raise a Ticket</a>
-                <a class="nav-link" href="#">Team Messages</a>
+            <nav class="sidebar-navigation" aria-label="Main">
+                <div class="nav flex-column">
+                    <a class="nav-link" href="{% url 'ui:login' %}"><i class="bi bi-box-arrow-in-right" aria-hidden="true"></i><span>Sign in</span></a>
+                </div>
             </nav>
         {% endif %}
-    {% else %}
-        <p class="sidebar-section-title">Public</p>
-        <nav class="nav flex-column mb-3">
-            <a class="nav-link active" href="{% url 'ui:home' %}">Home</a>
-            <a class="nav-link" href="{% url 'ui:login' %}">Login</a>
-        </nav>
-    {% endif %}
-    </div>
 
-    <div class="sidebar-footer">
-        <div class="sidebar-version">Ocean Clouds &middot; {{ APP_VERSION|default:"dev" }}</div>
-    </div>
+        <div class="sidebar-footer">
+            <span>Ocean Clouds</span>
+            <span>{{ APP_VERSION|default:"dev" }}</span>
+        </div>
     </div>
 </aside>
-
-<script>
-document.addEventListener("DOMContentLoaded", () => {
-    const sidebar = document.getElementById("sidebar");
-    if (!sidebar) return;
-
-    const navigation = document.getElementById("sidebarNavigation");
-    const links = Array.from(navigation.querySelectorAll("a.nav-link[href]"));
-    const normalizePath = (path) => path.replace(/\/+$/, "") || "/";
-    const currentPath = normalizePath(window.location.pathname);
-
-    links.forEach((link) => {
-        if (link.getAttribute("href") === "#") return;
-        const linkPath = normalizePath(new URL(link.href, window.location.origin).pathname);
-        if (linkPath === currentPath) {
-            link.classList.add("active");
-            link.setAttribute("aria-current", "page");
-        }
-    });
-
-    const search = document.getElementById("sidebarSearch");
-    const filterNavigation = () => {
-        const query = search.value.trim().toLowerCase();
-        navigation.querySelectorAll("nav").forEach((group) => {
-            const groupLinks = Array.from(group.querySelectorAll("a.nav-link"));
-            groupLinks.forEach((link) => {
-                link.classList.toggle("d-none", Boolean(query) && !link.textContent.toLowerCase().includes(query));
-            });
-            const hasVisibleLink = groupLinks.some((link) => !link.classList.contains("d-none"));
-            group.classList.toggle("d-none", !hasVisibleLink);
-            const heading = group.previousElementSibling;
-            if (heading?.classList.contains("sidebar-section-title")) {
-                heading.classList.toggle("d-none", !hasVisibleLink);
-            }
-        });
-    };
-
-    if (search) {
-        search.addEventListener("input", filterNavigation);
-        document.addEventListener("keydown", (event) => {
-            if (event.key === "/" && !event.ctrlKey && !event.metaKey && !event.altKey &&
-                !["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName)) {
-                event.preventDefault();
-                search.focus();
-            }
-            if (event.key === "Escape" && document.activeElement === search) {
-                search.value = "";
-                filterNavigation();
-                search.blur();
-            }
-        });
-    }
-});
-</script>

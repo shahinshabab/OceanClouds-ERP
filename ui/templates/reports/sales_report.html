@@ -3,22 +3,18 @@
 {% block title %}Sales Report{% endblock %}
 
 {% block content %}
-<div class="container py-3">
-
-  <!-- Header + Filter -->
-  <div class="d-flex justify-content-between align-items-start mb-3">
+<div class="container">
+  <div class="page-header">
     <div>
-      <a href="{{ pdf_download_url }}" class="btn btn-outline-danger btn-sm">
+      <div class="page-eyebrow"><i class="bi bi-bar-chart-line"></i> Team</div>
+      <h1 class="page-title">Sales Report</h1>
+      <div class="page-subtitle">{{ date_from }} to {{ date_to }}</div>
+    </div>
+    <div class="page-actions">
+      <a href="{{ pdf_download_url }}" class="btn btn-outline-secondary btn-sm">
         <i class="bi bi-file-earmark-pdf"></i>
         Download PDF
       </a>
-    </div>
-
-    <div class="text-end">
-      <h2 class="fw-semibold mb-1">Sales Report</h2>
-      <div class="text-muted small">
-        {{ date_from }} to {{ date_to }}
-      </div>
     </div>
   </div>
 

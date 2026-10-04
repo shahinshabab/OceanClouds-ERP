@@ -1,131 +1,77 @@
 {# projects/project_calendar.html #}
 {% extends "ui/base.html" %}
 
-{% block title %}Project Calendar{% endblock %}
-
-{% block extra_css %}
-<style>
-  .pc-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-top: 1px solid var(--bs-border-color); border-left: 1px solid var(--bs-border-color); }
-  .pc-head { font-size: .75rem; text-transform: uppercase; color: var(--bs-secondary-color); padding: .4rem .5rem; border-right: 1px solid var(--bs-border-color); border-bottom: 1px solid var(--bs-border-color); background: var(--bs-tertiary-bg); }
-  .pc-day { min-height: 120px; padding: .35rem; border-right: 1px solid var(--bs-border-color); border-bottom: 1px solid var(--bs-border-color); }
-  .pc-day.out { background: var(--bs-tertiary-bg); }
-  .pc-day.out .pc-num { color: var(--bs-secondary-color); }
-  .pc-num { font-size: .8rem; font-weight: 600; margin-bottom: .25rem; }
-  .pc-day.today .pc-num span { background: var(--bs-primary); color: #fff; border-radius: 999px; padding: 0 .4rem; }
-  .pc-card { display: block; font-size: .75rem; line-height: 1.25; border-radius: .35rem; padding: .3rem .4rem; margin-bottom: .25rem; border-left: 3px solid; background: var(--bs-body-bg); box-shadow: 0 0 0 1px var(--bs-border-color) inset; color: inherit; text-decoration: none; }
-  .pc-card:hover { box-shadow: 0 0 0 1px var(--bs-primary) inset; }
-  .pc-card .t { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .pc-card .m { color: var(--bs-secondary-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .pc-event { border-left-color: #0d6efd; background: rgba(13,110,253,.06); }
-  .pc-task { border-left-color: #f59f00; }
-  .pc-deliverable { border-left-color: #20c997; }
-  .pc-card.done { opacity: .55; }
-  .pc-card.overdue { border-left-color: #dc3545; }
-  .pc-card.mine .who { font-weight: 600; color: var(--bs-primary); }
-  .pc-legend span { display: inline-flex; align-items: center; gap: .3rem; margin-right: .9rem; font-size: .8rem; }
-  .pc-legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
-  @media (max-width: 767.98px) {
-    .pc-grid { grid-template-columns: 1fr; }
-    .pc-head { display: none; }
-    .pc-day { min-height: 0; }
-    .pc-day.out, .pc-day.empty { display: none; }
-  }
-</style>
-{% endblock %}
+{% block title %}Work calendar{% endblock %}
 
 {% block content %}
-<div class="container-fluid px-3 pt-0 pb-3">
-
-  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+<div class="container">
+  <div class="page-header">
     <div>
-      <h2 class="fw-semibold mb-0">Project Calendar</h2>
-      <div class="text-muted small">
+      <div class="page-eyebrow"><i class="bi bi-calendar-week"></i> Calendars</div>
+      <h1 class="page-title">Work calendar</h1>
+      <div class="page-subtitle">
         {{ counts.events }} event{{ counts.events|pluralize }} ·
         {{ counts.tasks }} task{{ counts.tasks|pluralize }} ·
-        {{ counts.deliverables }} deliverable{{ counts.deliverables|pluralize }}
+        {{ counts.deliverables }} deliverable{{ counts.deliverables|pluralize }} in view
       </div>
     </div>
-
-    <div class="d-flex align-items-center gap-2">
-      <a class="btn btn-outline-secondary btn-sm" href="?month={{ prev_month }}{% if project_filter %}&project={{ project_filter }}{% endif %}{% if staff_filter %}&staff={{ staff_filter }}{% endif %}" aria-label="Previous month">&lsaquo;</a>
-      <strong class="px-1">{{ month|date:"F Y" }}</strong>
-      <a class="btn btn-outline-secondary btn-sm" href="?month={{ next_month }}{% if project_filter %}&project={{ project_filter }}{% endif %}{% if staff_filter %}&staff={{ staff_filter }}{% endif %}" aria-label="Next month">&rsaquo;</a>
-      <a class="btn btn-outline-secondary btn-sm" href="?month={{ this_month }}">Today</a>
+    <div class="page-actions">
+      <a href="{% url 'events:event_calendar' %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-calendar-event"></i>Event calendar</a>
     </div>
   </div>
 
-  {% if can_filter_staff %}
-    <form method="get" class="row g-2 align-items-end mb-3">
-      <input type="hidden" name="month" value="{{ month|date:'Y-m' }}">
-      <div class="col-md-4">
-        <label class="form-label small text-muted mb-1">Project</label>
-        <select name="project" class="form-select form-select-sm">
+  <div class="card overflow-hidden">
+    {% include "ui/calendar/toolbar.html" %}
+
+    <form method="get" class="cal-filters" aria-label="Filters">
+      <input type="hidden" name="view" value="{{ cal.view }}">
+      <input type="hidden" name="date" value="{{ cal.anchor|date:'Y-m-d' }}">
+      <input type="hidden" name="show" value="{{ show_filter }}">
+      <div class="segmented" role="group" aria-label="Show">
+        <button type="submit" name="show" value="" class="{% if not show_filter %}active{% endif %}">All</button>
+        <button type="submit" name="show" value="mine" class="{% if show_filter == 'mine' %}active{% endif %}"><i class="bi bi-person"></i>Mine</button>
+        <button type="submit" name="show" value="events" class="{% if show_filter == 'events' %}active{% endif %}"><i class="bi bi-stars"></i>Events</button>
+        <button type="submit" name="show" value="tasks" class="{% if show_filter == 'tasks' %}active{% endif %}"><i class="bi bi-check2-square"></i>Tasks</button>
+        <button type="submit" name="show" value="deliverables" class="{% if show_filter == 'deliverables' %}active{% endif %}"><i class="bi bi-box-seam"></i>Deliverables</button>
+      </div>
+
+      {% if can_filter_staff %}
+        <select name="project" class="form-select form-select-sm" onchange="this.form.submit()" aria-label="Project">
           <option value="">All projects</option>
           {% for p in project_choices %}
             <option value="{{ p.pk }}" {% if project_filter == p.pk|stringformat:"s" %}selected{% endif %}>{{ p.name }}</option>
           {% endfor %}
         </select>
-      </div>
-      <div class="col-md-4">
-        <label class="form-label small text-muted mb-1">Staff</label>
-        <select name="staff" class="form-select form-select-sm">
+        <select name="staff" class="form-select form-select-sm" onchange="this.form.submit()" aria-label="Staff">
           <option value="">Everyone</option>
           {% for member in staff_choices %}
             <option value="{{ member.pk }}" {% if staff_filter == member.pk|stringformat:"s" %}selected{% endif %}>{{ member.get_full_name|default:member.username }}</option>
           {% endfor %}
         </select>
-      </div>
-      <div class="col-md-2">
-        <button type="submit" class="btn btn-outline-secondary btn-sm w-100">Apply</button>
+      {% endif %}
+      {% if project_filter or staff_filter or show_filter %}
+        <a href="?view={{ cal.view }}&amp;date={{ cal.anchor|date:'Y-m-d' }}" class="btn btn-light btn-sm"><i class="bi bi-x-lg"></i>Clear</a>
+      {% endif %}
+
+      <div class="cal-legend ms-auto align-self-center">
+        <span><i class="cal-swatch solid"></i>Event</span>
+        <span><i class="cal-swatch"></i>Task</span>
+        <span><i class="cal-swatch gray"></i>Deliverable</span>
+        <span><i class="cal-swatch danger"></i>Overdue</span>
+        <span><i class="cal-swatch soft"></i>Done</span>
       </div>
     </form>
-  {% endif %}
 
-  <div class="pc-legend mb-2 text-muted">
-    <span><i style="background:#0d6efd"></i>Event</span>
-    <span><i style="background:#f59f00"></i>Task</span>
-    <span><i style="background:#20c997"></i>Deliverable</span>
-    <span><i style="background:#dc3545"></i>Overdue</span>
+    {% if cal.view == "month" %}
+      {% include "ui/calendar/month.html" %}
+    {% elif cal.view == "week" %}
+      {% include "ui/calendar/week.html" %}
+    {% else %}
+      {% include "ui/calendar/agenda.html" %}
+    {% endif %}
   </div>
-
-  <div class="card">
-    <div class="pc-grid">
-      {% for name in weekday_names %}
-        <div class="pc-head">{{ name }}</div>
-      {% endfor %}
-
-      {% for week in weeks %}
-        {% for day in week %}
-          <div class="pc-day{% if not day.in_month %} out{% endif %}{% if day.is_today %} today{% endif %}{% if not day.items %} empty{% endif %}">
-            <div class="pc-num"><span>{{ day.date|date:"j" }}</span> <span class="d-md-none text-muted fw-normal">{{ day.date|date:"D, M" }}</span></div>
-
-            {% for item in day.items %}
-              {% if item.url %}<a href="{{ item.url }}"{% else %}<div{% endif %}
-                 class="pc-card pc-{{ item.kind }}{% if item.done %} done{% endif %}{% if item.overdue %} overdue{% endif %}{% if item.is_mine %} mine{% endif %}"
-                 title="{{ item.title }}{% if item.project %} · {{ item.project }}{% endif %} · {{ item.status }}">
-                <div class="t">
-                  {% if item.kind == "event" and item.time %}{{ item.time|time:"H:i" }} {% endif %}{{ item.title }}
-                </div>
-                {% if item.kind == "event" %}
-                  <div class="m">
-                    {% if item.project %}{{ item.project }}{% elif item.needs_project %}<span class="text-danger">No project yet</span>{% endif %}
-                    {% if item.meta %} · {{ item.meta }}{% endif %}
-                  </div>
-                {% else %}
-                  <div class="m">{{ item.project }}</div>
-                  <div class="m who">
-                    <i class="bi bi-person" aria-hidden="true"></i>
-                    {{ item.assignee|default:"Unassigned" }}{% if item.is_mine %} (me){% endif %}
-                    {% if item.start_date %} · from {{ item.start_date|date:"M j" }}{% endif %}
-                  </div>
-                {% endif %}
-              {% if item.url %}</a>{% else %}</div>{% endif %}
-            {% endfor %}
-          </div>
-        {% endfor %}
-      {% endfor %}
-    </div>
-  </div>
-
+  <p class="small text-muted mt-2 mb-0"><i class="bi bi-info-circle"></i> Tasks and deliverables sit on their due date. A bar on the left edge marks work assigned to you.</p>
 </div>
 {% endblock %}
+
+{% block extra_js %}{% include "ui/calendar/mobile_default.html" %}{% endblock %}

@@ -17,7 +17,7 @@
     </h2>
 
     <a href="{% url 'services:package_list' %}" class="btn btn-outline-secondary btn-sm">
-      Back to Packages
+      <i class="bi bi-arrow-left"></i>Back to Packages
     </a>
   </div>
 
@@ -114,7 +114,7 @@
 
         {% if can_manage_services %}
           <button type="button" class="btn btn-sm btn-outline-primary" id="add-item-row">
-            + Add Item
+            <i class="bi bi-plus-lg"></i>Add Item
           </button>
         {% endif %}
       </div>
@@ -234,7 +234,7 @@
 
         {% if can_manage_services %}
           <button type="button" class="btn btn-sm btn-outline-primary" id="add-deliverable-row">
-            + Add Deliverable
+            <i class="bi bi-plus-lg"></i>Add Deliverable
           </button>
         {% endif %}
       </div>

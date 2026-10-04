@@ -20,7 +20,7 @@
     <div>
       <a href="{% if object %}{% url 'projects:project_detail' object.pk %}{% else %}{% url 'projects:project_list' %}{% endif %}"
          class="btn btn-outline-secondary btn-sm">
-        Back
+        <i class="bi bi-arrow-left"></i>Back
       </a>
     </div>
   </div>

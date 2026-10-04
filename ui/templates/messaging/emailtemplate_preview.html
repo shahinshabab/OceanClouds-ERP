@@ -19,12 +19,12 @@
       {% if perms.messaging.change_emailtemplate %}
         <a href="{% url 'messaging:template_update' template.pk %}"
            class="btn btn-sm btn-outline-primary">
-          Edit
+          <i class="bi bi-pencil"></i>Edit
         </a>
       {% endif %}
 
       <a href="{{ back_url }}" class="btn btn-sm btn-outline-secondary">
-        Back to details
+        <i class="bi bi-arrow-left"></i>Back to details
       </a>
     </div>
   </div>
@@ -122,7 +122,7 @@
   <!-- Actions -->
   <div class="text-center mb-3">
     <a href="{{ back_url }}" class="btn btn-outline-secondary">
-      Back to details
+      <i class="bi bi-arrow-left"></i>Back to details
     </a>
   </div>
 

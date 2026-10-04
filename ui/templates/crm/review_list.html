@@ -17,7 +17,7 @@
     {# Only Admin and CRM Manager can create new reviews #}
     {% if is_admin or is_crm_manager %}
       <a href="{% url 'crm:review_create' %}" class="btn btn-success btn-sm">
-        + New Review
+        <i class="bi bi-plus-lg"></i>New Review
       </a>
     {% endif %}
   </div>
@@ -174,7 +174,7 @@
               {% if is_admin or is_crm_manager %}
                 <a href="{% url 'crm:review_update' review.pk %}"
                    class="btn btn-sm btn-outline-primary">
-                  Edit
+                  <i class="bi bi-pencil"></i>Edit
                 </a>
               {% endif %}
             </td>

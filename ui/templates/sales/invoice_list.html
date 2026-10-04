@@ -1,199 +1,98 @@
 {% extends "ui/base.html" %}
-{% load roles_tags %}
+{% load roles_tags ui_tags %}
 
 {% block title %}Invoices{% endblock %}
 
 {% block content %}
 {% is_admin request.user as is_admin %}
 {% is_crm_manager request.user as is_crm_manager %}
-{% is_project_manager request.user as is_project_manager %}
-{% is_employee request.user as is_employee %}
 
-<div class="container py-3">
-
-  <!-- Header -->
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2 class="fw-semibold mb-0">Invoices</h2>
-
+<div class="container">
+  <div class="page-header">
+    <div>
+      <div class="page-eyebrow"><i class="bi bi-receipt"></i> Billing</div>
+      <h1 class="page-title">Invoices</h1>
+      <div class="page-subtitle">Generated from a signed contract. Record payments against each invoice.</div>
+    </div>
     {% if is_admin or is_crm_manager %}
-      <a href="{% url 'sales:invoice_create' %}" class="btn btn-success btn-sm">
-        + New Invoice
-      </a>
+      <div class="page-actions">
+        <a href="{% url 'sales:invoice_create' %}" class="btn btn-dark btn-sm"><i class="bi bi-plus-lg"></i>New invoice</a>
+      </div>
     {% endif %}
   </div>
 
-  <!-- Search + Filters -->
-  <form method="get" class="row g-2 align-items-end mb-3">
-    <div class="col-md-4">
-      <label for="id_q" class="form-label mb-1 small text-muted">Search</label>
-      <input type="text"
-             id="id_q"
-             name="q"
-             value="{{ q }}"
-             placeholder="Search by invoice no, client, email or phone"
-             class="form-control">
+  <div class="card">
+    <div class="list-tabs">
+      <a href="?q={{ q|urlencode }}&amp;period={{ filter_period }}" class="{% if not filter_status %}active{% endif %}">All</a>
+      {% for value, label in status_choices %}
+        <a href="?q={{ q|urlencode }}&amp;period={{ filter_period }}&amp;status={{ value }}" class="{% if filter_status == value %}active{% endif %}">{{ label }}</a>
+      {% endfor %}
     </div>
-
-    <div class="col-md-3">
-      <label for="id_status" class="form-label mb-1 small text-muted">Status</label>
-      <select name="status" id="id_status" class="form-select">
-        <option value="">All statuses</option>
-        {% for value, label in status_choices %}
-          <option value="{{ value }}" {% if filter_status == value %}selected{% endif %}>
-            {{ label }}
-          </option>
-        {% endfor %}
-      </select>
-    </div>
-
-    <div class="col-md-3">
-      <label for="id_period" class="form-label mb-1 small text-muted">Period</label>
-      <select name="period" id="id_period" class="form-select">
+    <form method="get" class="filter-bar">
+      <input type="hidden" name="status" value="{{ filter_status }}">
+      <div class="search-input" style="flex-basis: 280px">
+        <i class="bi bi-search"></i>
+        <input type="search" name="q" value="{{ q }}" placeholder="Number, client or lead" class="form-control form-control-sm" aria-label="Search">
+      </div>
+      <select name="period" class="form-select form-select-sm" aria-label="Period" onchange="this.form.submit()">
         {% for value, label in period_choices %}
-          <option value="{{ value }}" {% if filter_period == value %}selected{% endif %}>
-            {{ label }}
-          </option>
+          <option value="{{ value }}" {% if filter_period == value %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
-    </div>
+      <div class="filter-actions">
+        <button type="submit" class="btn btn-dark btn-sm"><i class="bi bi-funnel"></i>Filter</button>
+        {% if q or filter_status or filter_period %}<a href="?" class="btn btn-light btn-sm">Clear</a>{% endif %}
+      </div>
+    </form>
 
-    <div class="col-md-2">
-      <button type="submit" class="btn btn-outline-secondary w-100">
-        Apply
-      </button>
-    </div>
-  </form>
-
-  <!-- Invoice Table -->
-  <div class="card shadow-sm">
-    <div class="card-body p-0">
-      <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-          <thead class="table-light">
-            <tr>
-              <th>Invoice</th>
-              <th>Client</th>
-              <th>Issue Date</th>
-              <th>Due Date</th>
-              <th>Status</th>
-              <th class="text-end">Total</th>
-              <th class="text-end">Paid</th>
-              <th class="text-end">Balance</th>
-              <th class="text-end">Actions</th>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Invoice</th>
+            <th>Status</th>
+            <th class="d-none d-lg-table-cell">Issued</th>
+            <th class="d-none d-lg-table-cell">Due</th>
+            <th class="text-end d-none d-md-table-cell">Total</th>
+            <th class="text-end d-none d-md-table-cell">Paid</th>
+            <th class="text-end">Balance</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for invoice in invoices %}
+            {% with client=invoice.deal.client %}
+            <tr data-href="{% url 'sales:invoice_detail' invoice.pk %}">
+              <td>
+                <a href="{% url 'sales:invoice_detail' invoice.pk %}" class="cell-title">{{ invoice.number|default:"Draft invoice" }}</a>
+                <span class="cell-sub">{% if client %}{{ client.display_name|default:client.name }}{% elif invoice.deal.lead %}Lead · {{ invoice.deal.lead.name }}{% else %}—{% endif %}</span>
+              </td>
+              <td>{% status_pill invoice.status invoice.get_status_display %}</td>
+              <td class="d-none d-lg-table-cell text-nowrap">{{ invoice.issue_date|date:"d M Y" }}</td>
+              <td class="d-none d-lg-table-cell text-nowrap">{{ invoice.due_date|date:"d M Y"|default:"—" }}</td>
+              <td class="text-end tabular d-none d-md-table-cell">{{ invoice.total|inr }}</td>
+              <td class="text-end tabular d-none d-md-table-cell">{{ invoice.amount_paid|inr }}</td>
+              <td class="text-end tabular fw-semibold">{{ invoice.balance|inr }}</td>
+              <td class="row-actions">
+                {% if is_admin or is_crm_manager %}
+                  {% if invoice.status != "paid" and invoice.status != "cancelled" %}
+                    <a href="{% url 'sales:payment_create' %}?invoice={{ invoice.pk }}" class="btn btn-outline-secondary btn-sm" title="Record a payment"><i class="bi bi-cash-coin"></i>Payment</a>
+                  {% endif %}
+                  <a href="{% url 'sales:invoice_update' invoice.pk %}" class="btn btn-light btn-sm" title="Edit" aria-label="Edit"><i class="bi bi-pencil"></i></a>
+                {% endif %}
+                <a href="{% url 'sales:invoice_detail' invoice.pk %}" class="btn btn-light btn-sm" title="Open" aria-label="Open"><i class="bi bi-arrow-right"></i></a>
+              </td>
             </tr>
-          </thead>
-
-          <tbody>
-            {% for invoice in invoices %}
-              {% with client=invoice.deal.client %}
-              <tr>
-                <td>
-                  <a href="{% url 'sales:invoice_detail' invoice.pk %}" class="text-decoration-none fw-semibold">
-                    {{ invoice.number|default:"Draft Invoice" }}
-                  </a>
-                </td>
-
-                <td>
-                  {% if client %}
-                    <a href="{% url 'crm:client_detail' client.pk %}" class="text-decoration-none">
-                      {{ client.display_name|default:client.name }}
-                    </a>
-                  {% elif invoice.deal.lead %}
-                    {{ invoice.deal.lead.name }} <span class="badge bg-light text-muted border">Lead</span>
-                  {% else %}
-                    <span class="text-muted">—</span>
-                  {% endif %}
-                </td>
-
-                <td>{{ invoice.issue_date }}</td>
-
-                <td>
-                  {% if invoice.due_date %}
-                    {{ invoice.due_date }}
-                  {% else %}
-                    <span class="text-muted">—</span>
-                  {% endif %}
-                </td>
-
-                <td>
-                  {% if invoice.status == "paid" %}
-                    <span class="badge bg-success">{{ invoice.get_status_display }}</span>
-                  {% elif invoice.status == "partially_paid" %}
-                    <span class="badge bg-primary">{{ invoice.get_status_display }}</span>
-                  {% elif invoice.status == "overdue" %}
-                    <span class="badge bg-danger">{{ invoice.get_status_display }}</span>
-                  {% elif invoice.status == "cancelled" %}
-                    <span class="badge bg-dark">{{ invoice.get_status_display }}</span>
-                  {% else %}
-                    <span class="badge bg-secondary">{{ invoice.get_status_display }}</span>
-                  {% endif %}
-                </td>
-
-                <td class="text-end fw-semibold">{{ invoice.total }}</td>
-                <td class="text-end">{{ invoice.amount_paid }}</td>
-                <td class="text-end fw-semibold">{{ invoice.balance }}</td>
-
-                <td class="text-end">
-                  <div class="btn-group btn-group-sm" role="group">
-                    <a href="{% url 'sales:invoice_detail' invoice.pk %}"
-                       class="btn btn-outline-secondary">
-                      View
-                    </a>
-
-                    {% if is_admin or is_crm_manager %}
-                      <a href="{% url 'sales:invoice_update' invoice.pk %}"
-                         class="btn btn-outline-primary">
-                        Edit
-                      </a>
-
-                      <a href="{% url 'sales:payment_create' %}?invoice={{ invoice.pk }}"
-                         class="btn btn-outline-success">
-                        Payment
-                      </a>
-
-                    {% endif %}
-                  </div>
-                </td>
-              </tr>
-              {% endwith %}
-
-            {% empty %}
-              <tr>
-                <td colspan="9" class="text-center text-muted py-3">
-                  No invoices found.
-                </td>
-              </tr>
-            {% endfor %}
-          </tbody>
-
-        </table>
-      </div>
+            {% endwith %}
+          {% empty %}
+            <tr><td colspan="8">
+              <div class="empty-state"><i class="bi bi-receipt"></i><p class="mb-0">No invoices match these filters.</p></div>
+            </td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
+    {% include "ui/partials/pagination.html" %}
   </div>
-
-  {% if is_paginated %}
-    <div class="mt-3 d-flex justify-content-between align-items-center">
-      <div>
-        {% if page_obj.has_previous %}
-          <a href="?page={{ page_obj.previous_page_number }}&q={{ q }}&status={{ filter_status }}&period={{ filter_period }}">
-            ‹ Previous
-          </a>
-        {% endif %}
-      </div>
-
-      <div class="small text-muted">
-        Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
-      </div>
-
-      <div>
-        {% if page_obj.has_next %}
-          <a href="?page={{ page_obj.next_page_number }}&q={{ q }}&status={{ filter_status }}&period={{ filter_period }}">
-            Next ›
-          </a>
-        {% endif %}
-      </div>
-    </div>
-  {% endif %}
-
 </div>
 {% endblock %}

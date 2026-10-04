@@ -16,7 +16,7 @@
     </div>
 
     <a href="{% url 'todos:todo_create' %}" class="btn btn-success btn-sm">
-      + New To-Do
+      <i class="bi bi-plus-lg"></i>New To-Do
     </a>
   </div>
 
@@ -255,13 +255,13 @@
                   {% endif %}
 
                   <a href="{% url 'todos:todo_update' todo.pk %}" class="btn btn-outline-primary">
-                    Edit
+                    <i class="bi bi-pencil"></i>Edit
                   </a>
 
                   {% can_delete_todo request.user todo as todo_deletable %}
                   {% if todo_deletable %}
                   <a href="{% url 'todos:todo_delete' todo.pk %}" class="btn btn-outline-danger">
-                    Delete
+                    <i class="bi bi-trash"></i>Delete
                   </a>
                   {% endif %}
                 </div>

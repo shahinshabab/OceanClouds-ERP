@@ -1,261 +1,141 @@
 {% extends "ui/base.html" %}
-{% load roles_tags %}
+{% load roles_tags ui_tags sales_flow %}
 
-{% block title %}Lead – {{ lead.name }}{% endblock %}
+{% block title %}{{ lead.name }} · Lead{% endblock %}
 
 {% block content %}
 {% is_admin request.user as is_admin %}
 {% is_crm_manager request.user as is_crm_manager %}
+{% with latest_deal=deals|first %}
 
-<div class="container py-3">
+<div class="container">
   {% include "common/detail_messages.html" %}
-  <!-- Header -->
-  <div class="d-flex justify-content-between align-items-start mb-4 gap-3">
-    <div>
-      <h2 class="fw-semibold mb-0">
-        {{ lead.name }}
-      </h2>
 
-      <div class="mt-2">
-        {% if lead.status == "converted" %}
-          <span class="badge bg-success">
-            {{ lead.get_status_display }}
-          </span>
-        {% elif lead.status == "proposal_sent" %}
-          <span class="badge bg-primary">
-            {{ lead.get_status_display }}
-          </span>
-        {% elif lead.status == "qualified" %}
-          <span class="badge bg-info text-dark">
-            {{ lead.get_status_display }}
-          </span>
-        {% elif lead.status == "lost" %}
-          <span class="badge bg-dark">
-            {{ lead.get_status_display }}
-          </span>
-        {% else %}
-          <span class="badge bg-secondary">
-            {{ lead.get_status_display }}
-          </span>
-        {% endif %}
-
-        {% if lead.source %}
-          <span class="badge bg-light text-dark border">
-            {{ lead.get_source_display }}
-          </span>
-        {% endif %}
+  <div class="page-header">
+    <div class="d-flex align-items-center gap-3 min-w-0">
+      <span class="avatar-circle lg">{{ lead.name|initials }}</span>
+      <div class="min-w-0">
+        <div class="page-eyebrow"><a href="{% url 'crm:lead_list' %}"><i class="bi bi-person-lines-fill"></i> Leads</a></div>
+        <h1 class="page-title">{{ lead.name }}</h1>
+        <div class="page-subtitle d-flex flex-wrap align-items-center gap-2">
+          {% status_pill lead.status lead.get_status_display %}
+          {% if lead.source %}<span class="status status-muted">{{ lead.get_source_display }}</span>{% endif %}
+          {% if lead.wedding_date %}<span><i class="bi bi-calendar-heart"></i> {{ lead.wedding_date|date:"d M Y" }}</span>{% endif %}
+          {% if lead.wedding_city %}<span><i class="bi bi-geo-alt"></i> {{ lead.wedding_city }}</span>{% endif %}
+        </div>
       </div>
     </div>
 
-    <div class="text-end d-flex flex-wrap justify-content-end gap-2">
+    <div class="page-actions">
+      {% if lead.phone %}<a href="tel:{{ lead.phone }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-telephone"></i>Call</a>{% endif %}
+      {% if lead.whatsapp or lead.phone %}
+        <a href="https://wa.me/{{ lead.whatsapp|default:lead.phone|cut:' '|cut:'+'|cut:'-' }}" target="_blank" rel="noopener" class="btn btn-outline-secondary btn-sm"><i class="bi bi-whatsapp"></i>WhatsApp</a>
+      {% endif %}
       {% if is_admin or is_crm_manager %}
-
-
-        {% if lead.status == "converted" %}
-          {% if lead.client %}
-            <a href="{% url 'crm:client_detail' lead.client.pk %}"
-               class="btn btn-success btn-sm">
-              View Client
-            </a>
-          {% endif %}
-        {% else %}
-          <a href="{% url 'sales:lead_convert_to_deal' lead.pk %}"
-             class="btn btn-success btn-sm">
-            Convert to Deal
-          </a>
+        <a href="{% url 'crm:lead_update' lead.pk %}" class="btn btn-outline-dark btn-sm"><i class="bi bi-pencil"></i>Edit</a>
+        {% if latest_deal %}
+          <a href="{% url 'sales:deal_detail' latest_deal.pk %}" class="btn btn-dark btn-sm"><i class="bi bi-briefcase"></i>Open deal</a>
+        {% elif lead.status != "lost" %}
+          <a href="{% url 'sales:lead_convert_to_deal' lead.pk %}" class="btn btn-dark btn-sm"><i class="bi bi-briefcase"></i>Convert to deal</a>
         {% endif %}
-        <a href="{% url 'crm:lead_update' lead.pk %}"
-           class="btn btn-primary btn-sm">
-          Edit
-        </a>
-        <a href="{% url 'crm:lead_delete' lead.pk %}"
-           class="btn btn-outline-danger btn-sm">
-          Delete
-        </a>
+        <div class="dropdown">
+          <button class="btn btn-outline-secondary btn-sm btn-icon" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="More actions"><i class="bi bi-three-dots"></i></button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            {% if lead.client %}<li><a class="dropdown-item" href="{% url 'crm:client_detail' lead.client.pk %}"><i class="bi bi-people"></i>Open client</a></li>{% endif %}
+            {% if lead.inquiry %}<li><a class="dropdown-item" href="{% url 'crm:inquiry_detail' lead.inquiry.pk %}"><i class="bi bi-inbox"></i>Open source inquiry</a></li>{% endif %}
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item text-danger" href="{% url 'crm:lead_delete' lead.pk %}"><i class="bi bi-trash"></i>Delete lead</a></li>
+          </ul>
+        </div>
+      {% endif %}
+    </div>
+  </div>
 
+  {% sales_flow lead=lead here="lead" %}
+
+  <div class="row g-4">
+    <div class="col-xl-8">
+      {% if lead.next_action_date or lead.next_action_note %}
+        <div class="alert {% if lead.next_action_date and lead.next_action_date < today %}alert-warning{% else %}alert-info{% endif %} d-flex mb-4">
+          <i class="bi bi-alarm"></i>
+          <div>
+            <strong>Next action{% if lead.next_action_date %} · {{ lead.next_action_date|date:"D, d M Y" }}{% endif %}</strong>
+            {% if lead.next_action_note %}<div>{{ lead.next_action_note }}</div>{% endif %}
+          </div>
+        </div>
       {% endif %}
 
-      <a href="{% url 'crm:lead_list' %}"
-         class="btn btn-secondary btn-sm">
-        Back
-      </a>
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-person-vcard"></i>Lead details</h2></div>
+        <div class="card-body">
+          <dl class="info-grid">
+            <div><dt>Email</dt><dd>{% if lead.email %}<a href="mailto:{{ lead.email }}">{{ lead.email }}</a>{% else %}—{% endif %}</dd></div>
+            <div><dt>Phone</dt><dd>{% if lead.phone %}<a href="tel:{{ lead.phone }}">{{ lead.phone }}</a>{% else %}—{% endif %}</dd></div>
+            <div><dt>WhatsApp</dt><dd>{{ lead.whatsapp|default:"—" }}</dd></div>
+            <div><dt>Wedding date</dt><dd>{{ lead.wedding_date|date:"d M Y"|default:"—" }}</dd></div>
+            <div><dt>Location</dt>
+              <dd>{% if lead.wedding_city or lead.wedding_district or lead.wedding_state %}{{ lead.wedding_city }}{% if lead.wedding_district %}{% if lead.wedding_city %}, {% endif %}{{ lead.wedding_district }}{% endif %}{% if lead.wedding_state %}, {{ lead.wedding_state }}{% endif %}{% else %}—{% endif %}</dd>
+            </div>
+            <div><dt>Budget</dt>
+              <dd class="tabular">{% if lead.budget_min or lead.budget_max %}{{ lead.budget_min|inr }} – {{ lead.budget_max|inr }}{% else %}—{% endif %}</dd>
+            </div>
+            <div><dt>Source</dt><dd>{{ lead.get_source_display|default:"—" }}{% if lead.source_detail %}<span class="d-block small text-muted fw-normal">{{ lead.source_detail }}</span>{% endif %}</dd></div>
+            <div><dt>Client</dt><dd>{% if lead.client %}<a href="{% url 'crm:client_detail' lead.client.pk %}">{{ lead.client }}</a>{% else %}<span class="text-muted fw-normal">Created after the contract</span>{% endif %}</dd></div>
+            <div><dt>Owner</dt><dd>{% if lead.owner %}{{ lead.owner.get_full_name|default:lead.owner.username }}{% else %}—{% endif %}</dd></div>
+          </dl>
+        </div>
+      </div>
+
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-card-text"></i>Notes</h2></div>
+        <div class="card-body">{% if lead.notes %}{{ lead.notes|linebreaks }}{% else %}<span class="text-muted">No notes yet.</span>{% endif %}</div>
+      </div>
+    </div>
+
+    <div class="col-xl-4">
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-briefcase"></i>Deals</h2></div>
+        {% if deals %}
+          <ul class="mini-list">
+            {% for deal in deals %}
+              <li>
+                <div class="grow">
+                  <div class="t"><a href="{% url 'sales:deal_detail' deal.pk %}">{{ deal.name }}</a></div>
+                  <div class="m tabular">{{ deal.amount|inr }} · {{ deal.proposals.all|length }} proposal{{ deal.proposals.all|length|pluralize }}</div>
+                </div>
+                {% status_pill deal.stage deal.get_stage_display %}
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <div class="empty-state">
+            <i class="bi bi-briefcase"></i>No deal yet.
+            {% if is_admin or is_crm_manager %}<div><a href="{% url 'sales:lead_convert_to_deal' lead.pk %}" class="btn btn-dark btn-sm"><i class="bi bi-briefcase"></i>Convert to deal</a></div>{% endif %}
+          </div>
+        {% endif %}
+      </div>
+
+      {% with inquiries=lead.source_inquiries.all %}
+        {% if inquiries or lead.inquiry %}
+          <div class="card mb-4">
+            <div class="card-header"><h2 class="section-title"><i class="bi bi-inbox"></i>Source inquiry</h2></div>
+            <ul class="mini-list">
+              {% if lead.inquiry %}
+                <li><div class="grow"><div class="t"><a href="{% url 'crm:inquiry_detail' lead.inquiry.pk %}">{{ lead.inquiry.get_channel_display }}</a></div><div class="m">{{ lead.inquiry.created_at|date:"d M Y" }} · {{ lead.inquiry.message|truncatechars:60 }}</div></div></li>
+              {% endif %}
+              {% for inquiry in inquiries %}
+                {% if inquiry.pk != lead.inquiry_id %}
+                  <li><div class="grow"><div class="t"><a href="{% url 'crm:inquiry_detail' inquiry.pk %}">{{ inquiry.get_channel_display }}</a></div><div class="m">{{ inquiry.created_at|date:"d M Y" }} · {{ inquiry.message|truncatechars:60 }}</div></div></li>
+                {% endif %}
+              {% endfor %}
+            </ul>
+          </div>
+        {% endif %}
+      {% endwith %}
+
+      <div class="small text-muted px-1">Created {{ lead.created_at|date:"d M Y, H:i" }} · Updated {{ lead.updated_at|date:"d M Y, H:i" }}</div>
     </div>
   </div>
-
-  <!-- Lead Info -->
-  <div class="card mb-4 shadow-sm">
-    <div class="card-body">
-
-      <!-- Row 1 -->
-      <div class="row mb-3">
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Name</div>
-          <div class="fw-semibold mt-1">
-            {{ lead.name }}
-          </div>
-        </div>
-
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Email</div>
-          <div class="fw-semibold mt-1">
-            {% if lead.email %}
-              <a href="mailto:{{ lead.email }}">{{ lead.email }}</a>
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="col-md-4">
-          <div class="text-muted small text-uppercase">Phone</div>
-          <div class="fw-semibold mt-1">
-            {{ lead.phone|default:"—" }}
-          </div>
-        </div>
-      </div>
-
-      <!-- Row 2 -->
-      <div class="row mb-3">
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">WhatsApp</div>
-          <div class="fw-semibold mt-1">
-            {{ lead.whatsapp|default:"—" }}
-          </div>
-        </div>
-
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Wedding Date</div>
-          <div class="fw-semibold mt-1">
-            {% if lead.wedding_date %}
-              {{ lead.wedding_date }}
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="col-md-4">
-          <div class="text-muted small text-uppercase">Wedding Location</div>
-          <div class="fw-semibold mt-1">
-            {% if lead.wedding_city or lead.wedding_district or lead.wedding_state or lead.wedding_country %}
-              {% if lead.wedding_city %}{{ lead.wedding_city }}{% endif %}
-              {% if lead.wedding_district %}
-                {% if lead.wedding_city %}, {% endif %}{{ lead.wedding_district }}
-              {% endif %}
-              {% if lead.wedding_state %}
-                {% if lead.wedding_city or lead.wedding_district %}, {% endif %}{{ lead.wedding_state }}
-              {% endif %}
-              {% if lead.wedding_country %}
-                {% if lead.wedding_city or lead.wedding_district or lead.wedding_state %}, {% endif %}{{ lead.wedding_country }}
-              {% endif %}
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-
-      <!-- Row 3 -->
-      <div class="row mb-3">
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Budget Range</div>
-          <div class="fw-semibold mt-1">
-            {% if lead.budget_min or lead.budget_max %}
-              {% if lead.budget_min %}{{ lead.budget_min }}{% endif %}
-              –
-              {% if lead.budget_max %}{{ lead.budget_max }}{% endif %}
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Source</div>
-          <div class="fw-semibold mt-1">
-            {% if lead.source %}
-              {{ lead.get_source_display }}
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="col-md-4">
-          <div class="text-muted small text-uppercase">Source Detail</div>
-          <div class="fw-semibold mt-1">
-            {{ lead.source_detail|default:"—" }}
-          </div>
-        </div>
-      </div>
-
-      <!-- Row 4 -->
-      <div class="row mb-3">
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Linked Client</div>
-          <div class="fw-semibold mt-1">
-            {% if lead.client %}
-              <a href="{% url 'crm:client_detail' lead.client.pk %}">
-                {{ lead.client }}
-              </a>
-            {% else %}
-              <span class="text-muted">Not yet linked</span>
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Inquiry</div>
-          <div class="fw-semibold mt-1">
-            {% if lead.inquiry %}
-              <a href="{% url 'crm:inquiry_detail' lead.inquiry.pk %}">
-                View Source Inquiry
-              </a>
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="col-md-4">
-          <div class="text-muted small text-uppercase">Next Action Date</div>
-          <div class="fw-semibold mt-1">
-            {% if lead.next_action_date %}
-              {{ lead.next_action_date }}
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-
-      <!-- Row 5 -->
-      <div class="row mb-3">
-        <div class="col-md-12">
-          <div class="text-muted small text-uppercase">Next Action Note</div>
-          <div class="fw-semibold mt-1">
-            {{ lead.next_action_note|default:"—" }}
-          </div>
-        </div>
-      </div>
-
-      <!-- Notes -->
-      <div class="row mb-3">
-        <div class="col-12">
-          <div class="text-muted small text-uppercase">Notes</div>
-          <div class="mt-1">
-            {% if lead.notes %}
-              {{ lead.notes|linebreaks }}
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-
-
-    </div>
-  </div>
- 
 </div>
+{% endwith %}
 {% endblock %}

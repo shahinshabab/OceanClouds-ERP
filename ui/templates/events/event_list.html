@@ -1,204 +1,92 @@
 {% extends "ui/base.html" %}
-{% load roles_tags %}
+{% load roles_tags ui_tags %}
 
 {% block title %}Events{% endblock %}
 
 {% block content %}
 {% has_event_manage_access request.user as can_manage_events %}
-
-<div class="container py-3">
-
-  <!-- Header Row -->
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2 class="fw-semibold mb-0">Events</h2>
-
-    {% if can_manage_events %}
-      <a href="{% url 'events:event_create' %}" class="btn btn-success btn-sm">
-        + New Event
-      </a>
-    {% endif %}
+<div class="container">
+  <div class="page-header">
+    <div>
+      <div class="page-eyebrow"><i class="bi bi-stars"></i> Clients &amp; events</div>
+      <h1 class="page-title">Events</h1>
+      <div class="page-subtitle">Shoots and functions. The calendar shows the same events by date.</div>
+    </div>
+    <div class="page-actions">
+      <a href="{% url 'events:event_calendar' %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-calendar-event"></i>Calendar</a>
+      {% if can_manage_events %}
+        <a href="{% url 'events:event_create' %}" class="btn btn-dark btn-sm"><i class="bi bi-plus-lg"></i>New event</a>
+      {% endif %}
+    </div>
   </div>
 
-  <!-- Search + Two Filters + Apply -->
-  <form method="get" class="row g-2 align-items-end mb-3">
-
-    <div class="col-md-4">
-      <label class="form-label small text-muted">Search</label>
-      <input type="text"
-             name="q"
-             value="{{ q }}"
-             class="form-control form-control-sm"
-             placeholder="Search by event, client, project, or venue">
-    </div>
-
-    <div class="col-md-3">
-      <label class="form-label small text-muted">Event Type</label>
-      <select name="event_type" class="form-select form-select-sm">
-        <option value="">All types</option>
-        {% for value, label in event_type_choices %}
-          <option value="{{ value }}" {% if event_type == value %}selected{% endif %}>
-            {{ label }}
-          </option>
-        {% endfor %}
-      </select>
-    </div>
-
-    <div class="col-md-3">
-      <label class="form-label small text-muted">Status</label>
-      <select name="status" class="form-select form-select-sm">
-        <option value="">All statuses</option>
-        {% for value, label in status_choices %}
-          <option value="{{ value }}" {% if status == value %}selected{% endif %}>
-            {{ label }}
-          </option>
-        {% endfor %}
-      </select>
-    </div>
-
-    <div class="col-md-2">
-      <button type="submit" class="btn btn-outline-secondary btn-sm w-100">
-        Apply
-      </button>
-    </div>
-
-  </form>
-
-  <!-- Table -->
   <div class="card">
+    <div class="list-tabs">
+      <a href="?q={{ q|urlencode }}&amp;event_type={{ event_type }}" class="{% if not status %}active{% endif %}">All</a>
+      {% for value, label in status_choices %}
+        <a href="?q={{ q|urlencode }}&amp;event_type={{ event_type }}&amp;status={{ value }}" class="{% if status == value %}active{% endif %}">{{ label }}</a>
+      {% endfor %}
+    </div>
+    <form method="get" class="filter-bar">
+      <input type="hidden" name="status" value="{{ status }}">
+      <div class="search-input" style="flex-basis: 280px">
+        <i class="bi bi-search"></i>
+        <input type="search" name="q" value="{{ q }}" placeholder="Event, client or venue" class="form-control form-control-sm" aria-label="Search">
+      </div>
+      <select name="event_type" class="form-select form-select-sm" aria-label="Event type" onchange="this.form.submit()">
+        <option value="">All event types</option>
+        {% for value, label in event_type_choices %}
+          <option value="{{ value }}" {% if event_type == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <div class="filter-actions">
+        <button type="submit" class="btn btn-dark btn-sm"><i class="bi bi-funnel"></i>Filter</button>
+        {% if q or event_type or status %}<a href="?" class="btn btn-light btn-sm">Clear</a>{% endif %}
+      </div>
+    </form>
+
     <div class="table-responsive">
       <table class="table table-hover align-middle mb-0">
-        <thead class="table-light">
+        <thead>
           <tr>
-            <th>Name</th>
-            <th>Type</th>
-            <th>Client</th>
-            <th>Project</th>
-            <th>Date</th>
-            <th>Venue</th>
+            <th style="width: 64px">Date</th>
+            <th>Event</th>
+            <th class="d-none d-md-table-cell">Client</th>
+            <th class="d-none d-lg-table-cell">Venue</th>
             <th>Status</th>
-            <th class="text-end">Actions</th>
+            <th></th>
           </tr>
         </thead>
-
         <tbody>
           {% for event in events %}
-            <tr>
+            <tr data-href="{% url 'events:event_detail' event.pk %}">
               <td>
-                <a href="{% url 'events:event_detail' event.pk %}">
-                  {{ event.name }}
-                </a>
+                <div class="date-chip{% if event.date == today %} today{% endif %}"><b>{{ event.date|date:"d" }}</b><small>{{ event.date|date:"M" }}</small></div>
               </td>
-
-              <td>{{ event.get_event_type_display }}</td>
-
               <td>
-                {% if event.client %}
-                  {{ event.client }}
-                {% else %}
-                  —
-                {% endif %}
+                <a href="{% url 'events:event_detail' event.pk %}" class="cell-title">{{ event.name }}</a>
+                <span class="cell-sub">{{ event.get_event_type_display }}{% if event.start_time %} · {{ event.start_time|time:"g:i A" }}{% endif %}{% with project=event.linked_project %}{% if project %} · {{ project.name }}{% endif %}{% endwith %}</span>
               </td>
-
-              <td>
-                {% with project=event.linked_project %}
-                {% if project %}
-                  {{ project.name }}
-                {% else %}
-                  —
-                {% endif %}
-                {% endwith %}
-              </td>
-
-              <td>{{ event.date }}</td>
-
-              <td>
-                {% if event.venue %}
-                  {{ event.venue.name }}
-                {% else %}
-                  —
-                {% endif %}
-              </td>
-
-              <td>
-                <span class="badge
-                  {% if event.status == 'completed' %} bg-success
-                  {% elif event.status == 'confirmed' %} bg-primary
-                  {% elif event.status == 'in_progress' %} bg-info
-                  {% elif event.status == 'cancelled' %} bg-danger
-                  {% else %} bg-secondary
-                  {% endif %}
-                ">
-                  {{ event.get_status_display }}
-                </span>
-              </td>
-
-              <td class="text-end">
-                <a href="{% url 'events:event_detail' event.pk %}"
-                   class="btn btn-sm btn-outline-primary">
-                  View
-                </a>
-
+              <td class="d-none d-md-table-cell">{{ event.client|default:"—" }}</td>
+              <td class="d-none d-lg-table-cell">{{ event.venue.name|default:"—" }}</td>
+              <td>{% status_pill event.status event.get_status_display %}</td>
+              <td class="row-actions">
                 {% if can_manage_events %}
-                  <a href="{% url 'events:event_update' event.pk %}"
-                     class="btn btn-sm btn-outline-secondary">
-                    Edit
-                  </a>
-                  <a href="{% url 'events:event_delete' event.pk %}"
-                     class="btn btn-sm btn-outline-danger">
-                    Delete
-                  </a>
+                  <a href="{% url 'events:event_update' event.pk %}" class="btn btn-light btn-sm" title="Edit" aria-label="Edit"><i class="bi bi-pencil"></i></a>
+                  <a href="{% url 'events:event_delete' event.pk %}" class="btn btn-light btn-sm text-danger" title="Delete" aria-label="Delete"><i class="bi bi-trash"></i></a>
                 {% endif %}
+                <a href="{% url 'events:event_detail' event.pk %}" class="btn btn-light btn-sm" title="Open" aria-label="Open"><i class="bi bi-arrow-right"></i></a>
               </td>
             </tr>
           {% empty %}
-            <tr>
-              <td colspan="8" class="text-center text-muted py-4">
-                No events found.
-              </td>
-            </tr>
+            <tr><td colspan="6">
+              <div class="empty-state"><i class="bi bi-stars"></i><p class="mb-0">No events match these filters.</p></div>
+            </td></tr>
           {% endfor %}
         </tbody>
-
       </table>
     </div>
+    {% include "ui/partials/pagination.html" %}
   </div>
-
-  <!-- Pagination -->
-  {% if is_paginated %}
-    <nav aria-label="Event pagination" class="mt-3">
-      <ul class="pagination pagination-sm justify-content-between mb-0">
-
-        <li class="page-item {% if not page_obj.has_previous %}disabled{% endif %}">
-          {% if page_obj.has_previous %}
-            <a class="page-link"
-               href="?page={{ page_obj.previous_page_number }}&q={{ q }}&event_type={{ event_type }}&status={{ status }}">
-              Previous
-            </a>
-          {% else %}
-            <span class="page-link">Previous</span>
-          {% endif %}
-        </li>
-
-        <li class="page-item disabled">
-          <span class="page-link">
-            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
-          </span>
-        </li>
-
-        <li class="page-item {% if not page_obj.has_next %}disabled{% endif %}">
-          {% if page_obj.has_next %}
-            <a class="page-link"
-               href="?page={{ page_obj.next_page_number }}&q={{ q }}&event_type={{ event_type }}&status={{ status }}">
-              Next
-            </a>
-          {% else %}
-            <span class="page-link">Next</span>
-          {% endif %}
-        </li>
-
-      </ul>
-    </nav>
-  {% endif %}
-
 </div>
 {% endblock %}

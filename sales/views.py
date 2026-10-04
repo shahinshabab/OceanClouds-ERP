@@ -21,6 +21,7 @@ from django.views.generic import (
     ListView,
     UpdateView,
 )
+from django.views.generic.edit import ProcessFormView
 
 from common.http import get_client_ip
 from common.mixins import (
@@ -1179,10 +1180,25 @@ class ProposalCreateView(SalesAccessMixin, OwnerAssignMixin, CreateView):
         return reverse_lazy("sales:proposal_detail", kwargs={"pk": self.object.pk})
 
 
-class ProposalUpdateView(SalesAccessMixin, OwnerAssignMixin, UpdateView):
-    model = Proposal
-    form_class = ProposalForm
-    template_name = "sales/proposal_form.html"
+class ProposalUpdateView(ProposalCreateView):
+    """
+    Edit a proposal with the same plan / event day / item forms as create.
+    The create view builds its nested forms from self.object, so loading
+    the proposal first is all an edit needs.
+    """
+
+    default_plan_initial = {}
+
+    def get(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        return ProcessFormView.get(self, request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        return ProcessFormView.post(self, request, *args, **kwargs)
+
+    def get_initial(self):
+        return UpdateView.get_initial(self)
 
     def get_queryset(self):
         return (

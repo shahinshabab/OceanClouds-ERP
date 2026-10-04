@@ -1,322 +1,198 @@
 {% extends "ui/base.html" %}
-{% load url_tags %}
-{% load roles_tags %}
+{% load url_tags roles_tags ui_tags sales_flow %}
 
-{% block title %}Proposal – {{ proposal.title }}{% endblock %}
+{% block title %}{{ proposal.title }}{% endblock %}
 
 {% block content %}
 {% is_admin request.user as is_admin %}
 {% is_crm_manager request.user as is_crm_manager %}
-{% is_project_manager request.user as is_project_manager %}
-{% is_employee request.user as is_employee %}
 
-<div class="container py-3">
-
+<div class="container">
   {% include "common/detail_messages.html" %}
 
-  <!-- Header -->
-  <div class="d-flex justify-content-between align-items-start mb-4 gap-3">
-    <div>
-      <h2 class="fw-semibold mb-0">{{ proposal.title }}</h2>
-
-      <div class="mt-2">
-        {% if proposal.status == "accepted" %}
-          <span class="badge bg-success">{{ proposal.get_status_display }}</span>
-        {% elif proposal.status == "sent" %}
-          <span class="badge bg-primary">{{ proposal.get_status_display }}</span>
-        {% elif proposal.status == "rejected" %}
-          <span class="badge bg-dark">{{ proposal.get_status_display }}</span>
-        {% elif proposal.status == "expired" %}
-          <span class="badge bg-warning text-dark">{{ proposal.get_status_display }}</span>
-        {% else %}
-          <span class="badge bg-secondary">{{ proposal.get_status_display }}</span>
-        {% endif %}
-
-        <span class="badge bg-light text-dark border">
-          v{{ proposal.version }}
-        </span>
+  <div class="page-header">
+    <div class="min-w-0">
+      <div class="page-eyebrow">
+        <a href="{% url 'sales:proposal_list' %}"><i class="bi bi-file-earmark-richtext"></i> Proposals</a>
+        {% if proposal.deal %}<i class="bi bi-chevron-right"></i><a href="{% url 'sales:deal_detail' proposal.deal.pk %}">{{ proposal.deal.name }}</a>{% endif %}
+      </div>
+      <h1 class="page-title">{{ proposal.title }}</h1>
+      <div class="page-subtitle d-flex flex-wrap align-items-center gap-2">
+        {% status_pill proposal.status proposal.get_status_display %}
+        <span class="status status-muted">Version {{ proposal.version }}</span>
+        {% if proposal.deal.customer %}<span><i class="bi bi-person"></i> {{ proposal.deal.customer }}</span>{% endif %}
+        {% if proposal.valid_until %}<span><i class="bi bi-hourglass-split"></i> Valid until {{ proposal.valid_until|date:"d M Y" }}</span>{% endif %}
       </div>
     </div>
 
-    <div class="text-end d-flex flex-wrap justify-content-end gap-2">
+    <div class="page-actions">
+      <a href="{% url 'sales:proposal_document' proposal.pk %}" class="btn btn-outline-secondary btn-sm" target="_blank" rel="noopener"><i class="bi bi-eye"></i>Preview</a>
       {% if is_admin or is_crm_manager %}
-        <form method="post" action="{% url 'sales:proposal_send_email' proposal.pk %}" class="d-inline">
+        <a href="{% url 'sales:proposal_pdf_download' proposal.pk %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-download"></i>PDF</a>
+        <form method="post" action="{% url 'sales:proposal_send_email' proposal.pk %}" class="m-0">
           {% csrf_token %}
-          <button type="submit" class="btn btn-outline-secondary btn-sm">
-            Send Email
-          </button>
+          <button type="submit" class="btn btn-outline-secondary btn-sm"><i class="bi bi-send"></i>Email to customer</button>
         </form>
+        <a href="{% url 'sales:proposal_update' proposal.pk %}" class="btn btn-outline-dark btn-sm"><i class="bi bi-pencil"></i>Edit</a>
 
         {% if proposal.status != "accepted" %}
-          <form method="post" action="{% url 'sales:proposal_accept' proposal.pk %}" class="d-inline">
+          <form method="post" action="{% url 'sales:proposal_accept' proposal.pk %}" class="m-0">
             {% csrf_token %}
-            <button type="submit" class="btn btn-success btn-sm">
-              Accept Proposal
-            </button>
+            <button type="submit" class="btn btn-dark btn-sm"><i class="bi bi-check2-circle"></i>Mark accepted</button>
           </form>
+        {% elif contract %}
+          <a href="{% url 'sales:contract_detail' contract.pk %}" class="btn btn-dark btn-sm"><i class="bi bi-pen"></i>Open contract</a>
+        {% elif not proposal.deal.has_advance %}
+          <a href="{% url 'sales:deal_record_advance' proposal.deal.pk %}" class="btn btn-dark btn-sm"><i class="bi bi-cash-coin"></i>Record advance</a>
+        {% else %}
+          <a href="{% url 'sales:proposal_convert_to_contract' proposal.pk %}" class="btn btn-dark btn-sm"><i class="bi bi-file-earmark-plus"></i>Create contract</a>
         {% endif %}
 
-        {% if proposal.deal.client %}
-          <a href="{% url 'crm:client_detail' proposal.deal.client.pk %}"
-             class="btn btn-outline-secondary btn-sm">
-            View Client
-          </a>
-        {% endif %}
-
-        {% if proposal.status == "accepted" and not proposal.contracts.exists %}
-          <a href="{% url 'sales:deal_record_advance' proposal.deal.pk %}"
-             class="btn {% if proposal.deal.has_advance %}btn-outline-success{% else %}btn-success{% endif %} btn-sm">
-            Record Advance
-          </a>
-        {% endif %}
-
-        {% if proposal.contracts.exists %}
-          {% with contract=proposal.contracts.first %}
-            <a href="{% url 'sales:contract_detail' contract.pk %}"
-               class="btn btn-success btn-sm">
-              View Contract
-            </a>
-          {% endwith %}
-        {% elif proposal.status == "accepted" %}
-          <a href="{% url 'sales:proposal_convert_to_contract' proposal.pk %}"
-             class="btn btn-success btn-sm">
-            Convert to Contract
-          </a>
-        {% endif %}
-
-        <a href="{% url 'sales:proposal_document' proposal.pk %}"
-           class="btn btn-outline-primary btn-sm">
-          Preview
-        </a>
-        <a href="{% url 'sales:proposal_pdf_download' proposal.pk %}"
-           class="btn btn-outline-secondary btn-sm">
-          Download PDF
-        </a>
-
-        <a href="{% url 'sales:proposal_update' proposal.pk %}"
-           class="btn btn-primary btn-sm">
-          Edit
-        </a>
-
-        <a href="{% url 'sales:proposal_delete' proposal.pk %}"
-           class="btn btn-outline-danger btn-sm">
-          Delete
-        </a>
-      {% endif %}
-
-      {% if request.GET.next|local_url %}
-        <a href="{{ request.GET.next|local_url }}" class="btn btn-secondary btn-sm">
-          Back
-        </a>
-      {% else %}
-        <a href="{% url 'sales:proposal_list' %}" class="btn btn-secondary btn-sm">
-          Back
-        </a>
-      {% endif %}
-    </div>
-  </div>
-
-  <!-- Proposal Information -->
-  <div class="card mb-4 shadow-sm">
-    <div class="card-header bg-light">
-      <strong>Proposal Information</strong>
-    </div>
-
-    <div class="card-body">
-
-      <div class="row mb-3">
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Deal</div>
-          <div class="fw-semibold mt-1">
+        <div class="dropdown">
+          <button class="btn btn-outline-secondary btn-sm btn-icon" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="More actions">
+            <i class="bi bi-three-dots"></i>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            {% if proposal.status == "accepted" and not contract %}
+              <li><a class="dropdown-item" href="{% url 'sales:proposal_convert_to_contract' proposal.pk %}"><i class="bi bi-file-earmark-plus"></i>Create contract{% if not proposal.deal.has_advance %} (no advance yet){% endif %}</a></li>
+            {% endif %}
+            {% if proposal.status == "accepted" and not contract %}
+              <li><a class="dropdown-item" href="{% url 'sales:deal_record_advance' proposal.deal.pk %}"><i class="bi bi-cash-coin"></i>Record advance</a></li>
+            {% endif %}
             {% if proposal.deal %}
-              <a href="{% url 'sales:deal_detail' proposal.deal.pk %}" class="text-decoration-none">
-                {{ proposal.deal.name }}
-              </a>
-            {% else %}
-              <span class="text-muted">—</span>
+              <li><a class="dropdown-item" href="{% url 'sales:proposal_create' %}?deal={{ proposal.deal.pk }}"><i class="bi bi-files"></i>New proposal for this deal</a></li>
             {% endif %}
-          </div>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item text-danger" href="{% url 'sales:proposal_delete' proposal.pk %}"><i class="bi bi-trash"></i>Delete proposal</a></li>
+          </ul>
         </div>
-
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Client</div>
-          <div class="fw-semibold mt-1">
-            {% if proposal.deal.client %}
-              <a href="{% url 'crm:client_detail' proposal.deal.client.pk %}" class="text-decoration-none">
-                {{ proposal.deal.client }}
-              </a>
-            {% elif proposal.deal.customer %}
-              {{ proposal.deal.customer }}
-              <div class="text-muted small fw-normal">Lead. Client is created after the contract is signed.</div>
-            {% else %}
-              <span class="text-muted">Not created yet</span>
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="col-md-4">
-          <div class="text-muted small text-uppercase">Status</div>
-          <div class="fw-semibold mt-1">
-            {{ proposal.get_status_display }}
-          </div>
-        </div>
-      </div>
-
-      <div class="row mb-3">
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Version</div>
-          <div class="fw-semibold mt-1">v{{ proposal.version }}</div>
-        </div>
-
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Valid Until</div>
-          <div class="fw-semibold mt-1">
-            {% if proposal.valid_until %}
-              {{ proposal.valid_until }}
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="col-md-4">
-          <div class="text-muted small text-uppercase">Created</div>
-          <div class="fw-semibold mt-1">
-            {{ proposal.created_at|date:"Y-m-d H:i" }}
-          </div>
-        </div>
-      </div>
-
-      <div class="row mb-3">
-        <div class="col-md-3 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Subtotal</div>
-          <div class="fw-semibold mt-1">{{ proposal.subtotal }}</div>
-        </div>
-
-        <div class="col-md-3 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Discount</div>
-          <div class="fw-semibold mt-1">{{ proposal.discount }}</div>
-        </div>
-
-        <div class="col-md-3 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Tax %</div>
-          <div class="fw-semibold mt-1">{{ proposal.tax_rate }}</div>
-        </div>
-
-        <div class="col-md-3">
-          <div class="text-muted small text-uppercase">Total</div>
-          <div class="fw-bold fs-5 mt-1">{{ proposal.total }}</div>
-        </div>
-      </div>
-
-      <div class="row">
-        <div class="col-12">
-          <div class="text-muted small text-uppercase">Notes</div>
-          <div class="mt-1">
-            {% if proposal.notes %}
-              {{ proposal.notes|linebreaks }}
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-
+      {% endif %}
     </div>
   </div>
 
-  <!-- Pricing Plan & Items -->
-  <div class="card mb-4 shadow-sm">
-    <div class="card-header bg-success text-white">
-      Pricing Plan & Items
-    </div>
+  {% if proposal.deal %}{% sales_flow deal=proposal.deal here="proposal" %}{% endif %}
 
-    <div class="card-body p-0">
-      {% if event_days %}
-        {% if pricing_plan %}
-          <div class="p-3 border-bottom bg-light">
-            <div class="fw-semibold">{{ pricing_plan.name }}</div>
-            {% if pricing_plan.description %}
-              <div class="small text-muted">{{ pricing_plan.description|linebreaksbr }}</div>
-            {% endif %}
-          </div>
+  <div class="row g-4">
+    <div class="col-xl-8 order-2 order-xl-1">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h2 class="section-title"><i class="bi bi-list-ul"></i>{% if pricing_plan %}{{ pricing_plan.name }}{% else %}Items{% endif %}</h2>
+          {% if proposal.accepted_plan %}<span class="status status-solid">Accepted plan</span>{% endif %}
+        </div>
+        {% if pricing_plan.description %}
+          <div class="px-3 py-2 border-bottom small text-muted">{{ pricing_plan.description|linebreaksbr }}</div>
         {% endif %}
 
-        {% for event_day in event_days %}
-          <div class="p-3 {% if not forloop.last %}border-bottom{% endif %}">
-            <div class="d-flex justify-content-between flex-wrap gap-2 mb-2">
-              <div>
-                <div class="fw-semibold">{{ event_day.title }}</div>
-                <div class="small text-muted">
-                  {% if event_day.event_date %}{{ event_day.event_date }}{% endif %}
-                  {% if event_day.venue %}{% if event_day.event_date %} · {% endif %}{{ event_day.venue }}{% endif %}
+        {% if event_days %}
+          {% for event_day in event_days %}
+            <div class="{% if not forloop.last %}border-bottom{% endif %}">
+              <div class="d-flex flex-wrap align-items-center gap-3 px-3 pt-3 pb-2">
+                <div class="date-chip">
+                  {% if event_day.event_date %}<b>{{ event_day.event_date|date:"j" }}</b><small>{{ event_day.event_date|date:"M" }}</small>{% else %}<i class="bi bi-calendar"></i>{% endif %}
+                </div>
+                <div class="min-w-0">
+                  <div class="fw-semibold">{{ event_day.title }}</div>
+                  <div class="small text-muted">
+                    {% if event_day.event_date %}{{ event_day.event_date|date:"l, d M Y" }}{% else %}Date not set{% endif %}
+                    {% if event_day.venue %} · <i class="bi bi-geo-alt"></i> {{ event_day.venue }}{% endif %}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {% if event_day.items.all %}
-              <div class="table-responsive">
-                <table class="table table-hover mb-0 align-middle">
-                  <thead class="table-light">
-                    <tr>
-                      <th>Description</th>
-                      <th>Service / Package</th>
-                      <th>Deliverables</th>
-                      <th class="text-end">Qty</th>
-                      <th class="text-end">Unit Price</th>
-                      <th class="text-end">Line Total</th>
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {% for item in event_day.items.all %}
+              {% if event_day.items.all %}
+                <div class="table-responsive">
+                  <table class="table align-middle">
+                    <thead>
                       <tr>
-                        <td>{{ item.description }}</td>
-
-                        <td>
-                          {% if item.service %}
-                            <a href="{% url 'services:service_detail' item.service.pk %}">
-                              {{ item.service.name }}
-                            </a>
-                          {% elif item.package %}
-                            <a href="{% url 'services:package_detail' item.package.pk %}">
-                              {{ item.package.name }}
-                            </a>
-                          {% else %}
-                            <span class="text-muted">—</span>
-                          {% endif %}
-                        </td>
-
-                        <td>
-                          {% for deliverable in item.deliverables.all %}
-                            {% if deliverable.is_included %}
-                              <div class="small">{{ deliverable.title }}</div>
-                            {% endif %}
-                          {% empty %}
-                            <span class="text-muted small">—</span>
-                          {% endfor %}
-                        </td>
-                        <td class="text-end">{{ item.quantity }}</td>
-                        <td class="text-end">{{ item.unit_price }}</td>
-                        <td class="text-end">{{ item.line_total }}</td>
+                        <th>Item</th>
+                        <th>Deliverables</th>
+                        <th class="text-end">Qty</th>
+                        <th class="text-end">Rate</th>
+                        <th class="text-end">Amount</th>
                       </tr>
-                    {% endfor %}
-                  </tbody>
-                </table>
-              </div>
-            {% else %}
-              <div class="text-muted small">No items added for this event day.</div>
-            {% endif %}
+                    </thead>
+                    <tbody>
+                      {% for item in event_day.items.all %}
+                        <tr>
+                          <td>
+                            <div class="fw-semibold">{{ item.description }}</div>
+                            {% if item.service %}
+                              <a href="{% url 'services:service_detail' item.service.pk %}" class="small fw-normal text-muted">{{ item.service.name }}</a>
+                            {% elif item.package %}
+                              <a href="{% url 'services:package_detail' item.package.pk %}" class="small fw-normal text-muted">{{ item.package.name }}</a>
+                            {% endif %}
+                          </td>
+                          <td class="small">
+                            {% for deliverable in item.deliverables.all %}
+                              {% if deliverable.is_included %}<div><i class="bi bi-check2 text-muted"></i> {{ deliverable.title }}</div>{% endif %}
+                            {% empty %}<span class="text-muted">—</span>{% endfor %}
+                          </td>
+                          <td class="text-end tabular">{{ item.quantity }}</td>
+                          <td class="text-end tabular">{{ item.unit_price|inr }}</td>
+                          <td class="text-end tabular fw-semibold">{{ item.line_total|inr }}</td>
+                        </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              {% else %}
+                <div class="px-3 pb-3 text-muted small">No items for this day.</div>
+              {% endif %}
+            </div>
+          {% endfor %}
+        {% else %}
+          <div class="empty-state">
+            <i class="bi bi-list-ul"></i>
+            No items added yet.
+            {% if is_admin or is_crm_manager %}<div><a href="{% url 'sales:proposal_update' proposal.pk %}" class="btn btn-dark btn-sm"><i class="bi bi-pencil"></i>Add items</a></div>{% endif %}
           </div>
-        {% endfor %}
-      {% else %}
-        <div class="p-3 text-muted">
-          No items added.
+        {% endif %}
+      </div>
+
+      {% if proposal.notes %}
+        <div class="card mb-4">
+          <div class="card-header"><h2 class="section-title"><i class="bi bi-card-text"></i>Notes</h2></div>
+          <div class="card-body">{{ proposal.notes|linebreaks }}</div>
         </div>
       {% endif %}
     </div>
+
+    <div class="col-xl-4 order-1 order-xl-2">
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-calculator"></i>Summary</h2></div>
+        <div class="card-body">
+          <ul class="info-list">
+            <li><span class="k">Subtotal</span><span class="v tabular">{{ proposal.subtotal|inr:2 }}</span></li>
+            <li><span class="k">Discount</span><span class="v tabular">{{ proposal.discount|inr:2 }}</span></li>
+            <li><span class="k">Tax</span><span class="v tabular">{{ proposal.tax_rate }}%</span></li>
+          </ul>
+          <div class="d-flex justify-content-between align-items-baseline mt-3 pt-3 border-top">
+            <span class="fw-semibold">Total</span>
+            <span class="fs-4 fw-bold tabular">{{ proposal.total|inr }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-info-circle"></i>Details</h2></div>
+        <div class="card-body">
+          <ul class="info-list">
+            <li><span class="k">Deal</span><span class="v">{% if proposal.deal %}<a href="{% url 'sales:deal_detail' proposal.deal.pk %}">{{ proposal.deal.name }}</a>{% else %}—{% endif %}</span></li>
+            <li><span class="k">Customer</span>
+              <span class="v">
+                {% if proposal.deal.client %}<a href="{% url 'crm:client_detail' proposal.deal.client.pk %}">{{ proposal.deal.client }}</a>
+                {% elif proposal.deal.customer %}{{ proposal.deal.customer }} <span class="d-block small text-muted fw-normal">Lead</span>
+                {% else %}—{% endif %}
+              </span>
+            </li>
+            <li><span class="k">Contract</span><span class="v">{% if contract %}<a href="{% url 'sales:contract_detail' contract.pk %}">{{ contract.number|default:"Draft" }}</a>{% else %}—{% endif %}</span></li>
+            <li><span class="k">Valid until</span><span class="v">{{ proposal.valid_until|date:"d M Y"|default:"—" }}</span></li>
+            <li><span class="k">Created</span><span class="v">{{ proposal.created_at|date:"d M Y" }}</span></li>
+            <li><span class="k">Owner</span><span class="v">{% if proposal.owner %}{{ proposal.owner.get_full_name|default:proposal.owner.username }}{% else %}—{% endif %}</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
   </div>
-
-
 </div>
 {% endblock %}

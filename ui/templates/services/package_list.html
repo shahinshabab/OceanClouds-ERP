@@ -14,7 +14,7 @@
 
     {% if can_manage_services %}
       <a href="{% url 'services:package_create' %}" class="btn btn-success btn-sm">
-        + New Package
+        <i class="bi bi-plus-lg"></i>New Package
       </a>
     {% endif %}
   </div>
@@ -95,11 +95,11 @@
               {% if can_manage_services %}
                 <a href="{% url 'services:package_update' package.pk %}"
                    class="btn btn-sm btn-outline-secondary">
-                  Edit
+                  <i class="bi bi-pencil"></i>Edit
                 </a>
                 <a href="{% url 'services:package_delete' package.pk %}"
                    class="btn btn-sm btn-outline-danger">
-                  Delete
+                  <i class="bi bi-trash"></i>Delete
                 </a>
               {% endif %}
             </td>

@@ -1,26 +1,12 @@
 {# ui/partials/notifications.html #}
-
 <div class="position-relative notification-wrapper">
-
-  <!-- Bell button -->
-  <button id="notificationToggle"
-          class="icon-btn position-relative"
-          type="button"
-          aria-label="Notifications"
-          aria-expanded="false">
-
+  <button id="notificationToggle" class="icon-btn" type="button" data-panel-toggle="notificationDropdown"
+          aria-label="Notifications" aria-expanded="false">
     <i class="bi bi-bell"></i>
-
-    <span id="notificationBadge"
-          class="notification-badge position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger{% if not unread_notification_count %} d-none{% endif %}">
-      {{ unread_notification_count }}
-    </span>
+    <span id="notificationBadge" class="notification-badge{% if not unread_notification_count %} d-none{% endif %}">{{ unread_notification_count }}</span>
   </button>
 
-  <!-- Dropdown -->
-  <div id="notificationDropdown"
-       class="notification-dropdown dropdown-panel d-none shadow-sm border rounded-3 bg-body">
-
+  <div id="notificationDropdown" class="notification-dropdown dropdown-panel p-0 d-none">
     {% include "ui/partials/notifications_panel.html" %}
   </div>
 </div>

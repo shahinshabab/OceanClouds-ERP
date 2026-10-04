@@ -1,0 +1,62 @@
+{% extends "ui/base.html" %}
+{% load ui_tags %}
+
+{% block title %}Email logs{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="page-header">
+    <div>
+      <div class="page-eyebrow"><i class="bi bi-envelope"></i> Messaging</div>
+      <h1 class="page-title">Email logs</h1>
+      <div class="page-subtitle">Every email the system sent, with its delivery result.</div>
+    </div>
+    <div class="page-actions">
+      <a href="{% url 'messaging:template_list' %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-envelope"></i>Email templates</a>
+    </div>
+  </div>
+
+  <div class="card">
+    <form method="get" class="filter-bar">
+      <div>
+        <label class="form-label" for="f-status">Status</label>
+        <select id="f-status" name="status" class="form-select form-select-sm">
+          <option value="">All statuses</option>
+          {% for value, label in status_choices %}
+            <option value="{{ value }}" {% if current_status == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="filter-actions">
+        <button type="submit" class="btn btn-dark btn-sm"><i class="bi bi-funnel"></i>Apply</button>
+        {% if request.GET %}<a href="{% url 'messaging:email_log_list' %}" class="btn btn-light btn-sm">Clear</a>{% endif %}
+      </div>
+    </form>
+
+    {% if logs %}
+      <div class="table-responsive">
+        <table class="table table-hover align-middle">
+          <thead>
+            <tr><th>To</th><th>Subject</th><th>Template</th><th>Status</th><th>Sent</th><th>Error</th></tr>
+          </thead>
+          <tbody>
+            {% for log in logs %}
+              <tr>
+                <td class="fw-semibold">{{ log.to_email }}</td>
+                <td>{{ log.subject|default:"—"|truncatechars:60 }}</td>
+                <td>{% if log.template %}<a href="{% url 'messaging:template_detail' log.template.pk %}">{{ log.template.name }}</a>{% else %}{{ log.template_type|default:"—" }}{% endif %}</td>
+                <td>{% status_pill log.status log.get_status_display %}</td>
+                <td class="text-nowrap">{{ log.sent_at|default:log.created_at|date:"d M Y, H:i" }}</td>
+                <td class="small text-danger">{{ log.error_message|truncatechars:80 }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% include "ui/partials/pagination.html" %}
+    {% else %}
+      <div class="empty-state"><i class="bi bi-envelope-open"></i>No emails sent yet.</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

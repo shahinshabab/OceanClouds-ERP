@@ -33,10 +33,10 @@
     {% if can_manage_events %}
       <div class="d-flex gap-2">
         <a href="{% url 'events:event_update' event.pk %}" class="btn btn-primary btn-sm">
-          Edit Event
+          <i class="bi bi-pencil"></i>Edit Event
         </a>
         <a href="{% url 'events:event_delete' event.pk %}" class="btn btn-outline-danger btn-sm">
-          Delete
+          <i class="bi bi-trash"></i>Delete
         </a>
       </div>
     {% endif %}
@@ -311,12 +311,12 @@
   <!-- Actions -->
   <div class="d-flex justify-content-center gap-2">
     <a href="{% url 'events:event_list' %}" class="btn btn-outline-secondary">
-      Back to Events
+      <i class="bi bi-arrow-left"></i>Back to Events
     </a>
 
     {% if can_manage_events %}
       <a href="{% url 'events:event_update' event.pk %}" class="btn btn-primary">
-        Edit Event
+        <i class="bi bi-pencil"></i>Edit Event
       </a>
     {% endif %}
   </div>

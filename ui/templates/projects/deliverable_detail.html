@@ -43,7 +43,7 @@
       {% if is_admin or is_project_manager %}
         <a href="{% url 'projects:deliverable_update' deliverable.pk %}"
            class="btn btn-primary btn-sm">
-          Edit Deliverable
+          <i class="bi bi-pencil"></i>Edit Deliverable
         </a>
       {% endif %}
       {% if is_admin or is_project_manager %}
@@ -57,11 +57,11 @@
 
       {% if request.GET.next|local_url %}
         <a href="{{ request.GET.next|local_url }}" class="btn btn-outline-secondary btn-sm">
-          Back
+          <i class="bi bi-arrow-left"></i>Back
         </a>
       {% else %}
         <a href="{% url 'projects:deliverable_list' %}" class="btn btn-outline-secondary btn-sm">
-          Back
+          <i class="bi bi-arrow-left"></i>Back
         </a>
       {% endif %}
     </div>

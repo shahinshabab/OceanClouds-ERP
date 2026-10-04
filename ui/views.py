@@ -25,7 +25,15 @@ from projects.models import (
     Task,
     TaskStatus,
 )
-from sales.models import Deal
+from datetime import timedelta
+
+from django.db.models import Count
+from django.urls import reverse
+from django.utils import timezone
+
+from common.roles import can_manage_events
+from events.models import Event, EventStatus
+from sales.models import Deal, DealStage
 
 from .forms import ProfileUpdateForm
 from .utils import _get_month_info, _monthly_card, _simple_card
@@ -530,7 +538,49 @@ def home(request):
             .order_by("due_date", "name")[:10]
         )
 
+    # Next two weeks of events, for everyone (the event calendar is open to all).
+    today = timezone.localdate()
+    upcoming_events = list(
+        Event.objects.filter(date__gte=today, date__lte=today + timedelta(days=14))
+        .exclude(status=EventStatus.CANCELLED)
+        .select_related("client", "venue")
+        .order_by("date", "start_time", "name")[:8]
+    )
+    can_open_events = can_manage_events(user)
+
+    # Open deals by stage, in the order a sale moves.
+    deal_pipeline = []
+    if is_admin or is_crm_manager:
+        counts = dict(
+            Deal.objects.filter(is_active=True)
+            .values_list("stage")
+            .annotate(n=Count("id"))
+            .values_list("stage", "n")
+        )
+        stages = [
+            DealStage.NEW,
+            DealStage.QUALIFIED,
+            DealStage.PROPOSAL_SENT,
+            DealStage.NEGOTIATION,
+            DealStage.ADVANCE_RECEIVED,
+            DealStage.CONTRACT_SENT,
+        ]
+        top = max([counts.get(s, 0) for s in stages] + [1])
+        deal_list_url = reverse("sales:deal_list")
+        for stage in stages:
+            n = counts.get(stage, 0)
+            deal_pipeline.append({
+                "label": stage.label,
+                "count": n,
+                "pct": round(n * 100 / top),
+                "url": f"{deal_list_url}?stage={stage.value}",
+            })
+
     context = {
+        "today": today,
+        "upcoming_events": upcoming_events,
+        "can_open_events": can_open_events,
+        "deal_pipeline": deal_pipeline,
         "role_label": role_label,
         "is_admin": is_admin,
         "is_crm_manager": is_crm_manager,

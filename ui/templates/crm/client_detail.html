@@ -1,444 +1,326 @@
 {% extends "ui/base.html" %}
-{% load url_tags %}
-{% load roles_tags %}
+{% load url_tags roles_tags ui_tags %}
 
-{% block title %}Client – {{ client }}{% endblock %}
+{% block title %}{{ client }} · Client{% endblock %}
 
 {% block content %}
 {% is_admin request.user as is_admin %}
 {% is_crm_manager request.user as is_crm_manager %}
-{% is_project_manager request.user as is_project_manager %}
-{% is_employee request.user as is_employee %}
+{% has_event_manage_access request.user as can_events %}
+{% has_project_access request.user as can_projects %}
 
-<div class="container py-3">
+<div class="container">
   {% include "common/detail_messages.html" %}
-  <!-- Header -->
-  <div class="d-flex justify-content-between align-items-start mb-4 gap-3">
-    <div>
-      <h2 class="fw-semibold mb-1">{{ client }}</h2>
 
-      {% if client.is_active %}
-        <span class="badge bg-success">Active</span>
-      {% else %}
-        <span class="badge bg-secondary">Inactive</span>
-      {% endif %}
+  <div class="page-header">
+    <div class="d-flex align-items-center gap-3 min-w-0">
+      <span class="avatar-circle lg">{{ client|initials }}</span>
+      <div class="min-w-0">
+        <div class="page-eyebrow"><a href="{% url 'crm:client_list' %}"><i class="bi bi-people"></i> Clients</a></div>
+        <h1 class="page-title">{{ client }}</h1>
+        <div class="page-subtitle d-flex flex-wrap align-items-center gap-2">
+          {% if client.is_active %}<span class="status status-solid">Active</span>{% else %}<span class="status status-muted">Inactive</span>{% endif %}
+          {% if client.city or client.district %}<span><i class="bi bi-geo-alt"></i> {{ client.city }}{% if client.district %}{% if client.city %}, {% endif %}{{ client.district }}{% endif %}</span>{% endif %}
+          {% if average_rating %}<span><i class="bi bi-star-fill"></i> {{ average_rating }} from {{ reviews|length }} review{{ reviews|length|pluralize }}</span>{% endif %}
+        </div>
+      </div>
     </div>
 
-    <div class="text-end d-flex flex-wrap justify-content-end gap-2">
+    <div class="page-actions">
+      {% if client.phone %}<a href="tel:{{ client.phone }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-telephone"></i>Call</a>{% endif %}
+      {% if client.email %}<a href="mailto:{{ client.email }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-envelope"></i>Email</a>{% endif %}
       {% if is_admin or is_crm_manager %}
-
-        <a href="{% url 'sales:deal_create' %}?client={{ client.pk }}" class="btn btn-success btn-sm">
-          + New Deal
-        </a>
-
-        <a href="{% url 'events:event_create' %}?client={{ client.pk }}" class="btn btn-outline-success btn-sm">
-          + New Event
-        </a>
-
-        <a href="{% url 'crm:review_create' %}?client={{ client.pk }}" class="btn btn-outline-success btn-sm">
-          + Add Review
-        </a>
-        <a href="{% url 'crm:client_update' client.pk %}" class="btn btn-primary btn-sm">
-          Edit
-        </a>
-        <a href="{% url 'crm:client_delete' client.pk %}" class="btn btn-outline-danger btn-sm">
-          Delete
-        </a>
-      {% endif %}
-
-      {% if request.GET.next|local_url %}
-        <a href="{{ request.GET.next|local_url }}" class="btn btn-secondary btn-sm">
-          Back
-        </a>
-      {% else %}
-        <a href="{% url 'crm:client_list' %}" class="btn btn-secondary btn-sm">
-          Back
-        </a>
+        <a href="{% url 'crm:client_update' client.pk %}" class="btn btn-outline-dark btn-sm"><i class="bi bi-pencil"></i>Edit</a>
+        <div class="dropdown">
+          <button class="btn btn-dark btn-sm" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="bi bi-plus-lg"></i>Add<i class="bi bi-chevron-down small"></i>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><a class="dropdown-item" href="{% url 'sales:deal_create' %}?client={{ client.pk }}"><i class="bi bi-briefcase"></i>New deal <span class="ms-auto small text-muted">repeat booking</span></a></li>
+            <li><a class="dropdown-item" href="{% url 'events:event_create' %}?client={{ client.pk }}"><i class="bi bi-stars"></i>New event</a></li>
+            <li><a class="dropdown-item" href="{% url 'crm:contact_create' %}?client={{ client.pk }}"><i class="bi bi-person-plus"></i>Contact person</a></li>
+            <li><a class="dropdown-item" href="{% url 'crm:review_create' %}?client={{ client.pk }}"><i class="bi bi-star"></i>Review</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item text-danger" href="{% url 'crm:client_delete' client.pk %}"><i class="bi bi-trash"></i>Delete client</a></li>
+          </ul>
+        </div>
       {% endif %}
     </div>
   </div>
 
-  <!-- Client Information -->
-  <div class="card mb-4 shadow-sm">
-    <div class="card-header bg-light">
-      <strong>Client Information</strong>
-    </div>
-
-    <div class="card-body">
-
-      <div class="row mb-3">
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Name</div>
-          <div class="fw-semibold mt-1">{{ client.name }}</div>
-        </div>
-
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Display Name</div>
-          <div class="fw-semibold mt-1">{{ client.display_name|default:"—" }}</div>
-        </div>
-
-        <div class="col-md-4">
-          <div class="text-muted small text-uppercase">Primary Contact</div>
-          <div class="fw-semibold mt-1">
-            {% if client.primary_contact %}
-              {{ client.primary_contact.first_name }} {{ client.primary_contact.last_name }}
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-
-      <div class="row mb-3">
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Email</div>
-          <div class="fw-semibold mt-1">
-            {% if client.email %}
-              <a href="mailto:{{ client.email }}">{{ client.email }}</a>
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Phone</div>
-          <div class="fw-semibold mt-1">
-            {{ client.phone|default:"—" }}
-          </div>
-        </div>
-
-        <div class="col-md-4">
-          <div class="text-muted small text-uppercase">District</div>
-          <div class="fw-semibold mt-1">
-            {{ client.district|default:"—" }}
-          </div>
-        </div>
-      </div>
-
-      <div class="row mb-3">
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">City</div>
-          <div class="fw-semibold mt-1">
-            {{ client.city|default:"—" }}
-          </div>
-        </div>
-
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">State</div>
-          <div class="fw-semibold mt-1">
-            {{ client.state|default:"—" }}
-          </div>
-        </div>
-
-        <div class="col-md-4">
-          <div class="text-muted small text-uppercase">Country</div>
-          <div class="fw-semibold mt-1">
-            {{ client.country|default:"—" }}
-          </div>
-        </div>
-      </div>
-
-      <div class="row mb-3">
-        <div class="col-12">
-          <div class="text-muted small text-uppercase">Billing Address</div>
-          <div class="mt-1">
-            {% if client.billing_address %}
-              {{ client.billing_address|linebreaks }}
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-
-      <div class="row">
-        <div class="col-12">
-          <div class="text-muted small text-uppercase">Notes</div>
-          <div class="mt-1">
-            {% if client.notes %}
-              {{ client.notes|linebreaks }}
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-
-    </div>
-  </div>
-
-  <!-- Contacts Section -->
-  <div class="card mb-4 shadow-sm">
-    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-      <span>Contacts</span>
-
-      {% if is_admin or is_crm_manager %}
-        <a href="{% url 'crm:contact_create' %}?client={{ client.pk }}" class="btn btn-light btn-sm">
-          + Add Contact
-        </a>
-      {% endif %}
-    </div>
-
-    <div class="card-body">
-      {% if client.contacts.all %}
-        <div class="row g-3">
-          {% for contact in client.contacts.all %}
-            <div class="col-md-6 col-lg-4">
-              <div class="border rounded-3 p-3 h-100 bg-body">
-
-                <div class="d-flex justify-content-between align-items-start mb-2">
-                  <div>
-                    <h6 class="fw-semibold mb-1">
-                      {{ contact.first_name }} {{ contact.last_name }}
-                    </h6>
-
-                    {% if contact.role %}
-                      <span class="badge bg-light text-dark border">
-                        {{ contact.get_role_display }}
-                      </span>
-                    {% endif %}
-
-                    {% if contact.is_primary %}
-                      <span class="badge bg-success">Primary</span>
-                    {% endif %}
-                  </div>
-                </div>
-
-                <div class="small mb-2">
-                  <div class="mb-1">
-                    <span class="text-muted">Email:</span>
-                    {% if contact.email %}
-                      <a href="mailto:{{ contact.email }}">{{ contact.email }}</a>
-                    {% else %}
-                      <span class="text-muted">—</span>
-                    {% endif %}
-                  </div>
-
-                  <div class="mb-1">
-                    <span class="text-muted">Phone:</span>
-                    {{ contact.phone|default:"—" }}
-                  </div>
-
-                  <div>
-                    <span class="text-muted">WhatsApp:</span>
-                    {{ contact.whatsapp|default:"—" }}
-                  </div>
-                </div>
-
-                <div class="d-flex justify-content-end gap-2 mt-3">
-                  <a href="{% url 'crm:contact_detail' contact.pk %}"
-                     class="btn btn-sm btn-outline-secondary">
-                    View
-                  </a>
-
-                  {% if is_admin or is_crm_manager %}
-                    <a href="{% url 'crm:contact_update' contact.pk %}"
-                       class="btn btn-sm btn-outline-primary">
-                      Edit
-                    </a>
-
-                    <a href="{% url 'crm:contact_delete' contact.pk %}"
-                       class="btn btn-sm btn-outline-danger">
-                      Delete
-                    </a>
-                  {% endif %}
-                </div>
-
-              </div>
-            </div>
-          {% endfor %}
-        </div>
-      {% else %}
-        <div class="text-center text-muted py-4">
-          <p class="mb-2">No contacts added yet.</p>
-
-          {% if is_admin or is_crm_manager %}
-            <a href="{% url 'crm:contact_create' %}?client={{ client.pk }}" class="btn btn-primary btn-sm">
-              + Add First Contact
-            </a>
+  <div class="row g-4">
+    <div class="col-xl-4">
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-person-vcard"></i>Client details</h2></div>
+        <div class="card-body">
+          <ul class="info-list">
+            <li><span class="k">Name</span><span class="v">{{ client.name }}</span></li>
+            {% if client.display_name %}<li><span class="k">Display name</span><span class="v">{{ client.display_name }}</span></li>{% endif %}
+            <li><span class="k">Phone</span><span class="v">{% if client.phone %}<a href="tel:{{ client.phone }}">{{ client.phone }}</a>{% else %}—{% endif %}</span></li>
+            <li><span class="k">Email</span><span class="v">{% if client.email %}<a href="mailto:{{ client.email }}">{{ client.email }}</a>{% else %}—{% endif %}</span></li>
+            <li><span class="k">City</span><span class="v">{{ client.city|default:"—" }}</span></li>
+            <li><span class="k">District</span><span class="v">{{ client.district|default:"—" }}</span></li>
+            <li><span class="k">State</span><span class="v">{{ client.state|default:"—" }}</span></li>
+            <li><span class="k">Country</span><span class="v">{{ client.country|default:"—" }}</span></li>
+            <li><span class="k">Owner</span><span class="v">{% if client.owner %}{{ client.owner.get_full_name|default:client.owner.username }}{% else %}—{% endif %}</span></li>
+          </ul>
+          {% if client.billing_address %}
+            <div class="info-label mt-3">Billing address</div>
+            <div class="small">{{ client.billing_address|linebreaksbr }}</div>
+          {% endif %}
+          {% if client.notes %}
+            <div class="info-label mt-3">Notes</div>
+            <div class="small">{{ client.notes|linebreaksbr }}</div>
           {% endif %}
         </div>
-      {% endif %}
-    </div>
-  </div>
-
-  <!-- Client Reviews Section -->
-  <div class="card mb-4 shadow-sm">
-    <div class="card-header bg-warning d-flex justify-content-between align-items-center">
-      <span class="fw-semibold">Client Reviews</span>
-
-      {% if is_admin or is_crm_manager %}
-        <a href="{% url 'crm:review_create' %}?client={{ client.pk }}" class="btn btn-light btn-sm">
-          + Add Review
-        </a>
-      {% endif %}
+      </div>
     </div>
 
-    <div class="card-body">
-      {% if client.reviews.all %}
-        <div class="list-group">
-          {% for review in client.reviews.all %}
-            <div class="list-group-item">
-              <div class="d-flex justify-content-between align-items-start gap-3">
-                <div>
-                  <div class="fw-semibold">
-                    {% if review.title %}
-                      {{ review.title }}
-                    {% else %}
-                      Review #{{ review.pk }}
-                    {% endif %}
-                  </div>
+    <div class="col-xl-8">
+      <div class="card mb-4">
+        <ul class="nav nav-tabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-contacts" type="button" role="tab" aria-selected="true">
+              <i class="bi bi-person-lines-fill"></i>Contacts <span class="count">{{ contacts|length }}</span>
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-bookings" type="button" role="tab" aria-selected="false">
+              <i class="bi bi-briefcase"></i>Bookings <span class="count">{{ deals|length }}</span>
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-events" type="button" role="tab" aria-selected="false">
+              <i class="bi bi-stars"></i>Events <span class="count">{{ events|length }}</span>
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-reviews" type="button" role="tab" aria-selected="false">
+              <i class="bi bi-star"></i>Reviews <span class="count">{{ reviews|length }}</span>
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-history" type="button" role="tab" aria-selected="false">
+              <i class="bi bi-clock-history"></i>History
+            </button>
+          </li>
+        </ul>
 
-                  <div class="small text-muted">
-                    Rating: {{ review.rating|default:"—" }}
-                    {% if review.next_action_date %}
-                      · Next Action: {{ review.next_action_date }}
-                    {% endif %}
-                  </div>
-
-                  {% if review.comment %}
-                    <div class="mt-2 small">
-                      {{ review.comment|linebreaksbr }}
+        <div class="tab-content">
+          <!-- Contacts -->
+          <div class="tab-pane fade show active" id="tab-contacts" role="tabpanel">
+            {% if contacts %}
+              <div class="p-3">
+                <div class="row g-3">
+                  {% for contact in contacts %}
+                    <div class="col-md-6">
+                      <div class="border rounded-3 p-3 h-100 d-flex gap-3">
+                        <span class="avatar-circle light">{{ contact.first_name|add:" "|add:contact.last_name|initials }}</span>
+                        <div class="flex-grow-1 min-w-0">
+                          <div class="d-flex align-items-start justify-content-between gap-2">
+                            <div class="min-w-0">
+                              <div class="fw-semibold text-truncate">{{ contact.first_name }} {{ contact.last_name }}</div>
+                              <div class="d-flex flex-wrap gap-1 mt-1">
+                                {% if contact.role %}<span class="status status-muted">{{ contact.get_role_display }}</span>{% endif %}
+                                {% if contact.is_primary %}<span class="status status-solid">Primary</span>{% endif %}
+                              </div>
+                            </div>
+                            {% if is_admin or is_crm_manager %}
+                              <div class="dropdown">
+                                <button class="btn btn-light btn-sm btn-icon" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Contact actions"><i class="bi bi-three-dots"></i></button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                  <li><a class="dropdown-item" href="{% url 'crm:contact_detail' contact.pk %}"><i class="bi bi-eye"></i>View</a></li>
+                                  <li><a class="dropdown-item" href="{% url 'crm:contact_update' contact.pk %}"><i class="bi bi-pencil"></i>Edit</a></li>
+                                  <li><a class="dropdown-item text-danger" href="{% url 'crm:contact_delete' contact.pk %}"><i class="bi bi-trash"></i>Delete</a></li>
+                                </ul>
+                              </div>
+                            {% endif %}
+                          </div>
+                          <div class="small mt-2 d-grid gap-1">
+                            {% if contact.phone %}<a href="tel:{{ contact.phone }}" class="text-decoration-none"><i class="bi bi-telephone text-muted"></i> {{ contact.phone }}</a>{% endif %}
+                            {% if contact.whatsapp %}<a href="https://wa.me/{{ contact.whatsapp|cut:' '|cut:'+'|cut:'-' }}" target="_blank" rel="noopener" class="text-decoration-none"><i class="bi bi-whatsapp text-muted"></i> {{ contact.whatsapp }}</a>{% endif %}
+                            {% if contact.email %}<a href="mailto:{{ contact.email }}" class="text-decoration-none text-truncate"><i class="bi bi-envelope text-muted"></i> {{ contact.email }}</a>{% endif %}
+                            {% if not contact.phone and not contact.whatsapp and not contact.email %}<span class="text-muted">No contact details</span>{% endif %}
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                  {% endif %}
-
-                  {% if review.next_action %}
-                    <div class="mt-2 small">
-                      <span class="text-muted">Next Action:</span>
-                      {{ review.next_action }}
-                    </div>
-                  {% endif %}
-                </div>
-
-                <div class="d-flex flex-wrap gap-2 justify-content-end">
-                  <a href="{% url 'crm:review_detail' review.pk %}"
-                     class="btn btn-sm btn-outline-secondary">
-                    View
-                  </a>
-
-                  {% if is_admin or is_crm_manager %}
-                    <a href="{% url 'crm:review_update' review.pk %}"
-                       class="btn btn-sm btn-outline-primary">
-                      Edit
-                    </a>
-
-                    <a href="{% url 'crm:review_delete' review.pk %}"
-                       class="btn btn-sm btn-outline-danger">
-                      Delete
-                    </a>
-                  {% endif %}
+                  {% endfor %}
                 </div>
               </div>
-            </div>
-          {% endfor %}
-        </div>
-      {% else %}
-        <div class="text-center text-muted py-4">
-          <p class="mb-2">No reviews added yet.</p>
-
-          {% if is_admin or is_crm_manager %}
-            <a href="{% url 'crm:review_create' %}?client={{ client.pk }}" class="btn btn-warning btn-sm">
-              + Add First Review
-            </a>
-          {% endif %}
-        </div>
-      {% endif %}
-    </div>
-  </div>
-
-  <!-- Deals Section -->
-  <div class="card mb-4 shadow-sm">
-    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
-      <span>Deals</span>
-
-      {% if is_admin or is_crm_manager %}
-        <a href="{% url 'sales:deal_create' %}?client={{ client.pk }}" class="btn btn-light btn-sm">
-          + New Deal
-        </a>
-      {% endif %}
-    </div>
-
-    <div class="card-body">
-      {% if client.deals.all %}
-        <div class="list-group">
-          {% for deal in client.deals.all %}
-            <div class="list-group-item d-flex justify-content-between align-items-center">
-              <div>
-                <strong>{{ deal.name }}</strong>
-                <div class="small text-muted">
-                  Stage: {{ deal.get_stage_display }}
-                  {% if deal.amount %} · Amount: {{ deal.amount }}{% endif %}
-                </div>
+            {% else %}
+              <div class="empty-state"><i class="bi bi-person-lines-fill"></i>No contact people yet. Add the bride, groom or family members here.</div>
+            {% endif %}
+            {% if is_admin or is_crm_manager %}
+              <div class="card-footer d-flex justify-content-end">
+                <a href="{% url 'crm:contact_create' %}?client={{ client.pk }}" class="btn btn-dark btn-sm"><i class="bi bi-person-plus"></i>Add contact</a>
               </div>
+            {% endif %}
+          </div>
 
-              <a href="{% url 'sales:deal_detail' deal.pk %}" class="btn btn-sm btn-outline-success">
-                View Deal
-              </a>
+          <!-- Bookings -->
+          <div class="tab-pane fade" id="tab-bookings" role="tabpanel">
+            {% if deals %}
+              <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                  <thead><tr><th>Deal</th><th>Stage</th><th class="text-end">Amount</th><th>Proposals</th><th>Contracts</th><th>Invoices</th></tr></thead>
+                  <tbody>
+                    {% for deal in deals %}
+                      <tr data-href="{% url 'sales:deal_detail' deal.pk %}" class="row-link">
+                        <td><a href="{% url 'sales:deal_detail' deal.pk %}">{{ deal.name }}</a><div class="small text-muted">{{ deal.created_at|date:"d M Y" }}</div></td>
+                        <td>{% status_pill deal.stage deal.get_stage_display %}</td>
+                        <td class="text-end tabular">{{ deal.amount|inr }}</td>
+                        <td>{{ deal.proposals.all|length }}</td>
+                        <td>{{ deal.contracts.all|length }}</td>
+                        <td>{{ deal.invoices.all|length }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            {% else %}
+              <div class="empty-state"><i class="bi bi-briefcase"></i>No bookings yet.</div>
+            {% endif %}
+            {% if is_admin or is_crm_manager %}
+              <div class="card-footer d-flex justify-content-between align-items-center gap-2">
+                <span class="small text-muted">Existing customer booking again? Start a deal straight from here.</span>
+                <a href="{% url 'sales:deal_create' %}?client={{ client.pk }}" class="btn btn-dark btn-sm"><i class="bi bi-plus-lg"></i>New deal</a>
+              </div>
+            {% endif %}
+          </div>
+
+          <!-- Events -->
+          <div class="tab-pane fade" id="tab-events" role="tabpanel">
+            {% if events %}
+              <ul class="mini-list">
+                {% for event in events %}
+                  <li>
+                    <div class="date-chip{% if event.date == today %} today{% endif %}"><b>{{ event.date|date:"j" }}</b><small>{{ event.date|date:"M y" }}</small></div>
+                    <div class="grow">
+                      <div class="t">{% if can_events %}<a href="{% url 'events:event_detail' event.pk %}">{{ event.name }}</a>{% else %}{{ event.name }}{% endif %}</div>
+                      <div class="m">
+                        {{ event.get_event_type_display }}
+                        {% if event.start_time %} · {{ event.start_time|time:"g:i A" }}{% endif %}
+                        {% if event.venue %} · {{ event.venue.name }}{% endif %}
+                      </div>
+                    </div>
+                    {% status_pill event.status event.get_status_display %}
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <div class="empty-state"><i class="bi bi-stars"></i>No events yet. Events are created from the signed contract.</div>
+            {% endif %}
+            {% if projects and can_projects %}
+              <div class="border-top">
+                <div class="px-3 pt-3 card-title-sm">Projects</div>
+                <ul class="mini-list">
+                  {% for project in projects %}
+                    <li>
+                      <div class="grow">
+                        <div class="t"><a href="{% url 'projects:project_detail' project.pk %}">{{ project.name }}</a></div>
+                        <div class="m">{% if project.manager %}{{ project.manager.get_full_name|default:project.manager.username }} · {% endif %}due {{ project.due_date|date:"d M Y"|default:"—" }}</div>
+                      </div>
+                      {% status_pill project.status project.get_status_display %}
+                    </li>
+                  {% endfor %}
+                </ul>
+              </div>
+            {% endif %}
+            {% if can_events %}
+              <div class="card-footer d-flex justify-content-end">
+                <a href="{% url 'events:event_create' %}?client={{ client.pk }}" class="btn btn-dark btn-sm"><i class="bi bi-plus-lg"></i>New event</a>
+              </div>
+            {% endif %}
+          </div>
+
+          <!-- Reviews -->
+          <div class="tab-pane fade" id="tab-reviews" role="tabpanel">
+            {% if reviews %}
+              <ul class="mini-list">
+                {% for review in reviews %}
+                  <li class="align-items-start">
+                    <div class="grow">
+                      <div class="d-flex flex-wrap align-items-center gap-2">
+                        <span class="fw-semibold">{{ review.title|default:"Review" }}</span>
+                        {% if review.rating %}
+                          <span class="text-nowrap" aria-label="{{ review.rating }} out of 5">
+                            {% for i in "12345" %}<i class="bi {% if forloop.counter <= review.rating %}bi-star-fill{% else %}bi-star text-muted{% endif %} small"></i>{% endfor %}
+                          </span>
+                        {% endif %}
+                        <span class="small text-muted">{{ review.created_at|date:"d M Y" }}</span>
+                      </div>
+                      {% if review.comment %}<div class="small mt-1">{{ review.comment|linebreaksbr }}</div>{% endif %}
+                      {% if review.next_action %}
+                        <div class="small text-muted mt-1"><i class="bi bi-alarm"></i> {{ review.next_action }}{% if review.next_action_date %} · {{ review.next_action_date|date:"d M Y" }}{% endif %}</div>
+                      {% endif %}
+                    </div>
+                    {% if is_admin or is_crm_manager %}
+                      <div class="dropdown">
+                        <button class="btn btn-light btn-sm btn-icon" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Review actions"><i class="bi bi-three-dots"></i></button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                          <li><a class="dropdown-item" href="{% url 'crm:review_update' review.pk %}"><i class="bi bi-pencil"></i>Edit</a></li>
+                          <li><a class="dropdown-item text-danger" href="{% url 'crm:review_delete' review.pk %}"><i class="bi bi-trash"></i>Delete</a></li>
+                        </ul>
+                      </div>
+                    {% endif %}
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <div class="empty-state"><i class="bi bi-star"></i>No reviews yet. Record feedback after the event is delivered.</div>
+            {% endif %}
+            {% if is_admin or is_crm_manager %}
+              <div class="card-footer d-flex justify-content-end">
+                <a href="{% url 'crm:review_create' %}?client={{ client.pk }}" class="btn btn-dark btn-sm"><i class="bi bi-star"></i>Add review</a>
+              </div>
+            {% endif %}
+          </div>
+
+          <!-- History -->
+          <div class="tab-pane fade" id="tab-history" role="tabpanel">
+            <div class="row g-0">
+              <div class="col-md-6 border-end">
+                <div class="px-3 pt-3 card-title-sm">Leads</div>
+                {% if leads %}
+                  <ul class="mini-list">
+                    {% for lead in leads %}
+                      <li><div class="grow"><div class="t"><a href="{% url 'crm:lead_detail' lead.pk %}">{{ lead.name }}</a></div><div class="m">{{ lead.created_at|date:"d M Y" }}</div></div>{% status_pill lead.status lead.get_status_display %}</li>
+                    {% endfor %}
+                  </ul>
+                {% else %}<div class="px-3 py-3 small text-muted">No leads.</div>{% endif %}
+              </div>
+              <div class="col-md-6">
+                <div class="px-3 pt-3 card-title-sm">Inquiries</div>
+                {% if inquiries %}
+                  <ul class="mini-list">
+                    {% for inquiry in inquiries %}
+                      <li><div class="grow"><div class="t"><a href="{% url 'crm:inquiry_detail' inquiry.pk %}">{{ inquiry.get_channel_display }}</a></div><div class="m">{{ inquiry.created_at|date:"d M Y" }} · {{ inquiry.message|truncatechars:40 }}</div></div>{% status_pill inquiry.status inquiry.get_status_display %}</li>
+                    {% endfor %}
+                  </ul>
+                {% else %}<div class="px-3 py-3 small text-muted">No inquiries.</div>{% endif %}
+              </div>
             </div>
-          {% endfor %}
+          </div>
         </div>
-      {% else %}
-        <p class="text-muted mb-0">No deals created for this client yet.</p>
-      {% endif %}
+      </div>
     </div>
   </div>
-
-  <!-- Leads Section -->
-  <div class="card mb-4 shadow-sm">
-    <div class="card-header bg-info text-white">
-      Leads Linked to This Client
-    </div>
-
-    <div class="card-body">
-      {% if client.leads.all %}
-        <ul class="list-group">
-          {% for lead in client.leads.all %}
-            <li class="list-group-item d-flex justify-content-between align-items-center">
-              <span>
-                <strong>{{ lead.name }}</strong>
-                — {{ lead.get_status_display }}
-              </span>
-
-              <a href="{% url 'crm:lead_detail' lead.pk %}" class="btn btn-sm btn-outline-primary">
-                View
-              </a>
-            </li>
-          {% endfor %}
-        </ul>
-      {% else %}
-        <p class="text-muted mb-0">No leads linked.</p>
-      {% endif %}
-    </div>
-  </div>
-
-  <!-- Inquiries Section -->
-  <div class="card mb-4 shadow-sm">
-    <div class="card-header bg-secondary text-white">
-      Inquiries Related to This Client
-    </div>
-
-    <div class="card-body">
-      {% if client.inquiries.all %}
-        <ul class="list-group">
-          {% for inquiry in client.inquiries.all %}
-            <li class="list-group-item d-flex justify-content-between align-items-center">
-              <span>
-                {{ inquiry.get_channel_display }} — {{ inquiry.name|default:"(No name)" }}
-              </span>
-
-              <a href="{% url 'crm:inquiry_detail' inquiry.pk %}"
-                 class="btn btn-sm btn-outline-secondary">
-                View
-              </a>
-            </li>
-          {% endfor %}
-        </ul>
-      {% else %}
-        <p class="text-muted mb-0">No inquiries found.</p>
-      {% endif %}
-    </div>
-  </div>
-
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Keep the open tab in the URL so returning from an edit lands on it.
+(function () {
+  const hash = window.location.hash;
+  if (hash && hash.startsWith("#tab-")) {
+    const button = document.querySelector('[data-bs-target="' + hash + '"]');
+    if (button && window.bootstrap) window.bootstrap.Tab.getOrCreateInstance(button).show();
+  }
+  document.querySelectorAll('[data-bs-toggle="tab"]').forEach((button) => {
+    button.addEventListener("shown.bs.tab", () => history.replaceState(null, "", button.dataset.bsTarget));
+  });
+})();
+</script>
 {% endblock %}

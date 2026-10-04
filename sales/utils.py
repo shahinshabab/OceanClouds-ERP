@@ -243,9 +243,24 @@ def get_amount_in_words(value):
     return f"{num2words(amount, lang='en_IN')} only"
 
 
+# Payment split used everywhere (proposal terms, contract schedule, signing
+# page, advance default). Change it here only.
+ADVANCE_PERCENT = 10
+EVENT_PERCENT = 30
+DELIVERY_PERCENT = 60
+
+
+def payment_split_term():
+    return (
+        f"{ADVANCE_PERCENT}% of the quoted amount should be paid in advance, "
+        f"{EVENT_PERCENT}% on or the day after the function, "
+        f"and the balance {DELIVERY_PERCENT}% upon delivery."
+    )
+
+
 def get_proposal_terms():
     return [
-        "30% booking advance, 60% on event & 10% on delivery.",
+        payment_split_term(),
         "Additional charges for travel expense & accommodation if required.",
         "All prices are exclusive of taxes.",
         "Booking will be confirmed only after receiving the advance payment.",
@@ -389,7 +404,7 @@ def get_payment_plan_terms():
         "All prices are exclusive of taxes.",
         "Booking will be confirmed only after receiving the advance payment.",
         "The advance amount cannot be reimbursed in case of cancellation.",
-        "10% of the quoted amount should be paid in advance, 80% on or day after the function, and the balance 10% upon delivery.",
+        payment_split_term(),
         "Additional charges for travel expense and accommodation will be applicable if required based on the distance and number of times we travel.",
         "Our charges are for the reserved time and crew availability, not solely for the number of photos or videos delivered.",
         "If, for any reason, the shoot cannot be carried out as scheduled due to delays, cancellations, or circumstances beyond our control, the agreed payment remains payable in full.",
@@ -755,9 +770,9 @@ def build_proposal_document_context(proposal):
 
 
 PAYMENT_SCHEDULE = (
-    ("Booking advance", 10, "On signing, to reserve your dates"),
-    ("On the event day", 80, "On or the day after the function"),
-    ("On delivery", 10, "When the final outputs are delivered"),
+    ("Booking advance", ADVANCE_PERCENT, "To reserve your dates"),
+    ("On the event day", EVENT_PERCENT, "On or the day after the function"),
+    ("On delivery", DELIVERY_PERCENT, "When the final outputs are delivered"),
 )
 
 

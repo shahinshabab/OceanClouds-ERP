@@ -1241,3 +1241,28 @@ details.form-collapse[open] > summary .collapse-caret { transform: rotate(180deg
   .kb-col { scroll-snap-align: start; }
   .kb-col-body { min-height: 240px; }
 }
+
+/* Reports: one page, a tab per report, KPI strip and chart cards. */
+.report-tabs { display: inline-flex; flex-wrap: wrap; gap: .25rem; margin-bottom: 1rem; padding: .25rem; background: var(--oc-paper); border: 1px solid var(--oc-line); border-radius: 12px; box-shadow: var(--oc-shadow); }
+.report-tabs a { display: inline-flex; align-items: center; gap: .45rem; padding: .45rem .95rem; color: var(--oc-muted); border-radius: 9px; font-size: .85rem; font-weight: 600; text-decoration: none; }
+.report-tabs a:hover { color: var(--oc-ink); background: var(--oc-hover); }
+.report-tabs a.active { color: #fff; background: var(--oc-ink); }
+.report-filter { margin-bottom: 1rem; }
+.report-filter .filter-bar { border-bottom: 0; }
+.report-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: .75rem; margin-bottom: 1rem; }
+.report-kpis .stat-card { padding: .9rem 1rem; }
+.report-kpis .stat-value { font-size: 1.45rem; }
+.chart-card { height: 100%; }
+.chart-card .card-header { display: flex; align-items: baseline; justify-content: space-between; gap: .5rem; padding: .8rem 1rem .2rem; background: transparent; border-bottom: 0; }
+.chart-card .chart-title { font-weight: 700; font-size: .9rem; }
+.chart-card .chart-note { color: var(--oc-muted); font-size: .74rem; }
+.chart-box { position: relative; height: 260px; }
+.chart-box.is-tall { height: 300px; }
+.chart-box.is-empty canvas { display: none; }
+.chart-box.is-empty::after { content: "No data for this period"; position: absolute; inset: 0; display: grid; place-items: center; color: var(--oc-faint); font-size: .8rem; border: 1px dashed var(--oc-line-strong); border-radius: var(--oc-radius-sm); }
+.report-section-title { display: flex; align-items: center; gap: .5rem; margin: 1.5rem 0 .75rem; font-size: .78rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--oc-muted); }
+.report-section-title::after { content: ""; flex: 1; height: 1px; background: var(--oc-line); }
+@media (max-width: 575.98px) {
+  .report-tabs { display: flex; }
+  .report-tabs a { flex: 1 1 0; justify-content: center; padding: .45rem .5rem; }
+}

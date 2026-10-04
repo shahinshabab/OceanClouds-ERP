@@ -1,0 +1,11 @@
+<div class="card chart-card">
+  <div class="card-header">
+    <span class="chart-title">{{ title }}</span>
+    {% if note %}<span class="chart-note">{{ note }}</span>{% endif %}
+  </div>
+  <div class="card-body pt-2">
+    <div class="chart-box{% if tall %} is-tall{% endif %}">
+      <canvas data-report-chart="{{ chart }}" role="img" aria-label="{{ title }}"></canvas>
+    </div>
+  </div>
+</div>

@@ -81,21 +81,6 @@
     tfoot th {
       background: #f7f7f7;
     }
-
-    .logout-manual {
-      color: #198754;
-      font-weight: bold;
-    }
-
-    .logout-auto {
-      color: #dc3545;
-      font-weight: bold;
-    }
-
-    .logout-other {
-      color: #555;
-      font-weight: bold;
-    }
   </style>
 </head>
 
@@ -110,27 +95,10 @@
 
   <div class="summary-grid">
     <div class="card">
-      <div class="label">Attendance Days</div>
-      <div class="value">{{ summary.attendance_days }}</div>
-    </div>
-
-    <div class="card">
-      <div class="label">Project Worklog Hours</div>
+      <div class="label">Work Logged</div>
       <div class="value">{{ summary.total_work_hm }}</div>
     </div>
 
-    <div class="card">
-      <div class="label">Login Hours</div>
-      <div class="value">{{ summary.login_total_hm }}</div>
-    </div>
-
-    <div class="card">
-      <div class="label">Work Session Hours</div>
-      <div class="value">{{ summary.login_work_hm }}</div>
-    </div>
-  </div>
-
-  <div class="summary-grid">
     <div class="card">
       <div class="label">Task Hours</div>
       <div class="value">{{ summary.task_work_hm }}</div>
@@ -142,75 +110,34 @@
     </div>
 
     <div class="card">
-      <div class="label">Assigned Tasks</div>
-      <div class="value">{{ summary.assigned_task_count }}</div>
+      <div class="label">Work Sessions</div>
+      <div class="value">{{ summary.work_session_count }}</div>
+    </div>
+  </div>
+
+  <div class="summary-grid">
+    <div class="card">
+      <div class="label">Tasks Completed</div>
+      <div class="value">{{ summary.completed_task_count }} / {{ summary.assigned_task_count }}</div>
     </div>
 
     <div class="card">
-      <div class="label">Assigned Deliverables</div>
-      <div class="value">{{ summary.assigned_deliverable_count }}</div>
+      <div class="label">Overdue Tasks</div>
+      <div class="value">{{ summary.overdue_task_count }}</div>
+    </div>
+
+    <div class="card">
+      <div class="label">Deliverables Delivered</div>
+      <div class="value">{{ summary.delivered_count }} / {{ summary.assigned_deliverable_count }}</div>
+    </div>
+
+    <div class="card">
+      <div class="label">Overdue Deliverables</div>
+      <div class="value">{{ summary.overdue_deliverable_count }}</div>
     </div>
   </div>
 
   {% if show_detailed_data %}
-  <div class="section-title">Login Sessions</div>
-
-  <table>
-    <thead>
-      <tr>
-        <th>Date</th>
-        <th>Login Time</th>
-        <th>Logout Time</th>
-        <th>Logout Type</th>
-        <th>Website Used Time</th>
-        <th>Total Work Session Time of Day</th>
-        <th>IP Address</th>
-      </tr>
-    </thead>
-
-    <tbody>
-      {% for row in login_table.rows %}
-        <tr>
-          <td>{{ row.date|date:"d M Y" }}</td>
-          <td>{{ row.login_time|date:"h:i A" }}</td>
-          <td>
-            {% if row.logout_time %}
-              {{ row.logout_time|date:"h:i A" }}
-            {% else %}
-              Active
-            {% endif %}
-          </td>
-          <td>
-            {% if row.logout_reason == "auto_timeout" %}
-              <span class="logout-auto">{{ row.logout_type }}</span>
-              {% if row.idle_seconds %}<br>Idle excluded: {{ row.idle_hm }}{% endif %}
-            {% elif row.logout_reason == "logout" %}
-              <span class="logout-manual">{{ row.logout_type }}</span>
-            {% else %}
-              <span class="logout-other">{{ row.logout_type }}</span>
-            {% endif %}
-          </td>
-          <td>{{ row.logged_hm }}</td>
-          <td>{{ row.work_hm }}</td>
-          <td>{{ row.ip_address }}</td>
-        </tr>
-      {% empty %}
-        <tr>
-          <td colspan="7">No login sessions found.</td>
-        </tr>
-      {% endfor %}
-    </tbody>
-
-    <tfoot>
-      <tr>
-        <th colspan="4" style="text-align: right;">Total</th>
-        <th>{{ login_table.total_login_hm }}</th>
-        <th>{{ login_table.total_work_hm }}</th>
-        <th></th>
-      </tr>
-    </tfoot>
-  </table>
-
   <div class="section-title">Recent Work Sessions</div>
 
   <table>

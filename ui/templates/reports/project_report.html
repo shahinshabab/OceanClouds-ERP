@@ -1,397 +1,136 @@
-{% extends "ui/base.html" %}
+{% extends "reports/report_base.html" %}
+{% load ui_tags %}
 
-{% block title %}Project Report{% endblock %}
+{% block title %}Project report{% endblock %}
 
-{% block content %}
-<div class="container">
-  <div class="page-header">
-    <div>
-      <div class="page-eyebrow"><i class="bi bi-bar-chart-line"></i> Team</div>
-      <h1 class="page-title">Project Report</h1>
-      <div class="page-subtitle">{{ date_from }} to {{ date_to }}</div>
-    </div>
-    <div class="page-actions">
-      <a href="{{ pdf_download_url }}" class="btn btn-outline-secondary btn-sm">
-        <i class="bi bi-file-earmark-pdf"></i>
-        Download PDF
-      </a>
-    </div>
+{% block report_body %}
+{% include "reports/partials/kpis.html" %}
+
+<div class="row g-3 mb-3">
+  <div class="col-lg-7">
+    {% include "reports/partials/chart_card.html" with chart="project_hours" title="Work hours over time" note="Logged on these projects" %}
   </div>
-
-  <form method="get" class="card shadow-sm border-0 mb-4">
-    <div class="card-body">
-      <div class="row g-2 align-items-end">
-
-        <div class="col-md-4">
-          <label class="form-label small text-muted mb-1">Project Manager</label>
-          <select name="user" class="form-select form-select-sm">
-            <option value="">All</option>
-
-            {% for person in project_managers %}
-              <option value="{{ person.id }}"
-                {% if selected_user and selected_user.id == person.id %}selected{% endif %}>
-                {{ person.get_full_name|default:person.username }}
-              </option>
-            {% endfor %}
-          </select>
-        </div>
-
-        <div class="col-md-3">
-          <label class="form-label small text-muted mb-1">From Date</label>
-          <input
-            type="date"
-            name="date_from"
-            value="{{ date_from|date:'Y-m-d' }}"
-            class="form-control form-control-sm"
-          >
-        </div>
-
-        <div class="col-md-3">
-          <label class="form-label small text-muted mb-1">To Date</label>
-          <input
-            type="date"
-            name="date_to"
-            value="{{ date_to|date:'Y-m-d' }}"
-            class="form-control form-control-sm"
-          >
-        </div>
-
-        <div class="col-md-2 d-grid">
-          <button type="submit" class="btn btn-primary btn-sm">
-            Apply
-          </button>
-        </div>
-
-      </div>
-    </div>
-  </form>
-
-  <!-- Summary Row 1 -->
-  <div class="row g-3 mb-4">
-    <div class="col-md-3">
-      <div class="card shadow-sm border-0">
-        <div class="card-body">
-          <div class="text-muted small">Projects</div>
-          <div class="fs-4 fw-semibold">{{ summary.project_count }}</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="col-md-3">
-      <div class="card shadow-sm border-0">
-        <div class="card-body">
-          <div class="text-muted small">Active Projects</div>
-          <div class="fs-4 fw-semibold">{{ summary.active_project_count }}</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="col-md-3">
-      <div class="card shadow-sm border-0">
-        <div class="card-body">
-          <div class="text-muted small">Completed Projects</div>
-          <div class="fs-4 fw-semibold">{{ summary.completed_project_count }}</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="col-md-3">
-      <div class="card shadow-sm border-0">
-        <div class="card-body">
-          <div class="text-muted small">Overdue Projects</div>
-          <div class="fs-4 fw-semibold">{{ summary.overdue_project_count }}</div>
-        </div>
-      </div>
-    </div>
+  <div class="col-lg-5">
+    {% include "reports/partials/chart_card.html" with chart="project_status" title="Projects by status" note="Created in this period" %}
   </div>
-
-  <!-- Summary Row 2 -->
-  <div class="row g-3 mb-4">
-    <div class="col-md-3">
-      <div class="card shadow-sm border-0">
-        <div class="card-body">
-          <div class="text-muted small">Tasks</div>
-          <div class="fw-semibold">{{ summary.task_count }}</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="col-md-3">
-      <div class="card shadow-sm border-0">
-        <div class="card-body">
-          <div class="text-muted small">Completed Tasks</div>
-          <div class="fw-semibold">{{ summary.completed_task_count }}</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="col-md-3">
-      <div class="card shadow-sm border-0">
-        <div class="card-body">
-          <div class="text-muted small">Deliverables</div>
-          <div class="fw-semibold">{{ summary.deliverable_count }}</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="col-md-3">
-      <div class="card shadow-sm border-0">
-        <div class="card-body">
-          <div class="text-muted small">Delivered</div>
-          <div class="fw-semibold">{{ summary.delivered_count }}</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Summary Row 3 -->
-  <div class="row g-3 mb-4">
-    <div class="col-md-4">
-      <div class="card shadow-sm border-0">
-        <div class="card-body">
-          <div class="text-muted small">Completion Rate</div>
-          <div class="fw-semibold">{{ summary.completion_rate }}%</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="col-md-4">
-      <div class="card shadow-sm border-0">
-        <div class="card-body">
-          <div class="text-muted small">Work Sessions</div>
-          <div class="fw-semibold">{{ summary.work_session_count }}</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="col-md-4">
-      <div class="card shadow-sm border-0">
-        <div class="card-body">
-          <div class="text-muted small">Total Work Hours</div>
-          <div class="fw-semibold">{{ summary.total_work_hm }}</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Project Status -->
-  <div class="row g-3 mb-4">
-    <div class="col-md-4">
-      <div class="card shadow-sm border-0 h-100">
-        <div class="card-header bg-white fw-semibold">
-          Project Status
-        </div>
-        <div class="card-body">
-          {% for row in project_status_counts %}
-            <div class="d-flex justify-content-between border-bottom py-1">
-              <span>{{ row.status|default:"-" }}</span>
-              <strong>{{ row.count }}</strong>
-            </div>
-          {% empty %}
-            <div class="text-muted small">No project status data.</div>
-          {% endfor %}
-        </div>
-      </div>
-    </div>
-
-    <div class="col-md-4">
-      <div class="card shadow-sm border-0 h-100">
-        <div class="card-header bg-white fw-semibold">
-          Task Status
-        </div>
-        <div class="card-body">
-          {% for row in task_status_counts %}
-            <div class="d-flex justify-content-between border-bottom py-1">
-              <span>{{ row.status|default:"-" }}</span>
-              <strong>{{ row.count }}</strong>
-            </div>
-          {% empty %}
-            <div class="text-muted small">No task status data.</div>
-          {% endfor %}
-        </div>
-      </div>
-    </div>
-
-    <div class="col-md-4">
-      <div class="card shadow-sm border-0 h-100">
-        <div class="card-header bg-white fw-semibold">
-          Deliverable Status
-        </div>
-        <div class="card-body">
-          {% for row in deliverable_status_counts %}
-            <div class="d-flex justify-content-between border-bottom py-1">
-              <span>{{ row.status|default:"-" }}</span>
-              <strong>{{ row.count }}</strong>
-            </div>
-          {% empty %}
-            <div class="text-muted small">No deliverable status data.</div>
-          {% endfor %}
-        </div>
-      </div>
-    </div>
-  </div>
-
-  {% if show_detailed_data %}
-  <!-- Recent Projects -->
-  <div class="card shadow-sm border-0 mb-4">
-    <div class="card-header bg-white fw-semibold">
-      Recent Projects
-    </div>
-
-    <div class="table-responsive">
-      <table class="table table-sm align-middle mb-0">
-        <thead class="table-light">
-          <tr>
-            <th>Project</th>
-            <th>Client</th>
-            <th>Manager</th>
-            <th>Status</th>
-            <th>Priority</th>
-            <th>Due Date</th>
-            <th>Progress</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {% for project in recent_projects %}
-            <tr>
-              <td>{{ project.name }}</td>
-              <td>{{ project.client|default:"-" }}</td>
-              <td>{{ project.manager|default:"-" }}</td>
-              <td>{{ project.get_status_display }}</td>
-              <td>{{ project.get_priority_display }}</td>
-              <td>{{ project.due_date|date:"d M Y"|default:"-" }}</td>
-              <td>{{ project.progress_percent }}%</td>
-            </tr>
-          {% empty %}
-            <tr>
-              <td colspan="7" class="text-center text-muted py-3">
-                No projects found.
-              </td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- Overdue Projects -->
-  <div class="card shadow-sm border-0 mb-4">
-    <div class="card-header bg-white fw-semibold">
-      Overdue Projects
-    </div>
-
-    <div class="table-responsive">
-      <table class="table table-sm align-middle mb-0">
-        <thead class="table-light">
-          <tr>
-            <th>Project</th>
-            <th>Client</th>
-            <th>Manager</th>
-            <th>Status</th>
-            <th>Due Date</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {% for project in overdue_projects %}
-            <tr>
-              <td>{{ project.name }}</td>
-              <td>{{ project.client|default:"-" }}</td>
-              <td>{{ project.manager|default:"-" }}</td>
-              <td>{{ project.get_status_display }}</td>
-              <td>{{ project.due_date|date:"d M Y" }}</td>
-            </tr>
-          {% empty %}
-            <tr>
-              <td colspan="5" class="text-center text-muted py-3">
-                No overdue projects.
-              </td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- Overdue Tasks -->
-  <div class="card shadow-sm border-0 mb-4">
-    <div class="card-header bg-white fw-semibold">
-      Overdue Tasks
-    </div>
-
-    <div class="table-responsive">
-      <table class="table table-sm align-middle mb-0">
-        <thead class="table-light">
-          <tr>
-            <th>Task</th>
-            <th>Project</th>
-            <th>Assigned To</th>
-            <th>Status</th>
-            <th>Due Date</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {% for task in overdue_tasks %}
-            <tr>
-              <td>{{ task.name }}</td>
-              <td>{{ task.project }}</td>
-              <td>{{ task.assigned_to|default:"-" }}</td>
-              <td>{{ task.get_status_display }}</td>
-              <td>{{ task.due_date|date:"d M Y" }}</td>
-            </tr>
-          {% empty %}
-            <tr>
-              <td colspan="5" class="text-center text-muted py-3">
-                No overdue tasks.
-              </td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- Overdue Deliverables -->
-  <div class="card shadow-sm border-0">
-    <div class="card-header bg-white fw-semibold">
-      Overdue Deliverables
-    </div>
-
-    <div class="table-responsive">
-      <table class="table table-sm align-middle mb-0">
-        <thead class="table-light">
-          <tr>
-            <th>Deliverable</th>
-            <th>Project</th>
-            <th>Assigned To</th>
-            <th>Status</th>
-            <th>Due Date</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {% for deliverable in overdue_deliverables %}
-            <tr>
-              <td>{{ deliverable.name }}</td>
-              <td>{{ deliverable.project }}</td>
-              <td>{{ deliverable.assigned_to|default:"-" }}</td>
-              <td>{{ deliverable.get_status_display }}</td>
-              <td>{{ deliverable.due_date|date:"d M Y" }}</td>
-            </tr>
-          {% empty %}
-            <tr>
-              <td colspan="5" class="text-center text-muted py-3">
-                No overdue deliverables.
-              </td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-  {% endif %}
-
 </div>
+
+<div class="row g-3 mb-3">
+  <div class="col-lg-6">
+    {% include "reports/partials/chart_card.html" with chart="project_task_status" title="Tasks by status" %}
+  </div>
+  <div class="col-lg-6">
+    {% include "reports/partials/chart_card.html" with chart="project_deliverable_status" title="Deliverables by status" %}
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-12">
+    {% include "reports/partials/chart_card.html" with chart="project_departments" title="Work items by department" note="Tasks and deliverables" %}
+  </div>
+</div>
+
+{% if show_detailed_data %}
+<div class="report-section-title">Details</div>
+<div class="card">
+  <ul class="nav nav-tabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#project-recent" type="button" role="tab" aria-selected="true">Projects</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" data-bs-toggle="tab" data-bs-target="#project-overdue" type="button" role="tab" aria-selected="false">Overdue projects <span class="count">{{ summary.overdue_project_count }}</span></button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" data-bs-toggle="tab" data-bs-target="#project-tasks" type="button" role="tab" aria-selected="false">Overdue tasks <span class="count">{{ summary.overdue_task_count }}</span></button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" data-bs-toggle="tab" data-bs-target="#project-deliverables" type="button" role="tab" aria-selected="false">Overdue deliverables <span class="count">{{ summary.overdue_deliverable_count }}</span></button>
+    </li>
+  </ul>
+  <div class="tab-content">
+    <div class="tab-pane fade show active" id="project-recent" role="tabpanel">
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead><tr><th>Project</th><th>Client</th><th>Manager</th><th>Status</th><th>Priority</th><th>Due</th><th class="text-end">Progress</th></tr></thead>
+          <tbody>
+            {% for project in recent_projects %}
+              <tr>
+                <td><a href="{{ project.get_absolute_url }}">{{ project.name }}</a></td>
+                <td>{{ project.client|default:"-" }}</td>
+                <td>{{ project.manager|default:"-" }}</td>
+                <td>{% status_pill project.status project.get_status_display %}</td>
+                <td>{{ project.get_priority_display }}</td>
+                <td>{{ project.due_date|date:"d M Y"|default:"-" }}</td>
+                <td class="text-end">{{ project.progress_percent }}%</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="7" class="text-center text-muted py-3">No projects in this period.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="tab-pane fade" id="project-overdue" role="tabpanel">
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead><tr><th>Project</th><th>Client</th><th>Manager</th><th>Status</th><th>Due</th></tr></thead>
+          <tbody>
+            {% for project in overdue_projects %}
+              <tr>
+                <td><a href="{{ project.get_absolute_url }}">{{ project.name }}</a></td>
+                <td>{{ project.client|default:"-" }}</td>
+                <td>{{ project.manager|default:"-" }}</td>
+                <td>{% status_pill project.status project.get_status_display %}</td>
+                <td>{{ project.due_date|date:"d M Y" }}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="5" class="text-center text-muted py-3">No overdue projects.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="tab-pane fade" id="project-tasks" role="tabpanel">
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead><tr><th>Task</th><th>Project</th><th>Assigned to</th><th>Status</th><th>Due</th></tr></thead>
+          <tbody>
+            {% for task in overdue_tasks %}
+              <tr>
+                <td>{{ task.name }}</td>
+                <td>{{ task.project }}</td>
+                <td>{{ task.assigned_to|default:"-" }}</td>
+                <td>{% status_pill task.status task.get_status_display %}</td>
+                <td>{{ task.due_date|date:"d M Y" }}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="5" class="text-center text-muted py-3">No overdue tasks.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="tab-pane fade" id="project-deliverables" role="tabpanel">
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead><tr><th>Deliverable</th><th>Project</th><th>Assigned to</th><th>Status</th><th>Due</th></tr></thead>
+          <tbody>
+            {% for deliverable in overdue_deliverables %}
+              <tr>
+                <td>{{ deliverable.name }}</td>
+                <td>{{ deliverable.project }}</td>
+                <td>{{ deliverable.assigned_to|default:"-" }}</td>
+                <td>{% status_pill deliverable.status deliverable.get_status_display %}</td>
+                <td>{{ deliverable.due_date|date:"d M Y" }}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="5" class="text-center text-muted py-3">No overdue deliverables.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
 {% endblock %}

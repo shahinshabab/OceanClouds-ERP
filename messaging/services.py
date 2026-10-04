@@ -3,7 +3,7 @@
 from django.utils import timezone
 
 from .models import EmailTemplate, Campaign, CampaignRecipient, WhatsAppTemplate
-from .utils import send_templated_email ,send_templated_whatsapp, normalize_whatsapp_number
+from .utils import send_templated_email, send_templated_whatsapp
 
 def get_client_email(client):
     """

@@ -872,8 +872,6 @@ class Contract(TimeStamped, Owned):
         self.recalculate_totals(save=True)
 
 
-
-
 class ContractEventDay(models.Model):
     contract = models.ForeignKey(
         Contract,
@@ -1007,7 +1005,6 @@ class ContractDeliverable(models.Model):
 
     def __str__(self):
         return self.title
-
 
 
 # -------------------------------------------------------------------

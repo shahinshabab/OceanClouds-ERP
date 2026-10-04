@@ -2,25 +2,12 @@
 from django import forms
 from django.contrib.auth import get_user_model
 
+from common.forms import BootstrapModelForm
+
 from .models import Client, Contact, Inquiry, Lead, Review
 
 
 CRM_MANAGER_GROUP_NAMES = ["CRM Manager", "crm_manager", "CRM_MANAGER"]
-
-
-class BootstrapModelForm(forms.ModelForm):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        for field in self.fields.values():
-            widget = field.widget
-            existing = widget.attrs.get("class", "")
-            if isinstance(widget, forms.CheckboxInput):
-                css = "form-check-input"
-            elif isinstance(widget, (forms.Select, forms.SelectMultiple)):
-                css = "form-select"
-            else:
-                css = "form-control"
-            widget.attrs["class"] = f"{existing} {css}".strip()
 
 
 class ClientForm(BootstrapModelForm):

@@ -3,6 +3,8 @@
 from django import forms
 from django.forms import inlineformset_factory
 
+from common.forms import BootstrapModelForm
+
 from .models import (
     Vendor,
     Service,
@@ -12,28 +14,6 @@ from .models import (
     PackageDeliverable,
     InventoryItem,
 )
-
-
-class BootstrapModelForm(forms.ModelForm):
-    """
-    Base form to automatically add Bootstrap classes.
-    """
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        for name, field in self.fields.items():
-            widget = field.widget
-            existing_classes = widget.attrs.get("class", "")
-
-            if isinstance(widget, forms.CheckboxInput):
-                widget.attrs["class"] = (existing_classes + " form-check-input").strip()
-
-            elif isinstance(widget, (forms.Select, forms.SelectMultiple)):
-                widget.attrs["class"] = (existing_classes + " form-select").strip()
-
-            else:
-                widget.attrs["class"] = (existing_classes + " form-control").strip()
 
 
 class VendorForm(BootstrapModelForm):

@@ -114,10 +114,10 @@ NAVIGATION = [
         ],
     },
     {
-        "title": "Calendars",
+        "title": "Schedule",
         "items": [
-            _item("Event calendar", "events:event_calendar", "bi-calendar-event"),
-            _item("Work calendar", "projects:project_calendar", "bi-calendar-week", WORK),
+            # One calendar for everyone: events, plus scheduled work by role.
+            _item("Calendar", "events:event_calendar", "bi-calendar-event", match=("/projects/calendar/",)),
         ],
     },
     {

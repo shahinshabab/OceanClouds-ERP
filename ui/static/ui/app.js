@@ -244,3 +244,54 @@
     }
   });
 })();
+
+/* Calendar hover cards: entries carry their details in a hidden .cal-tip-src. */
+(function () {
+  if (!window.matchMedia("(hover: hover)").matches) return;
+  let tip = null;
+  let current = null;
+
+  function place(target) {
+    const rect = target.getBoundingClientRect();
+    const box = tip.getBoundingClientRect();
+    let left = rect.left;
+    let top = rect.bottom + 8;
+    if (left + box.width > window.innerWidth - 8) left = window.innerWidth - box.width - 8;
+    if (top + box.height > window.innerHeight - 8) top = rect.top - box.height - 8;
+    tip.style.left = Math.max(8, left) + "px";
+    tip.style.top = Math.max(8, top) + "px";
+  }
+
+  function show(target) {
+    const source = target.querySelector(".cal-tip-src");
+    if (!source) return;
+    if (!tip) {
+      tip = document.createElement("div");
+      tip.className = "oc-tip";
+      tip.setAttribute("role", "tooltip");
+      document.body.appendChild(tip);
+    }
+    current = target;
+    tip.innerHTML = source.innerHTML;
+    tip.classList.remove("show");
+    place(target);
+    requestAnimationFrame(function () { if (current === target) tip.classList.add("show"); });
+  }
+
+  function hide() {
+    current = null;
+    if (tip) tip.classList.remove("show");
+  }
+
+  document.addEventListener("mouseover", function (event) {
+    const target = event.target.closest("[data-cal-tip]");
+    if (target && target !== current) show(target);
+    else if (!target && current) hide();
+  });
+  document.addEventListener("focusin", function (event) {
+    const target = event.target.closest("[data-cal-tip]");
+    if (target) show(target);
+  });
+  document.addEventListener("focusout", hide);
+  window.addEventListener("scroll", hide, true);
+})();

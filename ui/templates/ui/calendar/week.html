@@ -25,12 +25,12 @@
         {% for block in col.blocks %}
           {% with item=block.entry %}
             {% if item.url %}<a href="{{ item.url }}"{% else %}<div{% endif %}
-              class="cal-block is-{{ item.tone }}"
-              style="top: {{ block.top }}px; height: {{ block.height }}px; left: calc({{ block.left }}% + 3px); width: calc({{ block.width }}% - 6px); right: auto;"
-              title="{{ item.title }} · {{ item.start|time:'g:i A' }}{% if item.end %}–{{ item.end|time:'g:i A' }}{% endif %}{% for icon, text in item.meta %} · {{ text }}{% endfor %}">
+              class="cal-block is-{{ item.tone }}" data-cal-tip
+              style="top: {{ block.top }}px; height: {{ block.height }}px; left: calc({{ block.left }}% + 3px); width: calc({{ block.width }}% - 6px); right: auto;">
               <span class="t">{% if item.icon %}<i class="bi {{ item.icon }}"></i> {% endif %}{{ item.title }}</span>
               <span class="m">{{ item.start|time:"g:i A" }}{% if item.end %} – {{ item.end|time:"g:i A" }}{% endif %}</span>
               {% if not block.short %}{% for icon, text in item.meta|slice:":2" %}<span class="m"><i class="bi {{ icon }}"></i> {{ text }}</span>{% endfor %}{% endif %}
+              {% include "ui/calendar/tip.html" %}
             {% if item.url %}</a>{% else %}</div>{% endif %}
           {% endwith %}
         {% endfor %}

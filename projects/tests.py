@@ -501,16 +501,20 @@ class ProjectManagerAccessTests(TestCase):
         Task.objects.create(project=project, name="Hidden task", due_date=today, assigned_to=self.pm)
 
         self.client.force_login(self.pm)
-        html = self.client.get(reverse("projects:project_calendar")).content.decode()
+        html = self.client.get(reverse("events:event_calendar")).content.decode()
         self.assertIn("Edit teaser", html)
         self.assertIn("Album", html)
         self.assertIn("emp-one", html)
 
         # Employees see only their own work.
         self.client.force_login(self.employee)
-        html = self.client.get(reverse("projects:project_calendar")).content.decode()
+        html = self.client.get(reverse("events:event_calendar")).content.decode()
         self.assertIn("Edit teaser", html)
         self.assertNotIn("Hidden task", html)
 
-        response = self.client.get(reverse("projects:project_calendar"), {"month": "bad"})
+        response = self.client.get(reverse("events:event_calendar"), {"month": "bad"})
         self.assertEqual(response.status_code, 200)
+
+        # The old work calendar address opens the one calendar with its filters.
+        response = self.client.get(reverse("projects:project_calendar"), {"show": "tasks"})
+        self.assertRedirects(response, reverse("events:event_calendar") + "?show=tasks")

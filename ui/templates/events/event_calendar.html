@@ -1,15 +1,24 @@
-{# events/event_calendar.html #}
+{# events/event_calendar.html: the one company calendar #}
 {% extends "ui/base.html" %}
 
-{% block title %}Event calendar{% endblock %}
+{% block title %}Calendar{% endblock %}
 
 {% block content %}
 <div class="container">
   <div class="page-header">
     <div>
-      <div class="page-eyebrow"><i class="bi bi-calendar-event"></i> Calendars</div>
-      <h1 class="page-title">Event calendar</h1>
-      <div class="page-subtitle">Shoots and functions across every client. {{ cal_total }} event{{ cal_total|pluralize }} shown.</div>
+      <div class="page-eyebrow"><i class="bi bi-calendar-event"></i> Calendar</div>
+      <h1 class="page-title">Calendar</h1>
+      <div class="page-subtitle">
+        {% if sees_work %}
+          Outdoor work and post production in one place.
+          {{ counts.event }} event{{ counts.event|pluralize }} ·
+          {{ counts.task }} task{{ counts.task|pluralize }} ·
+          {{ counts.deliverable }} deliverable{{ counts.deliverable|pluralize }} in view.
+        {% else %}
+          Shoots and functions across every client. {{ counts.event }} event{{ counts.event|pluralize }} in view.
+        {% endif %}
+      </div>
     </div>
     <div class="page-actions">
       {% if can_manage_events %}
@@ -24,35 +33,45 @@
     <form method="get" class="cal-filters" aria-label="Filters">
       <input type="hidden" name="view" value="{{ cal.view }}">
       <input type="hidden" name="date" value="{{ cal.anchor|date:'Y-m-d' }}">
-      <select name="event_type" class="form-select form-select-sm" onchange="this.form.submit()" aria-label="Event type">
-        <option value="">All event types</option>
-        {% for value, label in event_type_choices %}
-          <option value="{{ value }}" {% if event_type == value %}selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-      </select>
-      <select name="status" class="form-select form-select-sm" onchange="this.form.submit()" aria-label="Status">
-        <option value="">All statuses (not cancelled)</option>
-        {% for value, label in status_choices %}
-          <option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-      </select>
-      <select name="venue" class="form-select form-select-sm" onchange="this.form.submit()" aria-label="Venue">
-        <option value="">All venues</option>
-        {% for v in venue_choices %}
-          <option value="{{ v.pk }}" {% if venue == v.pk|stringformat:"s" %}selected{% endif %}>{{ v.name }}</option>
-        {% endfor %}
-      </select>
-      {% if event_type or status or venue %}
+      {% if sees_work %}
+        <input type="hidden" name="show" value="{{ show_filter }}">
+        <div class="segmented" role="group" aria-label="Show">
+          <button type="submit" name="show" value="" class="{% if not show_filter %}active{% endif %}">All</button>
+          <button type="submit" name="show" value="mine" class="{% if show_filter == 'mine' %}active{% endif %}"><i class="bi bi-person"></i>My work</button>
+          <button type="submit" name="show" value="events" class="{% if show_filter == 'events' %}active{% endif %}"><i class="bi bi-stars"></i>Events</button>
+          <button type="submit" name="show" value="tasks" class="{% if show_filter == 'tasks' %}active{% endif %}"><i class="bi bi-check2-square"></i>Tasks</button>
+          <button type="submit" name="show" value="deliverables" class="{% if show_filter == 'deliverables' %}active{% endif %}"><i class="bi bi-box-seam"></i>Deliverables</button>
+        </div>
+      {% endif %}
+
+      {% if can_filter_work %}
+        <select name="project" class="form-select form-select-sm" onchange="this.form.submit()" aria-label="Project">
+          <option value="">All projects</option>
+          {% for p in project_choices %}
+            <option value="{{ p.pk }}" {% if project_filter == p.pk|stringformat:"s" %}selected{% endif %}>{{ p.name }}</option>
+          {% endfor %}
+        </select>
+        <select name="staff" class="form-select form-select-sm" onchange="this.form.submit()" aria-label="Staff">
+          <option value="">Everyone</option>
+          {% for member in staff_choices %}
+            <option value="{{ member.pk }}" {% if staff_filter == member.pk|stringformat:"s" %}selected{% endif %}>{{ member.get_full_name|default:member.username }}</option>
+          {% endfor %}
+        </select>
+      {% endif %}
+      {% if project_filter or staff_filter or show_filter %}
         <a href="?view={{ cal.view }}&amp;date={{ cal.anchor|date:'Y-m-d' }}" class="btn btn-light btn-sm"><i class="bi bi-x-lg"></i>Clear</a>
       {% endif %}
       <noscript><button type="submit" class="btn btn-dark btn-sm">Apply</button></noscript>
 
       <div class="cal-legend ms-auto align-self-center">
-        <span><i class="cal-swatch solid"></i>Confirmed</span>
-        <span><i class="cal-swatch gray"></i>In progress</span>
-        <span><i class="cal-swatch"></i>Planned</span>
-        <span><i class="cal-swatch dashed"></i>Draft</span>
-        <span><i class="cal-swatch soft"></i>Completed</span>
+        <span><i class="cal-swatch solid"></i>Event</span>
+        <span><i class="cal-swatch dashed"></i>Draft event</span>
+        {% if sees_work %}
+          <span><i class="cal-swatch"></i>Task</span>
+          <span><i class="cal-swatch gray"></i>Deliverable</span>
+          <span><i class="cal-swatch danger"></i>Overdue</span>
+          <span><i class="cal-swatch soft"></i>Done</span>
+        {% endif %}
       </div>
     </form>
 
@@ -64,7 +83,8 @@
       {% include "ui/calendar/agenda.html" %}
     {% endif %}
   </div>
+  {% if sees_work %}
+    <p class="small text-muted mt-2 mb-0"><i class="bi bi-info-circle"></i> Tasks and deliverables sit on their due date. A bar on the left edge marks work assigned to you. On a phone, tap a day to open its week.</p>
+  {% endif %}
 </div>
 {% endblock %}
-
-{% block extra_js %}{% include "ui/calendar/mobile_default.html" %}{% endblock %}

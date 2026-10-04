@@ -31,7 +31,6 @@ from django.db.models import Count, Q
 from django.urls import reverse
 from django.utils import timezone
 
-from common.roles import can_manage_events
 from events.models import Event, EventStatus
 from sales.models import Deal, DealStage
 
@@ -572,7 +571,6 @@ def home(request):
         .select_related("client", "venue")
         .order_by("date", "start_time", "name")[:8]
     )
-    can_open_events = can_manage_events(user)
 
     # Open deals by stage, in the order a sale moves.
     deal_pipeline = []
@@ -605,7 +603,6 @@ def home(request):
     context = {
         "today": today,
         "upcoming_events": upcoming_events,
-        "can_open_events": can_open_events,
         "deal_pipeline": deal_pipeline,
         "role_label": role_label,
         "is_admin": is_admin,

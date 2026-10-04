@@ -1,6 +1,6 @@
 # ui/calendar.py
 """
-Shared calendar layout for the event calendar and the work calendar.
+Calendar layout (month, week, agenda) for the company calendar.
 
 A view builds a CalendarRange from the request (which view, which dates),
 queries its records for range.start..range.end, turns each record into a
@@ -17,6 +17,7 @@ Entry keys:
     meta        list of (icon, text) shown under the title
     status      status label
     mine        True to mark the current user's own work
+    kind        "event" | "task" | "deliverable" (groups the phone month view)
 """
 
 import calendar as pycalendar
@@ -27,11 +28,15 @@ from django.utils import timezone
 
 VIEWS = ("month", "week", "agenda")
 AGENDA_DAYS = 30
-MONTH_VISIBLE = 4
 DAY_START_HOUR = 7
 DAY_END_HOUR = 23
 DEFAULT_MINUTES = 60
 WEEKDAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+KINDS = (
+    ("event", "bi-stars", "event", "events"),
+    ("task", "bi-check2-square", "task", "tasks"),
+    ("deliverable", "bi-box-seam", "deliverable", "deliverables"),
+)
 
 
 def _minutes(t):
@@ -164,15 +169,35 @@ class CalendarRange:
                     "is_today": day == self.today,
                     "is_past": day < self.today,
                     "is_weekend": day.weekday() >= 5,
-                    "items": items[:MONTH_VISIBLE],
-                    "more": max(0, len(items) - MONTH_VISIBLE),
+                    # Every entry; a busy day scrolls inside its cell.
+                    "items": items,
                     "count": len(items),
+                    # Phones show one line per kind: the first entry and how
+                    # many more there are. Tapping the day opens its week.
+                    "groups": self._groups(items),
                     "week_url": self.url(view="week", anchor=day),
                     "agenda_url": self.url(view="agenda", anchor=day),
                 })
                 day += timedelta(days=1)
             weeks.append(week)
         return weeks
+
+    @staticmethod
+    def _groups(items):
+        groups = []
+        for kind, icon, singular, plural in KINDS:
+            of_kind = [e for e in items if e.get("kind", "event") == kind]
+            if not of_kind:
+                continue
+            groups.append({
+                "kind": kind,
+                "icon": icon,
+                "first": of_kind[0],
+                "count": len(of_kind),
+                "more": len(of_kind) - 1,
+                "label": f"{len(of_kind)} {singular if len(of_kind) == 1 else plural}",
+            })
+        return groups
 
     def _week(self, days):
         timed = [e for items in days.values() for e in items if e["start"]]

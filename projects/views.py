@@ -27,7 +27,6 @@ from common.mixins import ProjectAccessMixin, ProjectWorkAccessMixin
 from common.roles import (
     ROLE_EMPLOYEE,
     ROLE_PROJECT_MANAGER,
-    can_manage_events,
 )
 
 from events.models import Event
@@ -1581,158 +1580,16 @@ class EndWorkSessionView(WorkSessionActionMixin, View):
 # Project calendar
 # ============================================================
 
-def _person_name(user):
-    if not user:
-        return ""
-    return user.get_full_name().strip() or user.username
-
-
-class ProjectCalendarView(ProjectWorkAccessMixin, TemplateView):
+class ProjectCalendarView(View):
     """
-    Calendar of project work: events, tasks and deliverables, each entry
-    showing who is assigned. Month, week and agenda views.
-
-    Tasks and deliverables sit on their due date (start date if no due date).
-    Employees see only their own work; events are shown to everyone.
+    The work calendar merged into the one calendar (events:event_calendar);
+    old links and bookmarks keep their filters.
     """
 
-    template_name = "projects/project_calendar.html"
-
-    def get_context_data(self, **kwargs):
-        from ui.calendar import CalendarRange
-        from ui.templatetags.ui_tags import status_tone
-
-        context = super().get_context_data(**kwargs)
-        user = self.request.user
-
-        project_id = (self.request.GET.get("project") or "").strip()
-        staff_id = (self.request.GET.get("staff") or "").strip()
-        show = (self.request.GET.get("show") or "").strip()
-        can_filter_staff = is_admin_or_project_manager(user)
-
-        cal = CalendarRange.from_request(self.request, keep=("project", "staff", "show"))
-        grid_start, grid_end = cal.start, cal.end
-
-        in_range = (
-            Q(due_date__range=(grid_start, grid_end))
-            | Q(due_date__isnull=True, start_date__range=(grid_start, grid_end))
-        )
-
-        tasks = (
-            visible_tasks_for(user)
-            .filter(in_range)
-            .exclude(status=TaskStatus.CANCELLED)
-            .select_related("project", "assigned_to")
-        )
-        deliverables = (
-            visible_deliverables_for(user)
-            .filter(in_range)
-            .exclude(status=DeliverableStatus.CANCELLED)
-            .select_related("project", "assigned_to")
-        )
-        events = (
-            Event.objects.filter(date__range=(grid_start, grid_end))
-            .exclude(status="cancelled")
-            .select_related("client", "project", "venue")
-            .prefetch_related("projects")
-        )
-
-        if project_id.isdigit():
-            tasks = tasks.filter(project_id=project_id)
-            deliverables = deliverables.filter(project_id=project_id)
-            events = events.filter(Q(project_id=project_id) | Q(projects__id=project_id)).distinct()
-
-        if staff_id.isdigit() and can_filter_staff:
-            tasks = tasks.filter(assigned_to_id=staff_id)
-            deliverables = deliverables.filter(assigned_to_id=staff_id)
-
-        if show == "mine":
-            tasks = tasks.filter(assigned_to=user)
-            deliverables = deliverables.filter(assigned_to=user)
-
-        if show in ("tasks", "deliverables", "mine"):
-            events = events.none()
-        if show == "tasks":
-            deliverables = deliverables.none()
-        if show == "deliverables":
-            tasks = tasks.none()
-        if show == "events":
-            tasks = tasks.none()
-            deliverables = deliverables.none()
-
-        entries = []
-        can_open_events = can_manage_events(user)
-        for event in events:
-            project = event.linked_project
-            meta = []
-            if event.venue_id:
-                meta.append(("bi-geo-alt", event.venue.name))
-            if project:
-                meta.append(("bi-kanban", project.name))
-            else:
-                meta.append(("bi-exclamation-circle", "No project yet"))
-            entries.append({
-                "date": event.date,
-                "start": event.start_time,
-                "end": event.end_time,
-                "title": event.name,
-                "url": reverse("events:event_detail", args=[event.pk]) if can_open_events else "",
-                "tone": "solid",
-                "icon": "bi-stars",
-                "meta": meta,
-                "status": event.get_status_display(),
-                "status_tone": status_tone(event.status),
-                "order": 0,
-            })
-
-        def work_entry(obj, kind, url_name, done):
-            assignee = _person_name(obj.assigned_to) or "Unassigned"
-            mine = obj.assigned_to_id == user.id
-            meta = [("bi-kanban", obj.project.name), ("bi-person", assignee + (" (me)" if mine else ""))]
-            if obj.due_date and obj.start_date and obj.start_date != obj.due_date:
-                meta.append(("bi-play", f"Started {obj.start_date:%d %b}"))
-            tone = "soft" if done else ("danger" if obj.is_overdue else ("outline" if kind == "task" else "gray"))
-            return {
-                "date": obj.due_date or obj.start_date,
-                "title": obj.name,
-                "url": reverse(url_name, args=[obj.pk]),
-                "tone": tone,
-                "icon": "bi-check2-square" if kind == "task" else "bi-box-seam",
-                "meta": meta,
-                "status": ("Overdue · " if obj.is_overdue and not done else "") + obj.get_status_display(),
-                "status_tone": "status-danger" if obj.is_overdue and not done else status_tone(obj.status),
-                "mine": mine,
-                "order": 1 if kind == "task" else 2,
-            }
-
-        for task in tasks:
-            entries.append(work_entry(task, "task", "projects:task_detail", task.status == TaskStatus.COMPLETED))
-        for deliverable in deliverables:
-            entries.append(work_entry(
-                deliverable, "deliverable", "projects:deliverable_detail",
-                deliverable.status == DeliverableStatus.DELIVERED,
-            ))
-
-        context.update(cal.layout(entries))
-        context.update({
-            "project_filter": project_id,
-            "staff_filter": staff_id,
-            "show_filter": show,
-            "project_choices": visible_projects_for(user).exclude(
-                status__in=[ProjectStatus.CLOSED, ProjectStatus.CANCELLED]
-            ).order_by("name") if can_filter_staff else Project.objects.none(),
-            "staff_choices": User.objects.filter(
-                is_active=True,
-                groups__name__in=[ROLE_EMPLOYEE, ROLE_PROJECT_MANAGER],
-            ).distinct().order_by("first_name", "last_name", "username") if can_filter_staff else User.objects.none(),
-            "can_filter_staff": can_filter_staff,
-            "counts": {
-                "events": len([e for e in entries if e["order"] == 0]),
-                "tasks": len([e for e in entries if e["order"] == 1]),
-                "deliverables": len([e for e in entries if e["order"] == 2]),
-            },
-        })
-        return context
+    def get(self, request, *args, **kwargs):
+        url = reverse("events:event_calendar")
+        query = request.GET.urlencode()
+        return redirect(f"{url}?{query}" if query else url)
 
 
 # ============================================================

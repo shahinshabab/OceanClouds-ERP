@@ -1,17 +1,14 @@
-import json
 from collections import defaultdict
 from datetime import datetime, time, timedelta
 from decimal import Decimal
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.db.models import Q
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 
 from common.models import CheckoutReviewStatus, UserSessionEndReason
 from common.roles import ROLE_ADMIN, ROLE_EMPLOYEE, ROLE_PROJECT_MANAGER, user_has_role
-from projects.models import Deliverable, Task, WorkSession
 
 
 User = get_user_model()
@@ -79,45 +76,9 @@ def _all_employee_users():
 
 
 def _employee_options_for_user(user):
-    """
-    Admin:
-    all employees and project managers.
-
-    Project Manager:
-    employees who have work sessions under projects managed by this manager,
-    plus the manager themselves.
-
-    Employee:
-    only themselves.
-    """
-    if user_has_role(user, ROLE_ADMIN):
+    """Admins and project managers pick from every employee; others see themselves."""
+    if user_has_role(user, ROLE_ADMIN, ROLE_PROJECT_MANAGER):
         return _all_employee_users()
-
-    if user_has_role(user, ROLE_PROJECT_MANAGER):
-        work_session_ids = (
-            WorkSession.objects
-            .filter(project__manager=user)
-            .values_list("user_id", flat=True)
-        )
-        task_employee_ids = Task.objects.filter(
-            project__manager=user,
-            assigned_to__isnull=False,
-        ).values_list("assigned_to_id", flat=True)
-        deliverable_employee_ids = Deliverable.objects.filter(
-            project__manager=user,
-            assigned_to__isnull=False,
-        ).values_list("assigned_to_id", flat=True)
-        employee_ids = set(work_session_ids) | set(task_employee_ids) | set(deliverable_employee_ids)
-
-        return (
-            User.objects
-            .filter(
-                Q(id__in=employee_ids) | Q(id=user.id),
-                is_active=True,
-            )
-            .distinct()
-            .order_by("first_name", "last_name", "username")
-        )
 
     return User.objects.filter(id=user.id, is_active=True)
 
@@ -154,62 +115,6 @@ def _base_plain_date_filter(qs, field_name, date_from, date_to):
             f"{field_name}__lte": date_to,
         }
     )
-
-
-def _replace_query_params(request, **new_params):
-    """
-    Keep existing filters, replace/add params, and remove empty values.
-    """
-    params = request.GET.copy()
-
-    for key, value in new_params.items():
-        if value is None or value == "":
-            params.pop(key, None)
-        else:
-            params[key] = value
-
-    return f"{request.path}?{params.urlencode()}"
-
-
-def _get_current_sunday_week_start():
-    """
-    Sunday-based current week.
-
-    Python weekday:
-    Monday = 0
-    Sunday = 6
-
-    If today is Wednesday 06 May 2026:
-    weekday = 2
-    days_since_sunday = 3
-    week_start = Sunday 03 May 2026
-    week_end = Saturday 09 May 2026
-    """
-    today = timezone.localdate()
-    days_since_sunday = (today.weekday() + 1) % 7
-    return today - timedelta(days=days_since_sunday)
-
-
-def _get_login_week(request):
-    """
-    Query param:
-    ?login_week=2026-05-03
-
-    Default:
-    current Sunday-to-Saturday week.
-    """
-    week_start = parse_date(request.GET.get("login_week") or "")
-
-    if not week_start:
-        week_start = _get_current_sunday_week_start()
-
-    # Force Sunday even if another date is passed.
-    days_since_sunday = (week_start.weekday() + 1) % 7
-    week_start = week_start - timedelta(days=days_since_sunday)
-
-    week_end = week_start + timedelta(days=6)
-
-    return week_start, week_end
 
 
 def _format_seconds_to_hours(seconds):
@@ -354,125 +259,6 @@ def _build_attendance_summary(login_sessions_qs, date_from, date_to):
     }
 
 
-def _build_login_week_chart(request, login_sessions_qs):
-    """
-    Sunday to Saturday login duration chart.
-
-    Green:
-    manual logout
-
-    Red:
-    auto timeout
-    """
-    week_start, week_end = _get_login_week(request)
-
-    sessions = (
-        login_sessions_qs
-        .filter(
-            login_at__date__gte=week_start,
-            login_at__date__lte=week_end,
-            logout_at__isnull=False,
-            end_reason__in=[
-                UserSessionEndReason.LOGOUT,
-                UserSessionEndReason.AUTO_TIMEOUT,
-                UserSessionEndReason.IDLE_TIMEOUT,
-                UserSessionEndReason.SESSION_EXPIRED,
-                UserSessionEndReason.SESSION_REPLACED,
-            ],
-        )
-        .select_related("user")
-        .order_by("login_at")
-    )
-
-    day_map = {}
-
-    for i in range(7):
-        day = week_start + timedelta(days=i)
-        day_map[day] = {
-            "date": day,
-            "label": day.strftime("%a"),
-            "manual_seconds": 0,
-            "auto_seconds": 0,
-            "idle_seconds": 0,
-        }
-
-    for session in sessions:
-        local_login = timezone.localtime(session.login_at)
-        effective_logout = _effective_attendance_logout(session)
-        if effective_logout is None:
-            continue
-        local_logout = timezone.localtime(effective_logout)
-
-        session_date = local_login.date()
-
-        if session_date not in day_map:
-            continue
-
-        used_seconds, idle_seconds = _login_session_seconds(
-            session,
-            local_login,
-            local_logout,
-        )
-
-        day_map[session_date]["manual_seconds"] += used_seconds
-        day_map[session_date]["auto_seconds"] += 0
-        day_map[session_date]["idle_seconds"] = (
-            day_map[session_date].get("idle_seconds", 0) + idle_seconds
-        )
-
-    chart_days = []
-
-    for row in day_map.values():
-        manual_hours = _format_seconds_to_hours(row["manual_seconds"])
-        auto_hours = _format_seconds_to_hours(row["auto_seconds"])
-        total_hours = round(manual_hours + auto_hours, 2)
-
-        chart_days.append({
-            "date": row["date"],
-            "label": row["label"],
-            "manual_hours": manual_hours,
-            "auto_hours": auto_hours,
-            "total_hours": total_hours,
-            "manual_hm": _format_seconds_hm(row["manual_seconds"]),
-            "auto_hm": _format_seconds_hm(row["auto_seconds"]),
-            "idle_hm": _format_seconds_hm(row.get("idle_seconds", 0)),
-        })
-
-    chart_labels = [row["label"] for row in chart_days]
-    manual_hours = [row["manual_hours"] for row in chart_days]
-    auto_hours = [row["auto_hours"] for row in chart_days]
-    manual_hm = [row["manual_hm"] for row in chart_days]
-    auto_hm = [row["auto_hm"] for row in chart_days]
-
-    return {
-        "week_start": week_start,
-        "week_end": week_end,
-        "previous_week_url": _replace_query_params(
-            request,
-            login_week=(week_start - timedelta(days=7)).isoformat(),
-            download=None,
-        ),
-        "next_week_url": _replace_query_params(
-            request,
-            login_week=(week_start + timedelta(days=7)).isoformat(),
-            download=None,
-        ),
-        "chart_days": chart_days,
-        "chart_labels_json": json.dumps(chart_labels),
-        "manual_hours_json": json.dumps(manual_hours),
-        "auto_hours_json": json.dumps(auto_hours),
-        "manual_hm_json": json.dumps(manual_hm),
-        "auto_hm_json": json.dumps(auto_hm),
-        "manual_total_hours": round(sum(manual_hours), 2),
-        "auto_total_hours": round(sum(auto_hours), 2),
-        "grand_total_hours": round(sum(manual_hours) + sum(auto_hours), 2),
-        "grand_total_hm": _format_seconds_hm(
-            sum(row["manual_seconds"] + row["auto_seconds"] for row in day_map.values())
-        ),
-        "legacy_auto_logout_idle_hm": _format_seconds_hm(_legacy_auto_logout_idle_seconds()),
-    }
-
-
 def _build_login_month_table(login_sessions_qs, work_sessions_qs, date_from, date_to):
     """
     Login table for selected report date filter.
@@ -569,3 +355,91 @@ def _build_login_month_table(login_sessions_qs, work_sessions_qs, date_from, dat
         "total_work_hours": _format_seconds_to_hours(total_work_seconds),
         "total_work_hm": _format_seconds_hm(total_work_seconds),
     }
+
+
+# ============================================================
+# Charts
+# ============================================================
+# Each chart is a plain dict that ui/static/ui/report_charts.js draws:
+# {"type": "bar" | "hbar" | "line", "format": "count" | "money" | "hours",
+#  "labels": [...], "series": [{"label": ..., "values": [...]}], "stacked": bool}
+
+DAILY_TREND_MAX_DAYS = 62
+
+
+def _chart(chart_type, labels, series, value_format="count", stacked=False):
+    return {
+        "type": chart_type,
+        "format": value_format,
+        "labels": [str(label) for label in labels],
+        "series": [
+            {"label": str(label), "values": [float(value or 0) for value in values]}
+            for label, values in series
+        ],
+        "stacked": stacked,
+    }
+
+
+def _choice_counts(count_rows, field_name, choices):
+    """
+    Turn values(field).annotate(count=...) rows into labels and counts.
+
+    Every choice keeps its place in the model's order, so a status that has
+    no rows still shows as zero and bars do not move between filters.
+    """
+    counts = {row[field_name]: row["count"] for row in count_rows}
+    labels = []
+    values = []
+    for value, label in choices:
+        labels.append(label)
+        values.append(counts.pop(value, 0))
+    for value, count in counts.items():
+        labels.append(value or "-")
+        values.append(count)
+    return labels, values
+
+
+def _trend_buckets(date_from, date_to):
+    """Daily buckets for short ranges, monthly ones for longer ranges."""
+    if (date_to - date_from).days < DAILY_TREND_MAX_DAYS:
+        days = (date_to - date_from).days + 1
+        keys = [date_from + timedelta(days=offset) for offset in range(max(days, 0))]
+        return "day", keys, [key.strftime("%d %b") for key in keys]
+
+    keys = []
+    cursor = date_from.replace(day=1)
+    while cursor <= date_to:
+        keys.append(cursor)
+        cursor = (cursor + timedelta(days=32)).replace(day=1)
+    return "month", keys, [key.strftime("%b %Y") for key in keys]
+
+
+def _bucket_key(value, unit):
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        value = timezone.localtime(value).date() if timezone.is_aware(value) else value.date()
+    return value if unit == "day" else value.replace(day=1)
+
+
+def _trend_totals(pairs, unit, keys):
+    """Sum (datetime, amount) pairs into the given buckets."""
+    totals = dict.fromkeys(keys, 0)
+    for moment, amount in pairs:
+        key = _bucket_key(moment, unit)
+        if key in totals:
+            totals[key] += amount or 0
+    return [totals[key] for key in keys]
+
+
+def _count_trend(qs, field_name, unit, keys):
+    return _trend_totals(
+        ((moment, 1) for moment in qs.values_list(field_name, flat=True)),
+        unit,
+        keys,
+    )
+
+
+def _hours(seconds):
+    return round((seconds or 0) / 3600, 2)
+

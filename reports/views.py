@@ -2,12 +2,14 @@
 
 from django.contrib import messages
 from django.contrib.auth import get_user_model
+from django.core.exceptions import PermissionDenied
 from django.db.models import Count, Q, Sum
 from django.http import Http404, HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect
 from django.template.loader import render_to_string
+from django.urls import reverse
 from django.utils import timezone
-from django.views.generic import TemplateView
+from django.views.generic import TemplateView, View
 
 from common.mixins import (
     ReportAccessMixin,
@@ -28,6 +30,9 @@ from common.roles import (
     ROLE_CRM_MANAGER,
     ROLE_PROJECT_MANAGER,
     ROLE_EMPLOYEE,
+    EMPLOYEE_REPORT_ACCESS_ROLES,
+    PROJECT_REPORT_ACCESS_ROLES,
+    SALES_REPORT_ACCESS_ROLES,
     user_has_role,
 )
 
@@ -43,6 +48,7 @@ from sales.models import (
     ProposalStatus,
     ContractStatus,
     InvoiceStatus,
+    PaymentType,
     net_paid_amount,
 )
 
@@ -54,22 +60,28 @@ from projects.models import (
     ProjectStatus,
     TaskStatus,
     DeliverableStatus,
+    ProductionDepartment,
     WorkSessionStatus,
 )
 from .utils import (
     _base_date_filter,
     _build_attendance_summary,
-    _build_login_month_table,
-    _build_login_week_chart,
+    _chart,
+    _choice_counts,
+    _count_trend,
     _employee_options_for_user,
     _format_seconds_hm,
     _get_date_range,
+    _hours,
     _money,
     _selected_user_id,
     _sum_work_session_seconds,
+    _trend_buckets,
+    _trend_totals,
     _user_display,
     _users_in_role,
 )
+from ui.templatetags.ui_tags import inr
 from .forms import CheckoutCorrectionForm, LeaveRequestForm
 from .notifications import notify_checkout_requested, notify_checkout_reviewed
 
@@ -81,10 +93,6 @@ except ImportError:
 
 User = get_user_model()
 
-
-# ============================================================
-# Helpers
-# ============================================================
 
 # ============================================================
 # PDF Mixin
@@ -137,42 +145,43 @@ class ReportPDFMixin:
 
 
 # ============================================================
-# Dashboard
+# Report tabs
 # ============================================================
 
-class ReportDashboardView(ReportAccessMixin, TemplateView):
-    template_name = "reports/report_dashboard.html"
+# One Reports page: each report is a tab, shown only to the roles it allows.
+REPORT_TABS = [
+    ("sales", "Sales", "reports:sales_report", "bi-graph-up-arrow", SALES_REPORT_ACCESS_ROLES),
+    ("projects", "Projects", "reports:project_report", "bi-kanban", PROJECT_REPORT_ACCESS_ROLES),
+    ("employees", "Employees", "reports:employee_work_report", "bi-people", EMPLOYEE_REPORT_ACCESS_ROLES),
+]
+
+
+def _report_tabs_for(user):
+    return [
+        {"key": key, "label": label, "url": reverse(url_name), "icon": icon}
+        for key, label, url_name, icon, roles in REPORT_TABS
+        if user_has_role(user, *roles)
+    ]
+
+
+class ReportTabsMixin:
+    report_tab = None
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-
-        user = self.request.user
-
-        context["can_view_sales_report"] = user_has_role(
-            user,
-            ROLE_ADMIN,
-            ROLE_CRM_MANAGER,
-        )
-
-        context["can_view_project_report"] = user_has_role(
-            user,
-            ROLE_ADMIN,
-            ROLE_PROJECT_MANAGER,
-        )
-
-        context["can_view_employee_report"] = user_has_role(
-            user,
-            ROLE_ADMIN,
-            ROLE_PROJECT_MANAGER,
-        )
-
-        context["can_view_attendance"] = user_has_role(
-            user,
-            ROLE_ADMIN,
-            ROLE_PROJECT_MANAGER,
-        )
-
+        context["report_tabs"] = _report_tabs_for(self.request.user)
+        context["active_report_tab"] = self.report_tab
         return context
+
+
+class ReportDashboardView(ReportAccessMixin, View):
+    """/reports/ opens the first report tab this user may see."""
+
+    def get(self, request, *args, **kwargs):
+        tabs = _report_tabs_for(request.user)
+        if not tabs:
+            raise PermissionDenied
+        return redirect(tabs[0]["url"])
 
 
 class AttendanceDashboardView(AttendanceAccessMixin, TemplateView):
@@ -424,94 +433,38 @@ class AttendanceDashboardView(AttendanceAccessMixin, TemplateView):
 # Sales Report
 # ============================================================
 
-class SalesReportView(SalesReportAccessMixin, ReportPDFMixin, TemplateView):
+class SalesReportView(SalesReportAccessMixin, ReportTabsMixin, ReportPDFMixin, TemplateView):
     template_name = "reports/sales_report.html"
     pdf_template_name = "reports/sales_pdf.html"
     pdf_filename = "sales_report.pdf"
+    report_tab = "sales"
 
     def get_selected_crm_user(self):
-        request = self.request
-        current_user = request.user
-
-        selected_id = _selected_user_id(request)
-
-        if user_has_role(current_user, ROLE_ADMIN):
-            if selected_id:
-                return User.objects.filter(
-                    id=selected_id,
-                    groups__name=ROLE_CRM_MANAGER,
-                    is_active=True,
-                ).first()
-
+        selected_id = _selected_user_id(self.request)
+        if not selected_id:
             return None
 
-        return current_user
+        return User.objects.filter(
+            id=selected_id,
+            groups__name=ROLE_CRM_MANAGER,
+            is_active=True,
+        ).first()
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
-        current_user = self.request.user
         date_from, date_to = _get_date_range(self.request)
         selected_user = self.get_selected_crm_user()
 
-        inquiries = Inquiry.objects.select_related(
-            "owner",
-            "client",
-            "lead",
-        )
-
-        leads = Lead.objects.select_related(
-            "owner",
-            "client",
-            "inquiry",
-        )
-
+        inquiries = Inquiry.objects.select_related("owner", "client", "lead")
+        leads = Lead.objects.select_related("owner", "client", "inquiry")
         clients = Client.objects.select_related("owner")
         contacts = Contact.objects.select_related("owner", "client")
         reviews = Review.objects.select_related("owner", "client")
-
-        if selected_user:
-            inquiries = inquiries.filter(owner=selected_user)
-            leads = leads.filter(owner=selected_user)
-            clients = clients.filter(owner=selected_user)
-            contacts = contacts.filter(owner=selected_user)
-            reviews = reviews.filter(owner=selected_user)
-
-        inquiries_in_period = _base_date_filter(inquiries, "created_at", date_from, date_to)
-        leads_in_period = _base_date_filter(leads, "created_at", date_from, date_to)
-        clients_in_period = _base_date_filter(clients, "created_at", date_from, date_to)
-        contacts_in_period = _base_date_filter(contacts, "created_at", date_from, date_to)
-        reviews_in_period = _base_date_filter(reviews, "created_at", date_from, date_to)
-
-        deals = Deal.objects.select_related(
-            "owner",
-            "client",
-            "lead",
-        )
-
-        proposals = Proposal.objects.select_related(
-            "owner",
-            "deal",
-            "deal__client",
-            "deal__lead",
-        )
-
-        contracts = Contract.objects.select_related(
-            "owner",
-            "deal",
-            "proposal",
-            "deal__client",
-            "deal__lead",
-        )
-
-        invoices = Invoice.objects.select_related(
-            "owner",
-            "deal",
-            "contract",
-            "deal__client",
-            "deal__lead",
-        )
-
+        deals = Deal.objects.select_related("owner", "client", "lead")
+        proposals = Proposal.objects.select_related("owner", "deal", "deal__client", "deal__lead")
+        contracts = Contract.objects.select_related("owner", "deal", "proposal", "deal__client", "deal__lead")
+        invoices = Invoice.objects.select_related("owner", "deal", "contract", "deal__client", "deal__lead")
         payments = Payment.objects.select_related(
             "owner",
             "invoice",
@@ -522,12 +475,22 @@ class SalesReportView(SalesReportAccessMixin, ReportPDFMixin, TemplateView):
         )
 
         if selected_user:
+            inquiries = inquiries.filter(owner=selected_user)
+            leads = leads.filter(owner=selected_user)
+            clients = clients.filter(owner=selected_user)
+            contacts = contacts.filter(owner=selected_user)
+            reviews = reviews.filter(owner=selected_user)
             deals = deals.filter(owner=selected_user)
             proposals = proposals.filter(owner=selected_user)
             contracts = contracts.filter(owner=selected_user)
             invoices = invoices.filter(owner=selected_user)
             payments = payments.filter(owner=selected_user)
 
+        inquiries_in_period = _base_date_filter(inquiries, "created_at", date_from, date_to)
+        leads_in_period = _base_date_filter(leads, "created_at", date_from, date_to)
+        clients_in_period = _base_date_filter(clients, "created_at", date_from, date_to)
+        contacts_in_period = _base_date_filter(contacts, "created_at", date_from, date_to)
+        reviews_in_period = _base_date_filter(reviews, "created_at", date_from, date_to)
         deals_in_period = _base_date_filter(deals, "created_at", date_from, date_to)
         proposals_in_period = _base_date_filter(proposals, "created_at", date_from, date_to)
         contracts_in_period = _base_date_filter(contracts, "created_at", date_from, date_to)
@@ -538,66 +501,75 @@ class SalesReportView(SalesReportAccessMixin, ReportPDFMixin, TemplateView):
             Q(lead__isnull=False) |
             Q(status=Inquiry.STATUS_CONVERTED_TO_LEAD)
         ).distinct().count()
+        lead_to_deal_count = leads_in_period.filter(deals__isnull=False).distinct().count()
+        deal_to_contract_count = deals_in_period.filter(contracts__isnull=False).distinct().count()
+        deal_to_invoice_count = deals_in_period.filter(invoices__isnull=False).distinct().count()
 
-        lead_to_deal_count = leads_in_period.filter(
-            deals__isnull=False
-        ).distinct().count()
-
-        deal_to_contract_count = deals_in_period.filter(
-            contracts__isnull=False
-        ).distinct().count()
-
-        deal_to_invoice_count = deals_in_period.filter(
-            invoices__isnull=False
-        ).distinct().count()
-
-        invoice_total = _money(
-            invoices_in_period.aggregate(total=Sum("total"))["total"]
-        )
-
-        amount_paid_total = _money(
-            invoices_in_period.aggregate(total=Sum("amount_paid"))["total"]
-        )
-
+        invoice_total = _money(invoices_in_period.aggregate(total=Sum("total"))["total"])
+        amount_paid_total = _money(invoices_in_period.aggregate(total=Sum("amount_paid"))["total"])
         payment_received_total = _money(net_paid_amount(payments_in_period))
-
         outstanding_total = invoice_total - amount_paid_total
-
-        inquiry_status_counts = inquiries_in_period.values("status").annotate(
-            count=Count("id")
-        ).order_by("status")
-
-        inquiry_channel_counts = inquiries_in_period.values("channel").annotate(
-            count=Count("id")
-        ).order_by("channel")
-
-        lead_status_counts = leads_in_period.values("status").annotate(
-            count=Count("id")
-        ).order_by("status")
-
-        deal_stage_counts = deals_in_period.values("stage").annotate(
-            count=Count("id")
-        ).order_by("stage")
-
-        proposal_status_counts = proposals_in_period.values("status").annotate(
-            count=Count("id")
-        ).order_by("status")
-
-        contract_status_counts = contracts_in_period.values("status").annotate(
-            count=Count("id")
-        ).order_by("status")
-
-        invoice_status_counts = invoices_in_period.values("status").annotate(
-            count=Count("id")
-        ).order_by("status")
 
         inquiry_count = inquiries_in_period.count()
         lead_count = leads_in_period.count()
         deal_count = deals_in_period.count()
+        proposal_count = proposals_in_period.count()
+        contract_count = contracts_in_period.count()
+        invoice_count = invoices_in_period.count()
 
         inquiry_to_lead_rate = round((inquiry_to_lead_count / inquiry_count) * 100, 2) if inquiry_count else 0
         lead_to_deal_rate = round((lead_to_deal_count / lead_count) * 100, 2) if lead_count else 0
         deal_to_contract_rate = round((deal_to_contract_count / deal_count) * 100, 2) if deal_count else 0
+
+        inquiry_status_counts = inquiries_in_period.values("status").annotate(count=Count("id")).order_by("status")
+        inquiry_channel_counts = inquiries_in_period.values("channel").annotate(count=Count("id")).order_by("channel")
+        lead_status_counts = leads_in_period.values("status").annotate(count=Count("id")).order_by("status")
+        deal_stage_counts = deals_in_period.values("stage").annotate(count=Count("id")).order_by("stage")
+        proposal_status_counts = proposals_in_period.values("status").annotate(count=Count("id")).order_by("status")
+        contract_status_counts = contracts_in_period.values("status").annotate(count=Count("id")).order_by("status")
+        invoice_status_counts = invoices_in_period.values("status").annotate(count=Count("id")).order_by("status")
+
+        unit, bucket_keys, bucket_labels = _trend_buckets(date_from, date_to)
+        payment_pairs = (
+            (created_at, -amount if payment_type == PaymentType.REFUND else amount)
+            for created_at, amount, payment_type in payments_in_period.values_list(
+                "created_at", "amount", "payment_type"
+            )
+        )
+
+        charts = {
+            "sales_funnel": _chart(
+                "hbar",
+                ["Inquiries", "Leads", "Deals", "Proposals", "Contracts", "Invoices"],
+                [("Created", [inquiry_count, lead_count, deal_count, proposal_count, contract_count, invoice_count])],
+            ),
+            "sales_activity": _chart(
+                "line",
+                bucket_labels,
+                [
+                    ("Inquiries", _count_trend(inquiries_in_period, "created_at", unit, bucket_keys)),
+                    ("Deals", _count_trend(deals_in_period, "created_at", unit, bucket_keys)),
+                ],
+            ),
+            "sales_received": _chart(
+                "bar",
+                bucket_labels,
+                [("Payments received", _trend_totals(payment_pairs, unit, bucket_keys))],
+                value_format="money",
+            ),
+            "sales_deal_stages": _chart(
+                "hbar",
+                *_labelled(deal_stage_counts, "stage", DealStage.choices, "Deals"),
+            ),
+            "sales_channels": _chart(
+                "hbar",
+                *_labelled(inquiry_channel_counts, "channel", Inquiry.CHANNEL_CHOICES, "Inquiries"),
+            ),
+            "sales_invoice_status": _chart(
+                "hbar",
+                *_labelled(invoice_status_counts, "status", InvoiceStatus.choices, "Invoices"),
+            ),
+        }
 
         context.update({
             "report_title": "Sales Report",
@@ -605,9 +577,32 @@ class SalesReportView(SalesReportAccessMixin, ReportPDFMixin, TemplateView):
             "date_to": date_to,
             "selected_user": selected_user,
             "selected_user_name": _user_display(selected_user),
+            "people": _users_in_role(ROLE_CRM_MANAGER),
+            "person_label": "CRM manager",
             "crm_managers": _users_in_role(ROLE_CRM_MANAGER),
             "pdf_download_url": self.get_pdf_url(),
-            "show_detailed_data": user_has_role(current_user, ROLE_ADMIN),
+            "show_detailed_data": True,
+            "charts": charts,
+            "kpis": [
+                _kpi("Inquiries", inquiry_count, "Created in this period", "bi-inbox"),
+                _kpi("Leads", lead_count, f"{inquiry_to_lead_rate:g}% of inquiries became leads", "bi-person-plus"),
+                _kpi(
+                    "Deals",
+                    deal_count,
+                    f"{deals_in_period.filter(stage=DealStage.WON).count()} won, "
+                    f"{deals_in_period.filter(stage=DealStage.LOST).count()} lost",
+                    "bi-briefcase",
+                ),
+                _kpi(
+                    "Contracts signed",
+                    contracts_in_period.filter(status=ContractStatus.SIGNED).count(),
+                    f"{deal_to_contract_rate:g}% of deals reached a contract",
+                    "bi-pen",
+                ),
+                _kpi("Invoiced", inr(invoice_total), f"{invoice_count} invoices", "bi-receipt"),
+                _kpi("Received", inr(payment_received_total), "Payments, net of refunds", "bi-cash-coin"),
+                _kpi("Outstanding", inr(outstanding_total), "Unpaid on these invoices", "bi-hourglass-split"),
+            ],
 
             "summary": {
                 "inquiry_count": inquiry_count,
@@ -617,9 +612,9 @@ class SalesReportView(SalesReportAccessMixin, ReportPDFMixin, TemplateView):
                 "review_count": reviews_in_period.count(),
 
                 "deal_count": deal_count,
-                "proposal_count": proposals_in_period.count(),
-                "contract_count": contracts_in_period.count(),
-                "invoice_count": invoices_in_period.count(),
+                "proposal_count": proposal_count,
+                "contract_count": contract_count,
+                "invoice_count": invoice_count,
                 "payment_count": payments_in_period.count(),
 
                 "inquiry_to_lead_count": inquiry_to_lead_count,
@@ -652,24 +647,34 @@ class SalesReportView(SalesReportAccessMixin, ReportPDFMixin, TemplateView):
             "contract_status_counts": contract_status_counts,
             "invoice_status_counts": invoice_status_counts,
 
-            "recent_inquiries": inquiries_in_period.order_by("-created_at")[:10] if user_has_role(current_user, ROLE_ADMIN) else [],
-            "recent_leads": leads_in_period.order_by("-created_at")[:10] if user_has_role(current_user, ROLE_ADMIN) else [],
-            "recent_deals": deals_in_period.order_by("-created_at")[:10] if user_has_role(current_user, ROLE_ADMIN) else [],
-            "recent_invoices": invoices_in_period.order_by("-created_at")[:10] if user_has_role(current_user, ROLE_ADMIN) else [],
-            "recent_payments": payments_in_period.order_by("-created_at")[:10] if user_has_role(current_user, ROLE_ADMIN) else [],
+            "recent_inquiries": inquiries_in_period.order_by("-created_at")[:10],
+            "recent_leads": leads_in_period.order_by("-created_at")[:10],
+            "recent_deals": deals_in_period.order_by("-created_at")[:10],
+            "recent_invoices": invoices_in_period.order_by("-created_at")[:10],
+            "recent_payments": payments_in_period.order_by("-created_at")[:10],
         })
 
         return context
+
+
+def _kpi(label, value, meta="", icon=""):
+    return {"label": label, "value": value, "meta": meta, "icon": icon}
+
+
+def _labelled(count_rows, field_name, choices, series_label):
+    labels, values = _choice_counts(count_rows, field_name, choices)
+    return labels, [(series_label, values)]
 
 
 # ============================================================
 # Project Report
 # ============================================================
 
-class ProjectReportView(ProjectReportAccessMixin, ReportPDFMixin, TemplateView):
+class ProjectReportView(ProjectReportAccessMixin, ReportTabsMixin, ReportPDFMixin, TemplateView):
     template_name = "reports/project_report.html"
     pdf_template_name = "reports/project_pdf.html"
     pdf_filename = "project_report.pdf"
+    report_tab = "projects"
 
     def get_selected_project_manager(self):
         request = self.request
@@ -693,6 +698,7 @@ class ProjectReportView(ProjectReportAccessMixin, ReportPDFMixin, TemplateView):
         context = super().get_context_data(**kwargs)
 
         current_user = self.request.user
+        is_admin = user_has_role(current_user, ROLE_ADMIN)
         date_from, date_to = _get_date_range(self.request)
         selected_user = self.get_selected_project_manager()
         today = timezone.localdate()
@@ -707,26 +713,8 @@ class ProjectReportView(ProjectReportAccessMixin, ReportPDFMixin, TemplateView):
             "tasks",
             "deliverables",
         )
-
-        if selected_user:
-            projects = projects.filter(manager=selected_user)
-
-        projects_in_period = _base_date_filter(projects, "created_at", date_from, date_to)
-
-        tasks = Task.objects.select_related(
-            "owner",
-            "project",
-            "project__manager",
-            "assigned_to",
-        )
-
-        deliverables = Deliverable.objects.select_related(
-            "owner",
-            "project",
-            "project__manager",
-            "assigned_to",
-        )
-
+        tasks = Task.objects.select_related("owner", "project", "project__manager", "assigned_to")
+        deliverables = Deliverable.objects.select_related("owner", "project", "project__manager", "assigned_to")
         work_sessions = WorkSession.objects.select_related(
             "owner",
             "user",
@@ -737,69 +725,87 @@ class ProjectReportView(ProjectReportAccessMixin, ReportPDFMixin, TemplateView):
         )
 
         if selected_user:
+            projects = projects.filter(manager=selected_user)
             tasks = tasks.filter(project__manager=selected_user)
             deliverables = deliverables.filter(project__manager=selected_user)
             work_sessions = work_sessions.filter(project__manager=selected_user)
 
+        projects_in_period = _base_date_filter(projects, "created_at", date_from, date_to)
         tasks_in_period = _base_date_filter(tasks, "created_at", date_from, date_to)
         deliverables_in_period = _base_date_filter(deliverables, "created_at", date_from, date_to)
-        work_sessions_in_period = _base_date_filter(work_sessions, "started_at", date_from, date_to)
+        work_sessions_in_period = list(_base_date_filter(work_sessions, "started_at", date_from, date_to))
 
         total_work_seconds = _sum_work_session_seconds(work_sessions_in_period)
 
-        total_work_hours = round(total_work_seconds / 3600, 2)
-
-        overdue_projects = projects.filter(
-            due_date__lt=today,
-        ).exclude(
-            status__in=[
-                ProjectStatus.COMPLETED,
-                ProjectStatus.CANCELLED,
-            ]
+        overdue_projects = projects.filter(due_date__lt=today).exclude(
+            status__in=[ProjectStatus.COMPLETED, ProjectStatus.CANCELLED]
+        )
+        overdue_tasks = tasks.filter(due_date__lt=today).exclude(
+            status__in=[TaskStatus.COMPLETED, TaskStatus.CANCELLED]
+        )
+        overdue_deliverables = deliverables.filter(due_date__lt=today).exclude(
+            status__in=[DeliverableStatus.DELIVERED, DeliverableStatus.CANCELLED]
         )
 
-        overdue_tasks = tasks.filter(
-            due_date__lt=today,
-        ).exclude(
-            status__in=[
-                TaskStatus.COMPLETED,
-                TaskStatus.CANCELLED,
-            ]
-        )
-
-        overdue_deliverables = deliverables.filter(
-            due_date__lt=today,
-        ).exclude(
-            status__in=[
-                DeliverableStatus.DELIVERED,
-                DeliverableStatus.CANCELLED,
-            ]
-        )
-
-        project_status_counts = projects_in_period.values("status").annotate(
-            count=Count("id")
-        ).order_by("status")
-
-        task_status_counts = tasks_in_period.values("status").annotate(
-            count=Count("id")
-        ).order_by("status")
-
-        deliverable_status_counts = deliverables_in_period.values("status").annotate(
-            count=Count("id")
-        ).order_by("status")
-
-        task_department_counts = tasks_in_period.values("department").annotate(
-            count=Count("id")
-        ).order_by("department")
-
+        project_status_counts = projects_in_period.values("status").annotate(count=Count("id")).order_by("status")
+        task_status_counts = tasks_in_period.values("status").annotate(count=Count("id")).order_by("status")
+        deliverable_status_counts = deliverables_in_period.values("status").annotate(count=Count("id")).order_by("status")
+        task_department_counts = tasks_in_period.values("department").annotate(count=Count("id")).order_by("department")
         deliverable_department_counts = deliverables_in_period.values("department").annotate(
             count=Count("id")
         ).order_by("department")
 
         project_count = projects_in_period.count()
         completed_project_count = projects_in_period.filter(status=ProjectStatus.COMPLETED).count()
-
         completion_rate = round((completed_project_count / project_count) * 100, 2) if project_count else 0
+
+        unit, bucket_keys, bucket_labels = _trend_buckets(date_from, date_to)
+        department_labels, task_department_values = _choice_counts(
+            task_department_counts, "department", ProductionDepartment.choices
+        )
+        _, deliverable_department_values = _choice_counts(
+            deliverable_department_counts, "department", ProductionDepartment.choices
+        )
+
+        charts = {
+            "project_status": _chart(
+                "hbar",
+                *_labelled(project_status_counts, "status", ProjectStatus.choices, "Projects"),
+            ),
+            "project_task_status": _chart(
+                "hbar",
+                *_labelled(task_status_counts, "status", TaskStatus.choices, "Tasks"),
+            ),
+            "project_deliverable_status": _chart(
+                "hbar",
+                *_labelled(deliverable_status_counts, "status", DeliverableStatus.choices, "Deliverables"),
+            ),
+            "project_departments": _chart(
+                "hbar",
+                department_labels,
+                [
+                    ("Tasks", task_department_values),
+                    ("Deliverables", deliverable_department_values),
+                ],
+                stacked=True,
+            ),
+            "project_hours": _chart(
+                "bar",
+                bucket_labels,
+                [("Work hours", [
+                    _hours(seconds)
+                    for seconds in _trend_totals(
+                        (
+                            (session.started_at, max(int(session.live_work_seconds or 0), 0))
+                            for session in work_sessions_in_period
+                        ),
+                        unit,
+                        bucket_keys,
+                    )
+                ])],
+                value_format="hours",
+            ),
+        }
 
         context.update({
             "report_title": "Project Report",
@@ -807,9 +813,20 @@ class ProjectReportView(ProjectReportAccessMixin, ReportPDFMixin, TemplateView):
             "date_to": date_to,
             "selected_user": selected_user,
             "selected_user_name": _user_display(selected_user),
+            "people": _users_in_role(ROLE_PROJECT_MANAGER) if is_admin else [],
+            "person_label": "Project manager",
             "project_managers": _users_in_role(ROLE_PROJECT_MANAGER),
             "pdf_download_url": self.get_pdf_url(),
-            "show_detailed_data": user_has_role(current_user, ROLE_ADMIN),
+            "show_detailed_data": is_admin,
+            "charts": charts,
+            "kpis": [
+                _kpi("Projects", project_count, "Created in this period", "bi-kanban"),
+                _kpi("Completed", completed_project_count, f"{completion_rate:g}% completion rate", "bi-check2-circle"),
+                _kpi("Overdue projects", overdue_projects.count(), "Past due and still open", "bi-exclamation-circle"),
+                _kpi("Tasks", tasks_in_period.count(), f"{overdue_tasks.count()} overdue", "bi-list-check"),
+                _kpi("Deliverables", deliverables_in_period.count(), f"{overdue_deliverables.count()} overdue", "bi-box-seam"),
+                _kpi("Work logged", _format_seconds_hm(total_work_seconds), f"{len(work_sessions_in_period)} work sessions", "bi-stopwatch"),
+            ],
 
             "summary": {
                 "project_count": project_count,
@@ -831,11 +848,11 @@ class ProjectReportView(ProjectReportAccessMixin, ReportPDFMixin, TemplateView):
                 "in_progress_deliverable_count": deliverables_in_period.filter(status=DeliverableStatus.IN_PROGRESS).count(),
                 "overdue_deliverable_count": overdue_deliverables.count(),
 
-                "work_session_count": work_sessions_in_period.count(),
+                "work_session_count": len(work_sessions_in_period),
                 "active_work_session_count": work_sessions.filter(status=WorkSessionStatus.ACTIVE).count(),
                 "paused_work_session_count": work_sessions.filter(status=WorkSessionStatus.PAUSED).count(),
                 "total_work_seconds": total_work_seconds,
-                "total_work_hours": total_work_hours,
+                "total_work_hours": _hours(total_work_seconds),
                 "total_work_hm": _format_seconds_hm(total_work_seconds),
 
                 "completion_rate": completion_rate,
@@ -847,12 +864,12 @@ class ProjectReportView(ProjectReportAccessMixin, ReportPDFMixin, TemplateView):
             "task_department_counts": task_department_counts,
             "deliverable_department_counts": deliverable_department_counts,
 
-            "recent_projects": projects_in_period.order_by("-created_at")[:10] if user_has_role(current_user, ROLE_ADMIN) else [],
-            "overdue_projects": overdue_projects.order_by("due_date")[:10] if user_has_role(current_user, ROLE_ADMIN) else [],
-            "recent_tasks": tasks_in_period.order_by("-created_at")[:10] if user_has_role(current_user, ROLE_ADMIN) else [],
-            "overdue_tasks": overdue_tasks.order_by("due_date")[:10] if user_has_role(current_user, ROLE_ADMIN) else [],
-            "recent_deliverables": deliverables_in_period.order_by("-created_at")[:10] if user_has_role(current_user, ROLE_ADMIN) else [],
-            "overdue_deliverables": overdue_deliverables.order_by("due_date")[:10] if user_has_role(current_user, ROLE_ADMIN) else [],
+            "recent_projects": projects_in_period.order_by("-created_at")[:10] if is_admin else [],
+            "overdue_projects": overdue_projects.order_by("due_date")[:10] if is_admin else [],
+            "recent_tasks": tasks_in_period.order_by("-created_at")[:10] if is_admin else [],
+            "overdue_tasks": overdue_tasks.order_by("due_date")[:10] if is_admin else [],
+            "recent_deliverables": deliverables_in_period.order_by("-created_at")[:10] if is_admin else [],
+            "overdue_deliverables": overdue_deliverables.order_by("due_date")[:10] if is_admin else [],
         })
 
         return context
@@ -862,31 +879,31 @@ class ProjectReportView(ProjectReportAccessMixin, ReportPDFMixin, TemplateView):
 # Employee Report
 # ============================================================
 
-class EmployeeWorkReportView(EmployeeReportAccessMixin, ReportPDFMixin, TemplateView):
+EMPLOYEE_CHART_LIMIT = 15
+
+
+class EmployeeWorkReportView(EmployeeReportAccessMixin, ReportTabsMixin, ReportPDFMixin, TemplateView):
+    """
+    Work done by employees: tasks, deliverables and logged work hours.
+
+    Attendance and login time live on the Attendance & leave page instead.
+    """
+
     template_name = "reports/employee_report.html"
     pdf_template_name = "reports/employee_pdf.html"
     pdf_filename = "employee_report.pdf"
+    report_tab = "employees"
 
     def get_selected_employee(self):
-        request = self.request
-        current_user = request.user
-
-        selected_id = _selected_user_id(request)
-
-        if user_has_role(current_user, ROLE_ADMIN, ROLE_PROJECT_MANAGER):
-            if selected_id:
-                return User.objects.filter(
-                    id=selected_id,
-                    is_active=True,
-                    groups__name__in=[
-                        ROLE_EMPLOYEE,
-                        ROLE_PROJECT_MANAGER,
-                    ],
-                ).distinct().first()
-
+        selected_id = _selected_user_id(self.request)
+        if not selected_id:
             return None
 
-        return current_user
+        return User.objects.filter(
+            id=selected_id,
+            is_active=True,
+            groups__name__in=[ROLE_EMPLOYEE, ROLE_PROJECT_MANAGER],
+        ).distinct().first()
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -894,122 +911,62 @@ class EmployeeWorkReportView(EmployeeReportAccessMixin, ReportPDFMixin, Template
         date_from, date_to = _get_date_range(self.request)
         selected_user = self.get_selected_employee()
         today = timezone.localdate()
-        current_user = self.request.user
 
-        tasks = Task.objects.select_related(
-            "owner",
-            "project",
-            "assigned_to",
-            "project__manager",
-        )
-
-        deliverables = Deliverable.objects.select_related(
-            "owner",
-            "project",
-            "assigned_to",
-            "project__manager",
-        )
-
-        work_sessions = WorkSession.objects.select_related(
-            "owner",
-            "user",
-            "project",
-            "task",
-            "deliverable",
-        )
-
-        login_sessions = UserLoginSession.objects.select_related("user")
-
-        # Project Manager can see employees only under managed projects.
-        if user_has_role(current_user, ROLE_PROJECT_MANAGER) and not user_has_role(current_user, ROLE_ADMIN):
-            tasks = tasks.filter(project__manager=current_user)
-            deliverables = deliverables.filter(project__manager=current_user)
-            work_sessions = work_sessions.filter(project__manager=current_user)
-
-            visible_employee_ids = (
-                WorkSession.objects
-                .filter(project__manager=current_user)
-                .values_list("user_id", flat=True)
-                .distinct()
-            )
-
-            login_sessions = login_sessions.filter(
-                Q(user_id__in=visible_employee_ids) | Q(user=current_user)
-            )
-
-        # Normal employee can see only own login sessions.
-        if user_has_role(current_user, ROLE_EMPLOYEE) and not user_has_role(
-            current_user,
-            ROLE_ADMIN,
-            ROLE_PROJECT_MANAGER,
-        ):
-            login_sessions = login_sessions.filter(user=current_user)
+        tasks = Task.objects.select_related("owner", "project", "assigned_to", "project__manager")
+        deliverables = Deliverable.objects.select_related("owner", "project", "assigned_to", "project__manager")
+        work_sessions = WorkSession.objects.select_related("owner", "user", "project", "task", "deliverable")
 
         if selected_user:
             tasks = tasks.filter(assigned_to=selected_user)
             deliverables = deliverables.filter(assigned_to=selected_user)
             work_sessions = work_sessions.filter(user=selected_user)
-            login_sessions = login_sessions.filter(user=selected_user)
 
         tasks_in_period = _base_date_filter(tasks, "created_at", date_from, date_to)
         deliverables_in_period = _base_date_filter(deliverables, "created_at", date_from, date_to)
-        work_sessions_in_period = _base_date_filter(work_sessions, "started_at", date_from, date_to)
-
-        task_work_sessions = work_sessions_in_period.filter(task__isnull=False)
-        deliverable_work_sessions = work_sessions_in_period.filter(deliverable__isnull=False)
-
-        total_work_seconds = _sum_work_session_seconds(work_sessions_in_period)
-        task_work_seconds = _sum_work_session_seconds(task_work_sessions)
-        deliverable_work_seconds = _sum_work_session_seconds(deliverable_work_sessions)
+        work_sessions_in_period = list(
+            _base_date_filter(work_sessions, "started_at", date_from, date_to).order_by("-started_at")
+        )
 
         active_sessions = work_sessions.filter(status=WorkSessionStatus.ACTIVE)
         paused_sessions = work_sessions.filter(status=WorkSessionStatus.PAUSED)
 
-        overdue_tasks = tasks.filter(
-            due_date__lt=today,
-        ).exclude(
-            status__in=[
-                TaskStatus.COMPLETED,
-                TaskStatus.CANCELLED,
-            ]
+        overdue_tasks = tasks.filter(due_date__lt=today).exclude(
+            status__in=[TaskStatus.COMPLETED, TaskStatus.CANCELLED]
+        )
+        overdue_deliverables = deliverables.filter(due_date__lt=today).exclude(
+            status__in=[DeliverableStatus.DELIVERED, DeliverableStatus.CANCELLED]
         )
 
-        overdue_deliverables = deliverables.filter(
-            due_date__lt=today,
-        ).exclude(
-            status__in=[
-                DeliverableStatus.DELIVERED,
-                DeliverableStatus.CANCELLED,
-            ]
-        )
+        task_status_counts = tasks_in_period.values("status").annotate(count=Count("id")).order_by("status")
+        deliverable_status_counts = deliverables_in_period.values("status").annotate(count=Count("id")).order_by("status")
 
-        task_status_counts = tasks_in_period.values("status").annotate(
-            count=Count("id")
-        ).order_by("status")
-
-        deliverable_status_counts = deliverables_in_period.values("status").annotate(
-            count=Count("id")
-        ).order_by("status")
-
-        work_status_counts = work_sessions_in_period.values("status").annotate(
-            count=Count("id")
-        ).order_by("status")
-
+        total_work_seconds = 0
+        task_work_seconds = 0
+        deliverable_work_seconds = 0
         work_by_employee_map = {}
-        for session in work_sessions_in_period.select_related("user"):
+        for session in work_sessions_in_period:
+            seconds = max(int(session.live_work_seconds or 0), 0)
+            total_work_seconds += seconds
+
             row = work_by_employee_map.setdefault(
                 session.user_id,
                 {
                     "user_id": session.user_id,
-                    "user__username": session.user.username,
-                    "user__first_name": session.user.first_name,
-                    "user__last_name": session.user.last_name,
+                    "name": _user_display(session.user),
                     "session_count": 0,
                     "total_seconds": 0,
+                    "task_seconds": 0,
+                    "deliverable_seconds": 0,
                 },
             )
             row["session_count"] += 1
-            row["total_seconds"] += max(int(session.live_work_seconds or 0), 0)
+            row["total_seconds"] += seconds
+            if session.task_id:
+                task_work_seconds += seconds
+                row["task_seconds"] += seconds
+            elif session.deliverable_id:
+                deliverable_work_seconds += seconds
+                row["deliverable_seconds"] += seconds
 
         work_by_employee = sorted(
             work_by_employee_map.values(),
@@ -1017,34 +974,55 @@ class EmployeeWorkReportView(EmployeeReportAccessMixin, ReportPDFMixin, Template
             reverse=True,
         )
         for row in work_by_employee:
-            seconds = row["total_seconds"]
-            row["total_hours"] = round(seconds / 3600, 2)
-            row["total_hm"] = _format_seconds_hm(seconds)
+            row["total_hours"] = _hours(row["total_seconds"])
+            row["total_hm"] = _format_seconds_hm(row["total_seconds"])
+            row["task_hm"] = _format_seconds_hm(row["task_seconds"])
+            row["deliverable_hm"] = _format_seconds_hm(row["deliverable_seconds"])
 
-        login_chart = _build_login_week_chart(
-            self.request,
-            login_sessions,
-        )
+        chart_rows = work_by_employee[:EMPLOYEE_CHART_LIMIT]
+        unit, bucket_keys, bucket_labels = _trend_buckets(date_from, date_to)
 
-        login_table = _build_login_month_table(
-            login_sessions_qs=login_sessions,
-            work_sessions_qs=work_sessions,
-            date_from=date_from,
-            date_to=date_to,
-        )
+        charts = {
+            "employee_hours": _chart(
+                "hbar",
+                [row["name"] for row in chart_rows],
+                [
+                    ("Tasks", [_hours(row["task_seconds"]) for row in chart_rows]),
+                    ("Deliverables", [_hours(row["deliverable_seconds"]) for row in chart_rows]),
+                ],
+                value_format="hours",
+                stacked=True,
+            ),
+            "employee_hours_trend": _chart(
+                "bar",
+                bucket_labels,
+                [("Work hours", [
+                    _hours(seconds)
+                    for seconds in _trend_totals(
+                        (
+                            (session.started_at, max(int(session.live_work_seconds or 0), 0))
+                            for session in work_sessions_in_period
+                        ),
+                        unit,
+                        bucket_keys,
+                    )
+                ])],
+                value_format="hours",
+            ),
+            "employee_task_status": _chart(
+                "hbar",
+                *_labelled(task_status_counts, "status", TaskStatus.choices, "Tasks"),
+            ),
+            "employee_deliverable_status": _chart(
+                "hbar",
+                *_labelled(deliverable_status_counts, "status", DeliverableStatus.choices, "Deliverables"),
+            ),
+        }
 
-        attendance_summary = _build_attendance_summary(
-            login_sessions_qs=login_sessions,
-            date_from=date_from,
-            date_to=date_to,
-        )
-
-        recent_work_sessions = list(work_sessions_in_period.order_by("-started_at")[:20])
-        show_detailed_data = user_has_role(current_user, ROLE_ADMIN)
-        if not show_detailed_data:
-            login_table["rows"] = []
-            recent_work_sessions = []
-            work_by_employee = []
+        assigned_task_count = tasks_in_period.count()
+        completed_task_count = tasks_in_period.filter(status=TaskStatus.COMPLETED).count()
+        assigned_deliverable_count = deliverables_in_period.count()
+        delivered_count = deliverables_in_period.filter(status=DeliverableStatus.DELIVERED).count()
 
         context.update({
             "report_title": "Employee Work Report",
@@ -1052,59 +1030,70 @@ class EmployeeWorkReportView(EmployeeReportAccessMixin, ReportPDFMixin, Template
             "date_to": date_to,
             "selected_user": selected_user,
             "selected_user_name": _user_display(selected_user),
-            "employees": _employee_options_for_user(current_user),
+            "people": _employee_options_for_user(self.request.user),
+            "person_label": "Employee",
+            "employees": _employee_options_for_user(self.request.user),
             "pdf_download_url": self.get_pdf_url(),
-            "show_detailed_data": show_detailed_data,
-
-            "login_chart": login_chart,
-            "login_table": login_table,
-            "attendance_summary": attendance_summary,
+            "show_detailed_data": True,
+            "charts": charts,
+            "kpis": [
+                _kpi("Work logged", _format_seconds_hm(total_work_seconds), f"{len(work_by_employee)} people, {len(work_sessions_in_period)} sessions", "bi-stopwatch"),
+                _kpi("Task hours", _format_seconds_hm(task_work_seconds), "", "bi-list-check"),
+                _kpi("Deliverable hours", _format_seconds_hm(deliverable_work_seconds), "", "bi-box-seam"),
+                _kpi(
+                    "Tasks completed",
+                    f"{completed_task_count} / {assigned_task_count}",
+                    f"{overdue_tasks.count()} overdue",
+                    "bi-check2-square",
+                ),
+                _kpi(
+                    "Deliverables delivered",
+                    f"{delivered_count} / {assigned_deliverable_count}",
+                    f"{overdue_deliverables.count()} overdue",
+                    "bi-send-check",
+                ),
+                _kpi("Working now", active_sessions.count(), f"{paused_sessions.count()} paused", "bi-play-circle"),
+            ],
 
             "summary": {
-                "assigned_task_count": tasks_in_period.count(),
-                "completed_task_count": tasks_in_period.filter(status=TaskStatus.COMPLETED).count(),
+                "assigned_task_count": assigned_task_count,
+                "completed_task_count": completed_task_count,
+                "task_completion_rate": round(completed_task_count / assigned_task_count * 100) if assigned_task_count else 0,
                 "in_progress_task_count": tasks_in_period.filter(status=TaskStatus.IN_PROGRESS).count(),
                 "paused_task_count": tasks_in_period.filter(status=TaskStatus.PAUSED).count(),
                 "overdue_task_count": overdue_tasks.count(),
 
-                "assigned_deliverable_count": deliverables_in_period.count(),
-                "delivered_count": deliverables_in_period.filter(status=DeliverableStatus.DELIVERED).count(),
+                "assigned_deliverable_count": assigned_deliverable_count,
+                "delivered_count": delivered_count,
                 "ready_to_deliver_count": deliverables_in_period.filter(status=DeliverableStatus.READY_TO_DELIVER).count(),
                 "in_progress_deliverable_count": deliverables_in_period.filter(status=DeliverableStatus.IN_PROGRESS).count(),
                 "overdue_deliverable_count": overdue_deliverables.count(),
 
-                "work_session_count": work_sessions_in_period.count(),
+                "work_session_count": len(work_sessions_in_period),
                 "active_session_count": active_sessions.count(),
                 "paused_session_count": paused_sessions.count(),
-                "attendance_days": attendance_summary["attendance_days"],
-                "attendance_required_hm": attendance_summary["required_hm"],
+                "people_count": len(work_by_employee),
 
                 "total_work_seconds": total_work_seconds,
-                "total_work_hours": round(total_work_seconds / 3600, 2),
+                "total_work_hours": _hours(total_work_seconds),
                 "total_work_hm": _format_seconds_hm(total_work_seconds),
 
                 "task_work_seconds": task_work_seconds,
-                "task_work_hours": round(task_work_seconds / 3600, 2),
+                "task_work_hours": _hours(task_work_seconds),
                 "task_work_hm": _format_seconds_hm(task_work_seconds),
 
                 "deliverable_work_seconds": deliverable_work_seconds,
-                "deliverable_work_hours": round(deliverable_work_seconds / 3600, 2),
+                "deliverable_work_hours": _hours(deliverable_work_seconds),
                 "deliverable_work_hm": _format_seconds_hm(deliverable_work_seconds),
-
-                "login_total_hours": login_table["total_login_hours"],
-                "login_total_hm": login_table["total_login_hm"],
-                "login_work_hours": login_table["total_work_hours"],
-                "login_work_hm": login_table["total_work_hm"],
             },
 
             "task_status_counts": task_status_counts,
             "deliverable_status_counts": deliverable_status_counts,
-            "work_status_counts": work_status_counts,
             "work_by_employee": work_by_employee,
 
             "active_sessions": active_sessions.order_by("-started_at")[:10],
             "paused_sessions": paused_sessions.order_by("-started_at")[:10],
-            "recent_work_sessions": recent_work_sessions,
+            "recent_work_sessions": work_sessions_in_period[:20],
             "recent_tasks": tasks_in_period.order_by("-created_at")[:10],
             "overdue_tasks": overdue_tasks.order_by("due_date")[:10],
             "recent_deliverables": deliverables_in_period.order_by("-created_at")[:10],

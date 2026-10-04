@@ -1,0 +1,9 @@
+<div class="report-kpis">
+  {% for kpi in kpis %}
+    <div class="card stat-card{% if forloop.first %} dark{% endif %}">
+      <div class="stat-label">{{ kpi.label }}{% if kpi.icon %}<i class="bi {{ kpi.icon }}"></i>{% endif %}</div>
+      <div class="stat-value">{{ kpi.value }}</div>
+      {% if kpi.meta %}<div class="stat-meta">{{ kpi.meta }}</div>{% endif %}
+    </div>
+  {% endfor %}
+</div>

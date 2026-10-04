@@ -191,7 +191,7 @@
             </tr>
             {% if invoice.advance_adjustment %}
             <tr>
-              <td class="text-muted small">Less: Advance Received</td>
+              <td class="text-muted small">Less: Advance received{% for adv in advance_invoices %} <a href="{% url 'sales:invoice_detail' adv.pk %}">{{ adv.number }}</a>{% endfor %}</td>
               <td class="text-end">-{{ invoice.advance_adjustment }}</td>
             </tr>
             {% endif %}

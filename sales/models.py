@@ -724,6 +724,17 @@ class Contract(TimeStamped, Owned):
     signed_ip_address = models.GenericIPAddressField(null=True, blank=True)
     signed_user_agent = models.TextField(blank=True)
 
+    # After signing, a CRM manager approves before the invoice, client and
+    # events are created.
+    approved_at = models.DateTimeField(null=True, blank=True)
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="approved_contracts",
+    )
+
     start_date = models.DateField(null=True, blank=True)
     end_date = models.DateField(null=True, blank=True)
 
@@ -1176,6 +1187,24 @@ class Invoice(TimeStamped, Owned):
         return taxable_amount + (self.tax or Decimal("0.00"))
 
     @transaction.atomic
+    def advance_received(self):
+        """Booking advance kept on the deal's advance invoices."""
+        return net_paid_amount(
+            Payment.objects.filter(invoice__deal_id=self.deal_id, invoice__is_advance=True)
+            .exclude(invoice_id=self.pk)
+        )
+
+    def refresh_advance_adjustment(self):
+        """An advance recorded after the contract invoice still comes off it."""
+        if self.is_advance or self.status in (InvoiceStatus.PAID, InvoiceStatus.CANCELLED):
+            return
+        advance = self.advance_received()
+        if advance != (self.advance_adjustment or Decimal("0.00")):
+            self.advance_adjustment = advance
+            self.save(update_fields=["advance_adjustment", "updated_at"])
+            self.recalculate_totals(save=True)
+            self.refresh_payment_status()
+
     def populate_from_contract(self, contract, clear_existing=False):
         """
         Creates invoice from all contract items.
@@ -1192,10 +1221,7 @@ class Invoice(TimeStamped, Owned):
         # The booking advance was billed on its own invoice before the
         # contract, so the contract invoice only asks for the remainder.
         if not self.is_advance:
-            self.advance_adjustment = net_paid_amount(
-                Payment.objects.filter(invoice__deal_id=self.deal_id, invoice__is_advance=True)
-                .exclude(invoice_id=self.pk)
-            )
+            self.advance_adjustment = self.advance_received()
 
         self.save(
             update_fields=[

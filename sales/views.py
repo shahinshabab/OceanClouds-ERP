@@ -36,7 +36,11 @@ from messaging.models import EmailTemplate
 from messaging.utils import EmailSendError, send_templated_email
 from services.models import Service, Package
 
+from django.utils.http import url_has_allowed_host_and_scheme
+
+from .approvals import approve_contract, contract_invoice, needs_approval, request_contract_approval
 from .forms import (
+    ContractApprovalForm,
     AdvancePaymentForm,
     DealForm,
     SalesDocumentTemplateForm,
@@ -1306,7 +1310,7 @@ class ProposalAcceptView(SalesAccessMixin, View):
             extra_tags=_scope_tags("proposal"),
         )
 
-        return redirect("sales:proposal_detail", pk=proposal.pk)
+        return redirect(_next_url(request, proposal))
 
 class ProposalConvertToContractView(SalesAccessMixin, OwnerAssignMixin, CreateView):
     """
@@ -1503,6 +1507,9 @@ class DealRecordAdvanceView(SalesAccessMixin, View):
             self.deal.stage = DealStage.ADVANCE_RECEIVED
             self.deal.save(update_fields=["stage", "updated_at"])
 
+        for contract_invoice_obj in self.deal.invoices.filter(is_advance=False):
+            contract_invoice_obj.refresh_advance_adjustment()
+
         messages.success(
             request,
             f"Advance of {amount} recorded on invoice {invoice.number}. Next, create and send the contract.",
@@ -1665,7 +1672,12 @@ class ContractDetailView(ContractViewAccessMixin, DetailMessageScopeMixin, Detai
         context["pdf_download_url"] = reverse("sales:contract_download", args=[self.object.pk])
         context["show_money"] = can_access_sales(self.request.user)
         context["has_invoice"] = _contract_has_invoice(self.object)
-        context["invoice"] = self.object.invoices.order_by("-issue_date", "-created_at").first()
+        context["invoice"] = contract_invoice(self.object) or self.object.invoices.order_by("-issue_date", "-created_at").first()
+        context["needs_approval"] = needs_approval(self.object)
+        if context["needs_approval"] and can_access_sales(self.request.user):
+            context["approval_form"] = ContractApprovalForm(
+                initial={"client": self.object.deal.client_id} if self.object.deal_id else None
+            )
 
         return context
 
@@ -1814,6 +1826,7 @@ class ContractUpdateView(SalesAccessMixin, OwnerAssignMixin, UpdateView):
                 contract.save(update_fields=["signed_date", "updated_at"])
             if contract.deal.stage != DealStage.WON:
                 mark_deal_won(contract.deal)
+            request_contract_approval(contract, self.request.user)
 
         messages.success(
             self.request,
@@ -2050,6 +2063,11 @@ class InvoiceDetailView(SalesReadOnlyAccessMixin, DetailMessageScopeMixin, Detai
         context["pdf_download_url"] = reverse("sales:invoice_download", args=[self.object.pk])
         context["payments"] = self.object.payments.all().order_by("-date", "-created_at")
         context["client"] = self.object.deal.customer if self.object.deal_id else None
+        context["advance_invoices"] = (
+            self.object.deal.invoices.filter(is_advance=True).exclude(pk=self.object.pk)
+            if self.object.deal_id and not self.object.is_advance
+            else []
+        )
 
         return context
 
@@ -2795,6 +2813,7 @@ class ContractPublicSignView(View):
         )
 
         mark_deal_won(contract.deal)
+        request_contract_approval(contract)
 
 
 # ============================================================
@@ -2813,3 +2832,119 @@ class SalesDocumentTemplateView(SalesAccessMixin, UpdateView):
         response = super().form_valid(form)
         messages.success(self.request, "Template saved. New proposals and contracts use it from now on.")
         return response
+
+
+# ============================================================
+# Status changes from the sales progress card
+# ============================================================
+
+class ProposalSetStatusView(SalesAccessMixin, View):
+    """Sent, rejected, expired or back to draft. Accepting has its own view."""
+
+    allowed = (ProposalStatus.DRAFT, ProposalStatus.SENT, ProposalStatus.REJECTED, ProposalStatus.EXPIRED)
+
+    @transaction.atomic
+    def post(self, request, pk):
+        proposal = get_object_or_404(Proposal.objects.select_related("deal", "deal__lead"), pk=pk)
+        status = request.POST.get("status")
+        if status not in self.allowed:
+            messages.error(request, "Choose a valid proposal status.", extra_tags=_scope_tags("proposal"))
+            return redirect(_next_url(request, proposal))
+
+        proposal.status = status
+        proposal.save(update_fields=["status", "updated_at"])
+
+        deal = proposal.deal
+        if status == ProposalStatus.SENT and deal and deal.stage in OPEN_DEAL_STAGES:
+            deal.stage = DealStage.PROPOSAL_SENT
+            deal.save(update_fields=["stage", "updated_at"])
+            if deal.lead_id:
+                set_lead_status(deal.lead, "STATUS_PROPOSAL_SENT", "proposal_sent")
+
+        messages.success(
+            request,
+            f"Proposal marked as {proposal.get_status_display().lower()}.",
+            extra_tags=_scope_tags("proposal"),
+        )
+        return redirect(_next_url(request, proposal))
+
+
+class ContractSetStatusView(SalesAccessMixin, View):
+    @transaction.atomic
+    def post(self, request, pk):
+        contract = get_object_or_404(Contract.objects.select_related("deal", "deal__lead"), pk=pk)
+        status = request.POST.get("status")
+        if status not in ContractStatus.values:
+            messages.error(request, "Choose a valid contract status.", extra_tags=_scope_tags("contract"))
+            return redirect(_next_url(request, contract))
+
+        contract.status = status
+        fields = ["status", "updated_at"]
+        if status == ContractStatus.SIGNED and not contract.signed_date:
+            contract.signed_date = timezone.localdate()
+            fields.append("signed_date")
+        contract.save(update_fields=fields)
+
+        deal = contract.deal
+        if status == ContractStatus.SIGNED:
+            if deal.stage != DealStage.WON:
+                mark_deal_won(deal)
+            request_contract_approval(contract, request.user)
+        elif status == ContractStatus.PENDING_SIGNATURE and deal.stage not in (DealStage.WON, DealStage.LOST):
+            deal.stage = DealStage.CONTRACT_SENT
+            deal.save(update_fields=["stage", "updated_at"])
+
+        messages.success(
+            request,
+            f"Contract marked as {contract.get_status_display().lower()}.",
+            extra_tags=_scope_tags("contract"),
+        )
+        return redirect(_next_url(request, contract))
+
+
+def _next_url(request, obj):
+    target = request.POST.get("next") or ""
+    if url_has_allowed_host_and_scheme(target, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+        return target
+    return obj.get_absolute_url()
+
+
+class ContractApproveView(SalesAccessMixin, View):
+    """
+    CRM manager approves a signed contract: the invoice, client and events
+    are created in one step.
+    """
+
+    def post(self, request, pk):
+        contract = get_object_or_404(
+            Contract.objects.select_related("deal", "deal__client", "deal__lead"),
+            pk=pk,
+        )
+        if contract.status != ContractStatus.SIGNED:
+            messages.error(request, "Only a signed contract can be approved.", extra_tags=_scope_tags("contract"))
+            return redirect("sales:contract_detail", pk=contract.pk)
+
+        form = ContractApprovalForm(request.POST)
+        if not form.is_valid():
+            messages.error(request, "Choose a valid client.", extra_tags=_scope_tags("contract"))
+            return redirect("sales:contract_detail", pk=contract.pk)
+
+        invoice, client, created_events, skipped_days = approve_contract(
+            contract,
+            request.user,
+            client=form.cleaned_data.get("client"),
+        )
+
+        messages.success(
+            request,
+            f"Approved. Invoice {invoice.number or ''} and client {client} are ready"
+            + (f", with {len(created_events)} event(s)." if created_events else "."),
+            extra_tags=_scope_tags("contract"),
+        )
+        if skipped_days:
+            messages.warning(
+                request,
+                "No date found for: " + ", ".join(skipped_days) + ". Create those events manually.",
+                extra_tags=_scope_tags("contract"),
+            )
+        return redirect("sales:contract_detail", pk=contract.pk)

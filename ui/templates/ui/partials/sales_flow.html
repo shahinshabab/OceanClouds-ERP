@@ -8,6 +8,31 @@
       <span class="status status-muted ms-1">{{ flow.done_count }} of {{ flow.count }}</span>
     </h2>
 
+    <div class="d-flex flex-wrap align-items-center gap-2 ms-auto">
+    {% if flow.status_controls %}
+      <div class="dropdown">
+        <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+          <i class="bi bi-arrow-repeat"></i>Update status
+        </button>
+        <div class="dropdown-menu dropdown-menu-end">
+          {% for control in flow.status_controls %}
+            {% if not forloop.first %}<div class="dropdown-divider"></div>{% endif %}
+            <h6 class="dropdown-header text-truncate" style="max-width: 18rem">{{ control.title }}</h6>
+            {% for option in control.options %}
+              <form method="post" action="{{ option.url }}" class="m-0">
+                <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+                <input type="hidden" name="status" value="{{ option.value }}">
+                <input type="hidden" name="next" value="{{ current_url }}">
+                <button type="submit" class="dropdown-item{% if option.value == control.current %} active{% endif %}"{% if option.value == control.current %} disabled aria-current="true"{% endif %}>
+                  {% if option.value == control.current %}<i class="bi bi-check2"></i>{% else %}<i class="bi bi-dot"></i>{% endif %}{{ option.label }}
+                </button>
+              </form>
+            {% endfor %}
+          {% endfor %}
+        </div>
+      </div>
+    {% endif %}
+
     {% if flow.complete %}
       <span class="status status-solid">Complete</span>
     {% elif flow.next %}
@@ -25,6 +50,7 @@
     {% elif flow.next_step %}
       <span class="flow-next-label">{% if flow.next_step.key == here %}Next step is on this page{% else %}Next: {{ flow.next_step.label|lower }}{% endif %}</span>
     {% endif %}
+    </div>
   </div>
 
   <ol class="flow-steps" style="--flow-count: {{ flow.count }};">

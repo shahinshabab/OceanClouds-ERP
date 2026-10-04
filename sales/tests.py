@@ -473,3 +473,102 @@ class DealReminderTests(TestCase):
             Notification.objects.filter(recipient=self.owner, notif_type=Notification.Type.DEAL_EXPECTED_CLOSE).count(),
             1,
         )
+
+
+class ContractApprovalTests(TestCase):
+    """Signing ends the pipeline; a CRM manager approves the invoice and client."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from django.contrib.auth.models import Group
+
+        from common.roles import ROLE_CRM_MANAGER
+
+        cls.manager = make_user("crm_manager", is_staff=True)
+        cls.manager.groups.add(Group.objects.get_or_create(name=ROLE_CRM_MANAGER)[0])
+        cls.service = Service.objects.create(name="Wedding Film", base_price=Decimal("10000.00"))
+
+    def setUp(self):
+        self.client.force_login(self.manager)
+        self.lead = Lead.objects.create(name="Anu & Rahul", phone="+91 9999999999", wedding_date=date(2026, 12, 20))
+        self.deal = Deal.objects.create(name="Anu Wedding", lead=self.lead, owner=self.manager)
+        proposal = Proposal.objects.create(deal=self.deal, title="Wedding Proposal")
+        plan = ProposalPlan.objects.create(proposal=proposal, name="Plan")
+        day = ProposalEventDay.objects.create(plan=plan, event_date=date(2026, 12, 20), title="Wedding")
+        ProposalItem.objects.create(event_day=day, service=self.service, quantity=1)
+        self.client.post(reverse("sales:proposal_accept", args=[proposal.pk]))
+        self.client.post(
+            reverse("sales:deal_record_advance", args=[self.deal.pk]),
+            {"amount": "1000.00", "date": "2026-10-03", "method": "upi", "reference": "", "notes": ""},
+        )
+        self.contract = Contract.objects.create(deal=self.deal, owner=self.manager)
+        self.contract.populate_from_proposal(proposal, clear_existing=True)
+
+    def _sign(self):
+        self.client.logout()
+        self.client.post(
+            reverse("sales:contract_public_sign", args=[self.contract.signing_token]),
+            {"signed_by_name": "Anu", "accepted_terms": "on"},
+        )
+        self.client.force_login(self.manager)
+        self.contract.refresh_from_db()
+
+    def test_signing_asks_for_approval_then_creates_invoice_and_client(self):
+        from common.models import Notification
+        from todos.models import Todo, TodoStatus
+
+        self._sign()
+        self.assertEqual(self.contract.status, ContractStatus.SIGNED)
+        self.assertFalse(self.contract.invoices.exists())
+        self.assertTrue(Notification.objects.filter(recipient=self.manager, notif_type=Notification.Type.CONTRACT_SIGNED).exists())
+        todo = Todo.objects.get(contract=self.contract, assigned_to=self.manager)
+
+        page = self.client.get(reverse("sales:contract_detail", args=[self.contract.pk]))
+        self.assertContains(page, reverse("sales:contract_approve", args=[self.contract.pk]))
+        self.assertContains(page, "Waiting for approval")
+
+        self.client.post(reverse("sales:contract_approve", args=[self.contract.pk]), {"client": ""})
+        self.contract.refresh_from_db()
+        invoice = self.contract.invoices.get()
+        self.assertEqual(invoice.advance_adjustment, Decimal("1000.00"))
+        self.assertEqual(invoice.total, Decimal("9000.00"))
+        self.assertEqual(invoice.status, InvoiceStatus.ISSUED)
+        self.assertIsNotNone(self.contract.approved_at)
+        self.deal.refresh_from_db()
+        self.assertEqual(self.deal.client.name, "Anu & Rahul")
+        self.assertEqual(Event.objects.filter(contract=self.contract).count(), 1)
+        todo.refresh_from_db()
+        self.assertEqual(todo.status, TodoStatus.COMPLETED)
+
+        page = self.client.get(reverse("sales:contract_detail", args=[self.contract.pk]))
+        self.assertNotContains(page, reverse("sales:contract_approve", args=[self.contract.pk]))
+        self.assertContains(page, "Complete")
+
+    def test_manager_can_pick_an_existing_client(self):
+        existing = Client.objects.create(name="Returning couple")
+        self._sign()
+        self.client.post(reverse("sales:contract_approve", args=[self.contract.pk]), {"client": existing.pk})
+        self.deal.refresh_from_db()
+        self.assertEqual(self.deal.client, existing)
+        self.assertEqual(Client.objects.count(), 1)
+        self.assertEqual(Event.objects.get(contract=self.contract).client, existing)
+
+    def test_status_changes_from_the_progress_card(self):
+        proposal = self.deal.proposals.get()
+        response = self.client.post(
+            reverse("sales:proposal_set_status", args=[proposal.pk]),
+            {"status": ProposalStatus.SENT, "next": reverse("sales:deal_detail", args=[self.deal.pk])},
+        )
+        self.assertRedirects(response, reverse("sales:deal_detail", args=[self.deal.pk]))
+        proposal.refresh_from_db()
+        self.assertEqual(proposal.status, ProposalStatus.SENT)
+
+        self.client.post(reverse("sales:contract_set_status", args=[self.contract.pk]), {"status": ContractStatus.SIGNED})
+        self.contract.refresh_from_db()
+        self.deal.refresh_from_db()
+        self.assertEqual(self.contract.status, ContractStatus.SIGNED)
+        self.assertEqual(self.deal.stage, DealStage.WON)
+
+        page = self.client.get(reverse("sales:deal_detail", args=[self.deal.pk]))
+        self.assertContains(page, "Update status")
+        self.assertContains(page, reverse("sales:contract_set_status", args=[self.contract.pk]))

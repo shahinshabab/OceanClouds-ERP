@@ -518,3 +518,19 @@ class SalesDocumentTemplateForm(BootstrapModelForm):
             "good_to_know": forms.Textarea(attrs={"rows": 6}),
             "payment_terms": forms.Textarea(attrs={"rows": 5}),
         }
+
+
+class ContractApprovalForm(forms.Form):
+    client = forms.ModelChoiceField(
+        queryset=None,
+        required=False,
+        empty_label="Create a new client from the lead",
+        label="Client",
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from crm.models import Client
+
+        self.fields["client"].queryset = Client.objects.order_by("name")
+        self.fields["client"].widget.attrs["class"] = "form-select"

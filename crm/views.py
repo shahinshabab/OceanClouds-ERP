@@ -9,10 +9,12 @@ from django.views.generic import ListView, CreateView, UpdateView, DetailView, D
 
 from .forms import ClientForm, ContactForm, InquiryForm, LeadForm, ReviewForm
 from .models import Client, Contact, Inquiry, Lead, Review
+from sales.models import Payment
 
 from common.mixins import (
     AdminCRMManagerMixin,
     InquiryManagerMixin,
+    KeepPaymentsOnDeleteMixin,
     StaffAllMixin,
     SalesReadOnlyAccessMixin,
 )
@@ -459,7 +461,7 @@ class ClientUpdateView(AdminCRMManagerMixin, OwnerAssignMixin, UpdateView):
         return reverse_lazy("crm:client_detail", kwargs={"pk": self.object.pk})
 
 
-class ClientDeleteView(AdminCRMManagerMixin, CommonDeleteMixin, DeleteView):
+class ClientDeleteView(AdminCRMManagerMixin, KeepPaymentsOnDeleteMixin, CommonDeleteMixin, DeleteView):
     model = Client
     context_object_name = "client"
     object_type = "client"
@@ -478,6 +480,12 @@ class ClientDeleteView(AdminCRMManagerMixin, CommonDeleteMixin, DeleteView):
 
     def get_object_label(self):
         return self.object.display_name or self.object.name
+
+    def get_blocking_payments(self):
+        return Payment.objects.filter(invoice__deal__client=self.object)
+
+    def get_blocked_redirect_url(self):
+        return reverse("crm:client_detail", kwargs={"pk": self.object.pk})
 
     def get_related_counts(self):
         return [

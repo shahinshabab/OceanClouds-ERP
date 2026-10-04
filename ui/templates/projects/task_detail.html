@@ -1,4 +1,5 @@
 {% extends "ui/base.html" %}
+{% load url_tags %}
 {% load roles_tags %}
 {% block live_topics %}task:{{ task.pk }}{% endblock %}
 
@@ -43,8 +44,8 @@
           </form>
         {% endif %}
       {% endif %}
-      {% if request.GET.next %}
-        <a href="{{ request.GET.next }}" class="btn btn-outline-secondary btn-sm">
+      {% if request.GET.next|local_url %}
+        <a href="{{ request.GET.next|local_url }}" class="btn btn-outline-secondary btn-sm">
           Back
         </a>
       {% else %}

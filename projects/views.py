@@ -8,6 +8,7 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.db.models import Q, Sum, F
 from django.db.models.functions import Coalesce
 from django.http import JsonResponse
@@ -23,6 +24,7 @@ from django.views.generic import (
     TemplateView,
 )
 
+from common.http import safe_next_url
 from common.mixins import ProjectAccessMixin, ProjectWorkAccessMixin
 from common.roles import (
     ROLE_EMPLOYEE,
@@ -491,12 +493,13 @@ class ProjectCloseView(ProjectAccessMixin, View):
                 extra_tags=_scope_tags("project"),
             )
 
-        next_url = request.POST.get("next") or request.GET.get("next")
-
-        if next_url:
-            return redirect(next_url)
-
-        return redirect("projects:project_detail", pk=project.pk)
+        return redirect(
+            safe_next_url(
+                request,
+                request.POST.get("next") or request.GET.get("next"),
+                reverse("projects:project_detail", kwargs={"pk": project.pk}),
+            )
+        )
 
 
 # ============================================================
@@ -1476,9 +1479,28 @@ class StartDeliverableWorkView(ProjectWorkAccessMixin, View):
         return redirect("projects:deliverable_detail", pk=deliverable.pk)
 
 
-class PauseWorkSessionView(ProjectWorkAccessMixin, View):
+def _work_session_item_url(session):
+    if session.task_id:
+        return reverse("projects:task_detail", kwargs={"pk": session.task_id})
+    return reverse("projects:deliverable_detail", kwargs={"pk": session.deliverable_id})
+
+
+class WorkSessionActionMixin(ProjectWorkAccessMixin):
+    """
+    Shared checks for pausing, resuming and ending a work session.
+
+    The action is skipped when the session is not in a state it applies to
+    (for example a stale tab pausing an ended session), so the task or
+    deliverable status is never changed for a session that did not change.
+    """
+
+    allowed_statuses = ()
+
     def post(self, request, pk):
-        session = get_object_or_404(WorkSession, pk=pk)
+        session = get_object_or_404(
+            WorkSession.objects.select_related("task", "deliverable"), pk=pk
+        )
+        item_url = _work_session_item_url(session)
 
         if not is_admin_or_project_manager(request.user) and session.user_id != request.user.id:
             messages.error(
@@ -1486,138 +1508,79 @@ class PauseWorkSessionView(ProjectWorkAccessMixin, View):
                 "Not allowed.",
                 extra_tags=_scope_tags("task", "deliverable"),
             )
-            return redirect("projects:work_in_progress")
+            return redirect(item_url)
 
+        if session.status not in self.allowed_statuses:
+            messages.info(
+                request,
+                "This work session has already changed. Please check its current status.",
+                extra_tags=_scope_tags("task", "deliverable"),
+            )
+            return redirect(item_url)
+
+        with transaction.atomic():
+            response = self.apply(request, session)
+
+        return response or redirect(item_url)
+
+
+class PauseWorkSessionView(WorkSessionActionMixin, View):
+    allowed_statuses = (WorkSessionStatus.ACTIVE,)
+
+    def apply(self, request, session):
         session.pause()
 
         if session.task:
             session.task.status = TaskStatus.PAUSED
-            session.task.save(update_fields=["status"])
-
-            messages.info(
-                request,
-                "Task work paused.",
-                extra_tags=_scope_tags("task"),
-            )
-
-            return redirect("projects:task_detail", pk=session.task.pk)
+            session.task.save(update_fields=["status", "updated_at"])
+            messages.info(request, "Task work paused.", extra_tags=_scope_tags("task"))
+            return None
 
         session.deliverable.status = DeliverableStatus.PAUSED
-        session.deliverable.save(update_fields=["status"])
-
-        messages.info(
-            request,
-            "Deliverable work paused.",
-            extra_tags=_scope_tags("deliverable"),
-        )
-
-        return redirect("projects:deliverable_detail", pk=session.deliverable.pk)
+        session.deliverable.save(update_fields=["status", "updated_at"])
+        messages.info(request, "Deliverable work paused.", extra_tags=_scope_tags("deliverable"))
+        return None
 
 
-class ResumeWorkSessionView(ProjectWorkAccessMixin, View):
-    def post(self, request, pk):
-        session = get_object_or_404(WorkSession, pk=pk)
+class ResumeWorkSessionView(WorkSessionActionMixin, View):
+    allowed_statuses = (WorkSessionStatus.PAUSED,)
 
-        if not is_admin_or_project_manager(request.user) and session.user_id != request.user.id:
-            messages.error(
-                request,
-                "Not allowed.",
-                extra_tags=_scope_tags("task", "deliverable"),
-            )
-            return redirect("projects:work_in_progress")
-
+    def apply(self, request, session):
         if user_has_active_work(session.user):
             messages.error(
                 request,
                 "This employee already has another active work item.",
                 extra_tags=_scope_tags("task", "deliverable"),
             )
-            return redirect("projects:work_in_progress")
+            return None
 
         session.resume()
 
         if session.task:
             session.task.status = TaskStatus.IN_PROGRESS
-            session.task.save(update_fields=["status"])
-
-            messages.success(
-                request,
-                "Task work resumed.",
-                extra_tags=_scope_tags("task"),
-            )
-
-            return redirect("projects:task_detail", pk=session.task.pk)
+            session.task.save(update_fields=["status", "updated_at"])
+            messages.success(request, "Task work resumed.", extra_tags=_scope_tags("task"))
+            return None
 
         session.deliverable.status = DeliverableStatus.IN_PROGRESS
-        session.deliverable.save(update_fields=["status"])
-
-        messages.success(
-            request,
-            "Deliverable work resumed.",
-            extra_tags=_scope_tags("deliverable"),
-        )
-
-        return redirect("projects:deliverable_detail", pk=session.deliverable.pk)
+        session.deliverable.save(update_fields=["status", "updated_at"])
+        messages.success(request, "Deliverable work resumed.", extra_tags=_scope_tags("deliverable"))
+        return None
 
 
-class EndWorkSessionView(ProjectWorkAccessMixin, View):
-    def post(self, request, pk):
-        session = get_object_or_404(WorkSession, pk=pk)
+class EndWorkSessionView(WorkSessionActionMixin, View):
+    allowed_statuses = (WorkSessionStatus.ACTIVE, WorkSessionStatus.PAUSED)
 
-        if not is_admin_or_project_manager(request.user) and session.user_id != request.user.id:
-            messages.error(
-                request,
-                "Not allowed.",
-                extra_tags=_scope_tags("task", "deliverable"),
-            )
-            return redirect("projects:work_in_progress")
-
+    def apply(self, request, session):
         session.end()
 
         if session.task:
+            messages.success(request, "Task work session ended.", extra_tags=_scope_tags("task"))
+        else:
             messages.success(
-                request,
-                "Task work session ended.",
-                extra_tags=_scope_tags("task"),
+                request, "Deliverable work session ended.", extra_tags=_scope_tags("deliverable")
             )
-            return redirect("projects:task_detail", pk=session.task.pk)
-
-        messages.success(
-            request,
-            "Deliverable work session ended.",
-            extra_tags=_scope_tags("deliverable"),
-        )
-
-        return redirect("projects:deliverable_detail", pk=session.deliverable.pk)
-
-
-class WorkInProgressView(ProjectWorkAccessMixin, ListView):
-    model = WorkSession
-    template_name = "projects/work_in_progress.html"
-    context_object_name = "work_sessions"
-
-    def get_queryset(self):
-        qs = WorkSession.objects.select_related(
-            "user",
-            "project",
-            "task",
-            "deliverable",
-        ).filter(
-            status__in=[
-                WorkSessionStatus.ACTIVE,
-                WorkSessionStatus.PAUSED,
-            ]
-        )
-
-        user = self.request.user
-
-        if is_admin_or_project_manager(user):
-            return qs
-
-        if is_employee(user):
-            return qs.filter(user=user)
-
-        return WorkSession.objects.none()
+        return None
 
 
 # ============================================================
@@ -1833,11 +1796,13 @@ class SelfAssignMixin(ProjectAccessMixin, View):
             extra_tags=_scope_tags(self.scope),
         )
 
-        next_url = request.POST.get("next")
-        if next_url and next_url.startswith("/"):
-            return redirect(next_url)
-
-        return redirect(self.detail_url_name, pk=obj.pk)
+        return redirect(
+            safe_next_url(
+                request,
+                request.POST.get("next"),
+                reverse(self.detail_url_name, kwargs={"pk": obj.pk}),
+            )
+        )
 
 
 class TaskSelfAssignView(SelfAssignMixin):

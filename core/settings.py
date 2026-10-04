@@ -253,16 +253,18 @@ MEDIA_URL = "/media/"
 
 # MEDIA: local by default, S3 in production if enabled
 if AWS_S3_ENABLED:
-    DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
-
-    AWS_S3_REGION_NAME = AWS_S3_REGION_NAME
-    AWS_STORAGE_BUCKET_NAME = AWS_STORAGE_BUCKET_NAME
+    # Django 5.1+ ignores DEFAULT_FILE_STORAGE; storage is set via STORAGES.
+    STORAGES = {
+        "default": {"BACKEND": "storages.backends.s3.S3Storage"},
+        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+    }
 
     AWS_DEFAULT_ACL = None
     AWS_S3_FILE_OVERWRITE = False
 
-    # If bucket stays private, URLs may not open directly in browser (still ok for uploads)
-    AWS_QUERYSTRING_AUTH = False
+    # Uploads include signed contracts, so links are signed and expire
+    # rather than relying on a public bucket.
+    AWS_QUERYSTRING_AUTH = True
 
     MEDIA_URL = f"https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com/"
 
@@ -273,16 +275,20 @@ if AWS_S3_ENABLED:
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
-    "loggers": {
-        "fontTools": {"handlers": ["null"], "level": "ERROR"},
-        "weasyprint": {"handlers": ["null"], "level": "ERROR"},
-    },
     "handlers": {
-        "null": {
-            "class": "logging.NullHandler",
-        }
+        "console": {"class": "logging.StreamHandler"},
+        "null": {"class": "logging.NullHandler"},
+    },
+    "root": {"handlers": ["console"], "level": "WARNING"},
+    "loggers": {
+        # Without this, 500 errors leave no traceback in the container logs
+        # when DEBUG is off.
+        "django.request": {"handlers": ["console"], "level": "ERROR", "propagate": False},
+        "fontTools": {"handlers": ["null"], "level": "ERROR", "propagate": False},
+        "weasyprint": {"handlers": ["null"], "level": "ERROR", "propagate": False},
     },
 }
+
 
 # ------------------------------------------------------------------------------
 # Default primary key type

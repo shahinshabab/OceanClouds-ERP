@@ -3,7 +3,16 @@
 from django import forms
 from django.contrib.auth import get_user_model
 
+from django.db.models import Q
+
 from common.forms import BootstrapModelForm
+from common.roles import can_access_crm, can_access_sales, can_manage_events
+from projects.models import Project
+from projects.utils import (
+    is_admin_or_project_manager,
+    visible_deliverables_for,
+    visible_tasks_for,
+)
 from todos.models import Todo
 
 
@@ -110,3 +119,52 @@ class TodoForm(BootstrapModelForm):
         for field_name, label in dropdown_empty_labels.items():
             if field_name in self.fields:
                 self.fields[field_name].empty_label = label
+
+        if self.user is not None:
+            self._limit_links_to_user()
+
+    def _limit_links_to_user(self):
+        """
+        Only offer records the user may see. A link already saved on the
+        to-do stays selectable so editing never drops it.
+        """
+        user = self.user
+        sales_ok = can_access_sales(user)
+        crm_ok = can_access_crm(user)
+        events_ok = can_manage_events(user)
+
+        tasks = visible_tasks_for(user)
+        deliverables = visible_deliverables_for(user)
+        if is_admin_or_project_manager(user):
+            projects = Project.objects.all()
+        else:
+            projects = Project.objects.filter(
+                Q(pk__in=tasks.values("project_id"))
+                | Q(pk__in=deliverables.values("project_id"))
+            )
+
+        allowed = {
+            "project": projects.select_related("client"),
+            "task": tasks,
+            "deliverable": deliverables,
+            "client": None if crm_ok else "none",
+            "lead": None if crm_ok else "none",
+            "deal": None if sales_ok else "none",
+            "proposal": None if sales_ok else "none",
+            "contract": None if sales_ok else "none",
+            "invoice": None if sales_ok else "none",
+            "event": None if events_ok else "none",
+            "checklist_item": None if events_ok else "none",
+        }
+
+        for field_name, queryset in allowed.items():
+            field = self.fields.get(field_name)
+            if field is None or queryset is None:
+                continue
+            model = field.queryset.model
+            if isinstance(queryset, str):
+                queryset = model.objects.none()
+            current_id = getattr(self.instance, f"{field_name}_id", None)
+            if current_id:
+                queryset = queryset | model.objects.filter(pk=current_id)
+            field.queryset = queryset

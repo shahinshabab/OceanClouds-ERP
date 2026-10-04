@@ -24,7 +24,13 @@ from django.views.generic import (
     UpdateView,
 )
 
-from common.mixins import ContractViewAccessMixin, SalesAccessMixin, SalesReadOnlyAccessMixin
+from common.http import get_client_ip
+from common.mixins import (
+    ContractViewAccessMixin,
+    KeepPaymentsOnDeleteMixin,
+    SalesAccessMixin,
+    SalesReadOnlyAccessMixin,
+)
 from common.roles import can_access_sales
 from crm.models import Lead
 from messaging.models import EmailTemplate
@@ -100,6 +106,16 @@ class OwnerAssignMixin:
             form.instance.owner = self.request.user
 
         return super().form_valid(form)
+
+
+def _script_json(data):
+    """JSON safe to place inside an inline <script> (no </script> breakout)."""
+    return mark_safe(
+        json.dumps(data)
+        .replace("<", "\\u003C")
+        .replace(">", "\\u003E")
+        .replace("&", "\\u0026")
+    )
 
 
 def _contract_has_invoice(contract):
@@ -402,7 +418,7 @@ class DealUpdateView(SalesAccessMixin, OwnerAssignMixin, UpdateView):
     def get_success_url(self):
         return reverse_lazy("sales:deal_detail", kwargs={"pk": self.object.pk})
     
-class DealDeleteView(SalesAccessMixin, DeleteView):
+class DealDeleteView(SalesAccessMixin, KeepPaymentsOnDeleteMixin, DeleteView):
     model = Deal
     template_name = "common/confirm_delete.html"
     success_url = reverse_lazy("sales:deal_list")
@@ -410,13 +426,18 @@ class DealDeleteView(SalesAccessMixin, DeleteView):
     def get_queryset(self):
         return super().get_queryset().select_related("client", "lead", "owner")
 
+    def get_blocking_payments(self):
+        return Payment.objects.filter(invoice__deal=self.object)
+
     def form_valid(self, form):
-        messages.success(
-            self.request,
-            "Deal deleted successfully.",
-            extra_tags=_scope_tags("deal"),
-        )
-        return super().form_valid(form)
+        response = super().form_valid(form)
+        if not Deal.objects.filter(pk=self.object.pk).exists():
+            messages.success(
+                self.request,
+                "Deal deleted successfully.",
+                extra_tags=_scope_tags("deal"),
+            )
+        return response
 
 
 class LeadConvertToDealView(SalesAccessMixin, OwnerAssignMixin, CreateView):
@@ -1103,11 +1124,11 @@ class ProposalCreateView(SalesAccessMixin, OwnerAssignMixin, CreateView):
         context = super().get_context_data(**kwargs)
 
         services_price_map, packages_price_map = _get_price_maps()
-        context["services_price_map_json"] = mark_safe(json.dumps(services_price_map))
-        context["packages_price_map_json"] = mark_safe(json.dumps(packages_price_map))
+        context["services_price_map_json"] = _script_json(services_price_map)
+        context["packages_price_map_json"] = _script_json(packages_price_map)
         services_deliverable_map, packages_deliverable_map = self.get_deliverable_maps()
-        context["services_deliverable_map_json"] = mark_safe(json.dumps(services_deliverable_map))
-        context["packages_deliverable_map_json"] = mark_safe(json.dumps(packages_deliverable_map))
+        context["services_deliverable_map_json"] = _script_json(services_deliverable_map)
+        context["packages_deliverable_map_json"] = _script_json(packages_deliverable_map)
 
         catalog_choices = self.get_catalog_choices()
         plan = self.get_plan()
@@ -2075,19 +2096,13 @@ class InvoiceCreateView(SalesAccessMixin, OwnerAssignMixin, CreateView):
 
         return initial
 
-    def _get_contract_for_invoice(self, invoice):
-        contract_id = self.request.POST.get("contract") or self.request.GET.get("contract")
-
-        if contract_id:
-            return Contract.objects.filter(pk=contract_id, deal=invoice.deal).first()
-
-        return invoice.deal.contracts.order_by("-signed_date", "-created_at").first()
-
     @transaction.atomic
     def form_valid(self, form):
         response = super().form_valid(form)
 
-        contract = self._get_contract_for_invoice(self.object)
+        # Only copy contract items when a contract was chosen; a manual
+        # invoice must not silently bill the whole contract again.
+        contract = form.cleaned_data.get("contract")
 
         if contract:
             self.object.populate_from_contract(contract, clear_existing=True)
@@ -2116,6 +2131,7 @@ class InvoiceUpdateView(SalesAccessMixin, OwnerAssignMixin, UpdateView):
         response = super().form_valid(form)
 
         self.object.recalculate_totals(save=True)
+        self.object.refresh_payment_status()
 
         messages.success(
             self.request,
@@ -2128,7 +2144,7 @@ class InvoiceUpdateView(SalesAccessMixin, OwnerAssignMixin, UpdateView):
     def get_success_url(self):
         return reverse_lazy("sales:invoice_detail", kwargs={"pk": self.object.pk})
 
-class InvoiceDeleteView(SalesAccessMixin, DeleteView):
+class InvoiceDeleteView(SalesAccessMixin, KeepPaymentsOnDeleteMixin, DeleteView):
     model = Invoice
     template_name = "common/confirm_delete.html"
     success_url = reverse_lazy("sales:invoice_list")
@@ -2141,13 +2157,18 @@ class InvoiceDeleteView(SalesAccessMixin, DeleteView):
             .prefetch_related("payments", "items")
         )
 
+    def get_blocking_payments(self):
+        return self.object.payments.all()
+
     def form_valid(self, form):
-        messages.success(
-            self.request,
-            "Invoice deleted successfully.",
-            extra_tags=_scope_tags("invoice"),
-        )
-        return super().form_valid(form)
+        response = super().form_valid(form)
+        if not Invoice.objects.filter(pk=self.object.pk).exists():
+            messages.success(
+                self.request,
+                "Invoice deleted successfully.",
+                extra_tags=_scope_tags("invoice"),
+            )
+        return response
     
 class InvoicePDFDownloadView(SalesAccessMixin, DetailView):
     model = Invoice
@@ -2244,7 +2265,7 @@ class PaymentCreateView(SalesAccessMixin, OwnerAssignMixin, CreateView):
         initial = super().get_initial()
 
         invoice_id = self.request.GET.get("invoice")
-        if invoice_id:
+        if invoice_id and str(invoice_id).isdigit():
             invoice = Invoice.objects.filter(pk=invoice_id).first()
 
             if invoice:
@@ -2633,19 +2654,6 @@ class PaymentSendEmailView(SalesAccessMixin, View):
 
         return redirect("sales:payment_detail", pk=payment.pk)
     
-def get_client_ip(request):
-    forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
-
-    if forwarded_for:
-        return forwarded_for.split(",")[0].strip()
-
-    return request.META.get("REMOTE_ADDR")
-
-
-
-
-
-
 class ContractPublicSignView(View):
     template_name = "sales/contract_public_sign.html"
 
@@ -2757,6 +2765,22 @@ class ContractPublicSignView(View):
             )
             return redirect("sales:contract_public_sign", token=token)
 
+        with transaction.atomic():
+            # Lock the row so a double submit cannot sign twice.
+            contract = Contract.objects.select_for_update().get(pk=contract.pk)
+            if contract.status in (ContractStatus.SIGNED, ContractStatus.CANCELLED):
+                return redirect("sales:contract_public_sign", token=token)
+            self._sign(request, contract, signed_by_name)
+
+        messages.success(
+            request,
+            "Contract signed successfully. Thank you.",
+            extra_tags=_scope_tags("contract", "public"),
+        )
+
+        return redirect("sales:contract_public_sign", token=token)
+
+    def _sign(self, request, contract, signed_by_name):
         contract.status = ContractStatus.SIGNED
         contract.signed_date = timezone.localdate()
         contract.signed_at = timezone.now()
@@ -2777,11 +2801,3 @@ class ContractPublicSignView(View):
         )
 
         mark_deal_won(contract.deal)
-
-        messages.success(
-            request,
-            "Contract signed successfully. Thank you.",
-            extra_tags=_scope_tags("contract", "public"),
-        )
-
-        return redirect("sales:contract_public_sign", token=token)

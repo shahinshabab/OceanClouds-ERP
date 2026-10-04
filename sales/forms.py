@@ -356,6 +356,15 @@ class ContractForm(BootstrapModelForm):
         else:
             self.fields["proposal_plan"].queryset = ProposalPlan.objects.none()
 
+    def clean(self):
+        cleaned_data = super().clean()
+        deal = cleaned_data.get("deal")
+        proposal = cleaned_data.get("proposal")
+
+        if deal and proposal and proposal.deal_id != deal.pk:
+            self.add_error("proposal", "This proposal belongs to a different deal.")
+
+        return cleaned_data
 
 
 # ---------------------------------------------------------
@@ -389,6 +398,17 @@ class InvoiceForm(BootstrapModelForm):
             "discount": "Discount Amount",
             "tax_rate": "Tax %",
         }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        deal = cleaned_data.get("deal")
+        contract = cleaned_data.get("contract")
+
+        if deal and contract and contract.deal_id != deal.pk:
+            self.add_error("contract", "This contract belongs to a different deal.")
+
+        return cleaned_data
+
 
 # ---------------------------------------------------------
 # Advance payment (before contract)
@@ -455,7 +475,7 @@ class PaymentForm(BootstrapModelForm):
         if invoice_id:
             try:
                 invoice_obj = Invoice.objects.get(pk=invoice_id)
-            except Invoice.DoesNotExist:
+            except (Invoice.DoesNotExist, ValueError, TypeError):
                 invoice_obj = None
 
         if invoice_obj:

@@ -6,6 +6,8 @@ from django.db.models import Q
 from django.urls import reverse_lazy
 from django.views.generic import ListView, CreateView, UpdateView
 
+from common.roles import ROLE_ADMIN, user_has_role
+
 from .models import SystemSetting
 
 from .forms import (
@@ -21,19 +23,14 @@ User = get_user_model()
 
 class AdminPanelRequiredMixin(LoginRequiredMixin, UserPassesTestMixin):
     """
-    Allows only internal admin users.
+    Only Admins (and superusers) may manage users, roles and settings.
 
-    Current logic:
-    - superuser allowed
-    - staff user allowed
-
-    Later, if you want stricter role-based access, you can check:
-    user.groups.filter(name="Admin").exists()
+    Being `is_staff` alone is not enough: these pages can grant any role or
+    permission, so a staff flag would otherwise be a path to full control.
     """
 
     def test_func(self):
-        user = self.request.user
-        return user.is_authenticated and (user.is_superuser or user.is_staff)
+        return user_has_role(self.request.user, ROLE_ADMIN)
 
     def handle_no_permission(self):
         messages.error(
@@ -87,7 +84,17 @@ class UserListView(AdminPanelRequiredMixin, ListView):
         return context
 
 
-class UserCreateView(AdminPanelRequiredMixin, CreateView):
+class SuperuserFieldMixin:
+    """Only a superuser can create or change superusers."""
+
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+        if not self.request.user.is_superuser:
+            form.fields.pop("is_superuser", None)
+        return form
+
+
+class UserCreateView(AdminPanelRequiredMixin, SuperuserFieldMixin, CreateView):
     model = User
     form_class = UserCreateForm
     template_name = "adminpanel/user_form.html"
@@ -98,7 +105,7 @@ class UserCreateView(AdminPanelRequiredMixin, CreateView):
         return super().form_valid(form)
 
 
-class UserUpdateView(AdminPanelRequiredMixin, UpdateView):
+class UserUpdateView(AdminPanelRequiredMixin, SuperuserFieldMixin, UpdateView):
     model = User
     form_class = UserUpdateForm
     template_name = "adminpanel/user_form.html"

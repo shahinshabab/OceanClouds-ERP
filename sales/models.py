@@ -32,6 +32,19 @@ class DealStage(models.TextChoices):
     ON_HOLD = "on_hold", _("On Hold")
 
 
+class DealNextAction(models.TextChoices):
+    CALL = "call", _("Call")
+    WHATSAPP = "whatsapp", _("WhatsApp")
+    EMAIL = "email", _("Email")
+    MEETING = "meeting", _("Meeting")
+    VIDEO_CALL = "video_call", _("Video call")
+    SEND_PROPOSAL = "send_proposal", _("Send proposal")
+    COLLECT_ADVANCE = "collect_advance", _("Collect advance")
+    SEND_CONTRACT = "send_contract", _("Send contract")
+    FOLLOW_UP = "follow_up", _("Follow up")
+    OTHER = "other", _("Other")
+
+
 # Stages before the advance; later steps only move a deal forward from here.
 OPEN_DEAL_STAGES = (
     DealStage.NEW,
@@ -122,8 +135,8 @@ class LeadCustomer:
         self.whatsapp = lead.whatsapp or ""
         self.city = lead.wedding_city or ""
         self.district = lead.wedding_district or ""
-        self.state = lead.wedding_state or ""
-        self.country = lead.wedding_country or ""
+        self.state = lead.state or lead.wedding_state or ""
+        self.country = lead.country or lead.wedding_country or ""
 
     def __str__(self):
         return self.display_name or self.name or "Lead"
@@ -163,6 +176,11 @@ class Deal(TimeStamped, Owned):
 
     expected_close_date = models.DateField(null=True, blank=True)
 
+    # Next step with the customer; a to-do is kept for it (sales.signals).
+    next_action = models.CharField(max_length=32, choices=DealNextAction.choices, blank=True)
+    next_action_date = models.DateField(null=True, blank=True)
+    next_action_note = models.CharField(max_length=255, blank=True)
+
     description = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
     closed_on = models.DateField(null=True, blank=True)
@@ -189,6 +207,10 @@ class Deal(TimeStamped, Owned):
             return LeadCustomer(self.lead)
 
         return None
+
+    @property
+    def is_open(self):
+        return self.stage not in (DealStage.WON, DealStage.LOST)
 
     @property
     def advance_invoices(self):

@@ -59,6 +59,9 @@ class DealForm(BootstrapModelForm):
             "stage",
             "amount",
             "expected_close_date",
+            "next_action",
+            "next_action_date",
+            "next_action_note",
             "description",
             "is_active",
             "closed_on",
@@ -66,10 +69,18 @@ class DealForm(BootstrapModelForm):
 
         widgets = {
             "expected_close_date": DateInput(),
+            "next_action_date": DateInput(),
+            "next_action_note": forms.TextInput(attrs={"placeholder": "Eg. Share the revised package, confirm dates"}),
             "closed_on": DateInput(),
             "description": forms.Textarea(attrs={"rows": 3}),
             "amount": forms.NumberInput(attrs={"step": "0.01", "min": "0"}),
         }
+
+    def clean(self):
+        cleaned = super().clean()
+        if cleaned.get("next_action_date") and not cleaned.get("next_action"):
+            self.add_error("next_action", "Pick what the next action is.")
+        return cleaned
 
 
 # ---------------------------------------------------------

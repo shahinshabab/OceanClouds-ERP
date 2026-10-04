@@ -53,6 +53,7 @@
             <th>Customer</th>
             <th>Stage</th>
             <th class="text-end">Amount</th>
+            <th class="d-none d-lg-table-cell">Next action</th>
             <th class="d-none d-lg-table-cell">Expected close</th>
             <th class="d-none d-lg-table-cell">Owner</th>
             <th></th>
@@ -78,6 +79,7 @@
               </td>
               <td>{% status_pill deal.stage deal.get_stage_display %}</td>
               <td class="text-end tabular">{% if deal.amount %}{{ deal.amount|inr }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+              <td class="d-none d-lg-table-cell text-nowrap">{% if deal.next_action %}{{ deal.get_next_action_display }}{% if deal.next_action_date %}<span class="cell-sub">{{ deal.next_action_date|date:"d M Y" }}</span>{% endif %}{% else %}—{% endif %}</td>
               <td class="d-none d-lg-table-cell text-nowrap">{{ deal.expected_close_date|date:"d M Y"|default:"—" }}</td>
               <td class="d-none d-lg-table-cell">{{ deal.owner|default:"—" }}</td>
               <td class="row-actions">
@@ -88,7 +90,7 @@
               </td>
             </tr>
           {% empty %}
-            <tr><td colspan="7">
+            <tr><td colspan="8">
               <div class="empty-state"><i class="bi bi-briefcase"></i><p class="mb-0">No deals match these filters.</p></div>
             </td></tr>
           {% endfor %}

@@ -37,9 +37,18 @@
   <section class="form-section">
     <h2 class="form-section-title"><i class="bi bi-calendar-check"></i>Timeline</h2>
     <div class="row g-3">
-      {% field form.expected_close_date "col-md-6" %}
+      {% field form.expected_close_date "col-md-6" hint="You get a reminder and a to-do on this date." %}
       {% field form.closed_on "col-md-6" %}
       {% field form.is_active "col-12" %}
+    </div>
+  </section>
+
+  <section class="form-section">
+    <h2 class="form-section-title"><i class="bi bi-alarm"></i>Next action</h2>
+    <div class="row g-3">
+      {% field form.next_action "col-md-4" label="Action" %}
+      {% field form.next_action_date "col-md-4" label="On" hint="A to-do is added for this day." %}
+      {% field form.next_action_note "col-md-4" label="Note" %}
     </div>
   </section>
 {% endblock %}

@@ -188,8 +188,13 @@ class Lead(TimeStamped, Owned):
     phone = models.CharField(max_length=50, blank=True)
     whatsapp = models.CharField(max_length=50, blank=True)
 
+    # Where the couple lives. The country decides how phone numbers are checked.
+    country = models.CharField(max_length=100, blank=True, default="India")
+    state = models.CharField(max_length=100, blank=True)
+
     wedding_date = models.DateField(null=True, blank=True)
     wedding_city = models.CharField(max_length=100, blank=True)
+    # District and state are no longer asked for; kept for older leads.
     wedding_district = models.CharField(max_length=100, blank=True)
     wedding_state = models.CharField(max_length=100, blank=True, default="Kerala")
     wedding_country = models.CharField(max_length=100, blank=True, default="India")

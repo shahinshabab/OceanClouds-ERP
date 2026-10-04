@@ -37,7 +37,10 @@ def copy_lead_data_to_client_if_empty(client, lead):
         ("phone", "phone"),
         ("wedding_city", "city"),
         ("wedding_district", "district"),
+        # The couple's own state and country first, the wedding's for older leads.
+        ("state", "state"),
         ("wedding_state", "state"),
+        ("country", "country"),
         ("wedding_country", "country"),
     ]
 
@@ -77,8 +80,8 @@ def get_or_create_client_from_lead(lead, user):
             phone=lead.phone or lead.whatsapp,
             city=lead.wedding_city,
             district=lead.wedding_district,
-            state=lead.wedding_state or "Kerala",
-            country=lead.wedding_country or "India",
+            state=lead.state or lead.wedding_state or "",
+            country=lead.country or lead.wedding_country or "India",
             notes=f"Created from lead #{lead.pk}",
         )
     else:

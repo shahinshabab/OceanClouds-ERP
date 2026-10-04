@@ -427,3 +427,49 @@ class PaymentSplitTests(TestCase):
         self.assertEqual([p["amount"] for p in payments], [Decimal("10000"), Decimal("30000"), Decimal("60000.00")])
         for terms in (get_proposal_terms(), get_payment_plan_terms()):
             self.assertTrue(any("10%" in t and "30%" in t and "60%" in t for t in terms))
+
+
+class DealReminderTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.owner = make_user("crm_owner")
+
+    def _todos(self, deal):
+        from todos.models import Todo, TodoStatus
+
+        return Todo.objects.filter(deal=deal, status=TodoStatus.PENDING)
+
+    def test_closing_date_and_next_action_make_todos(self):
+        from sales.models import DealNextAction
+
+        today = timezone.localdate()
+        deal = Deal.objects.create(name="Anu wedding", owner=self.owner, expected_close_date=today)
+        self.assertEqual([t.title for t in self._todos(deal)], ["Close deal: Anu wedding"])
+
+        deal.next_action = DealNextAction.WHATSAPP
+        deal.next_action_date = today
+        deal.save()
+        self.assertEqual(self._todos(deal).count(), 2)
+
+        # Moving the date moves the to-do instead of adding another.
+        deal.expected_close_date = today.replace(year=today.year + 1)
+        deal.save()
+        close = self._todos(deal).get(title__startswith="Close deal")
+        self.assertEqual(close.due_date, deal.expected_close_date)
+
+        deal.stage = DealStage.LOST
+        deal.save()
+        self.assertEqual(self._todos(deal).count(), 0)
+
+    def test_daily_job_notifies_owner_once(self):
+        from django.core.management import call_command
+
+        from common.models import Notification
+
+        Deal.objects.create(name="Close today", owner=self.owner, expected_close_date=timezone.localdate())
+        call_command("generate_due_todos", verbosity=0)
+        call_command("generate_due_todos", verbosity=0)
+        self.assertEqual(
+            Notification.objects.filter(recipient=self.owner, notif_type=Notification.Type.DEAL_EXPECTED_CLOSE).count(),
+            1,
+        )

@@ -1,5 +1,7 @@
 # todos/services.py
 
+from django.db.models import Q
+
 from todos.models import Todo, TodoStatus, TodoPriority
 
 
@@ -22,11 +24,15 @@ def create_todo_once(
     invoice=None,
     event=None,
     checklist_item=None,
+    done_since=None,
 ):
     """
     Create a to-do only if a similar open to-do does not already exist.
 
     This prevents duplicate auto-generated todos from cron or signals.
+    With done_since (a date), a matching to-do created on or after that date
+    also counts even if it is already done, so a job that runs more than once
+    a day does not bring back a to-do someone just finished.
     """
 
     if not owner:
@@ -38,13 +44,14 @@ def create_todo_once(
     if not owner or not assigned_to:
         return None, False
 
+    open_or_recent = Q(status__in=[TodoStatus.PENDING, TodoStatus.IN_PROGRESS])
+    if done_since:
+        open_or_recent |= Q(created_at__date__gte=done_since)
+
     duplicate_qs = Todo.objects.filter(
+        open_or_recent,
         title=title,
         assigned_to=assigned_to,
-        status__in=[
-            TodoStatus.PENDING,
-            TodoStatus.IN_PROGRESS,
-        ],
     )
 
     if project:

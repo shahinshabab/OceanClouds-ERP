@@ -176,3 +176,21 @@ class IdleLogoutAttendanceTests(TestCase):
 
         self.assertEqual(summary["attendance_days"], 1)
         self.assertEqual(summary["days"][0]["hm"], "8h 30m")
+
+
+class DefaultSessionLimitTests(TestCase):
+    def test_idle_sign_out_is_off_by_default(self):
+        from django.conf import settings
+
+        self.assertEqual(settings.LOGIN_IDLE_TIMEOUT_SECONDS, 0)
+        self.assertEqual(settings.LOGIN_SESSION_MAX_SECONDS, 12 * 60 * 60)
+
+        user = make_user(username="long-idle-user")
+        self.client.force_login(user)
+        UserLoginSession.objects.filter(user=user).update(
+            last_activity_at=timezone.now() - timedelta(hours=3),
+        )
+
+        close_expired_login_sessions()
+
+        self.assertTrue(UserLoginSession.objects.filter(user=user, logout_at__isnull=True).exists())

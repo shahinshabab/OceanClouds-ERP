@@ -1,0 +1,73 @@
+{% extends "ui/base.html" %}
+{% load static %}
+
+{% block title %}Reports{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="page-header">
+    <div>
+      <div class="page-eyebrow"><i class="bi bi-bar-chart-line"></i> Team</div>
+      <h1 class="page-title">Reports</h1>
+      <div class="page-subtitle">
+        {{ date_from|date:"d M Y" }} to {{ date_to|date:"d M Y" }} · {{ selected_user_name }}
+      </div>
+    </div>
+    <div class="page-actions">
+      <a href="{{ pdf_download_url }}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-file-earmark-pdf"></i> Download PDF
+      </a>
+    </div>
+  </div>
+
+  {% if report_tabs|length > 1 %}
+    <nav class="report-tabs" aria-label="Reports">
+      {% for tab in report_tabs %}
+        <a href="{{ tab.url }}{% if request.GET.date_from or request.GET.date_to %}?date_from={{ date_from|date:'Y-m-d' }}&amp;date_to={{ date_to|date:'Y-m-d' }}{% endif %}"
+           class="{% if tab.key == active_report_tab %}active{% endif %}"
+           {% if tab.key == active_report_tab %}aria-current="page"{% endif %}>
+          <i class="bi {{ tab.icon }}"></i> {{ tab.label }}
+        </a>
+      {% endfor %}
+    </nav>
+  {% endif %}
+
+  <form method="get" class="card report-filter">
+    <div class="filter-bar">
+      {% if people %}
+        <div>
+          <label class="form-label" for="report-user">{{ person_label }}</label>
+          <select name="user" id="report-user" class="form-select form-select-sm">
+            <option value="">Everyone</option>
+            {% for person in people %}
+              <option value="{{ person.id }}" {% if selected_user and selected_user.id == person.id %}selected{% endif %}>
+                {{ person.get_full_name|default:person.username }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+      {% endif %}
+      <div>
+        <label class="form-label" for="report-from">From</label>
+        <input type="date" name="date_from" id="report-from" value="{{ date_from|date:'Y-m-d' }}" class="form-control form-control-sm">
+      </div>
+      <div>
+        <label class="form-label" for="report-to">To</label>
+        <input type="date" name="date_to" id="report-to" value="{{ date_to|date:'Y-m-d' }}" class="form-control form-control-sm">
+      </div>
+      <div class="filter-actions">
+        <button type="submit" class="btn btn-dark btn-sm">Apply</button>
+        <a href="{{ request.path }}" class="btn btn-outline-secondary btn-sm">Reset</a>
+      </div>
+    </div>
+  </form>
+
+  {% block report_body %}{% endblock %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+  {{ charts|json_script:"report-charts" }}
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
+  <script src="{% static 'ui/report_charts.js' %}?v={{ APP_VERSION }}"></script>
+{% endblock %}

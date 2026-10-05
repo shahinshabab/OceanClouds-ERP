@@ -27,8 +27,8 @@ from .utils import (
 
 
 class ReportsViewTests(AuthenticatedViewTestMixin):
+    # reports:dashboard redirects to the first tab; see ReportRoleVisibilityTests.
     list_url_names = [
-        "reports:dashboard",
         "reports:sales_report",
         "reports:project_report",
         "reports:employee_work_report",
@@ -277,28 +277,87 @@ class ReportRoleVisibilityTests(TestCase):
         )
         self.assertContains(home_response, reverse("reports:attendance"))
 
-    def test_managers_receive_kpis_without_detailed_rows(self):
-        self.client.force_login(self.project_manager)
-        project_response = self.client.get(reverse("reports:project_report"))
-        employee_response = self.client.get(
-            reverse("reports:employee_work_report"),
-            {"user": self.employee.pk},
-        )
+    def test_reports_page_opens_the_first_tab_each_role_may_see(self):
+        expected = {
+            self.admin: "reports:sales_report",
+            self.crm_manager: "reports:sales_report",
+            self.project_manager: "reports:project_report",
+        }
+        for user, url_name in expected.items():
+            self.client.force_login(user)
+            response = self.client.get(reverse("reports:dashboard"))
+            self.assertRedirects(response, reverse(url_name), fetch_redirect_response=False)
 
-        self.assertEqual(project_response.status_code, 200)
-        self.assertFalse(project_response.context["show_detailed_data"])
-        self.assertNotContains(project_response, "ADMIN-ONLY-TASK-DETAIL")
-        self.assertEqual(employee_response.status_code, 200)
-        self.assertFalse(employee_response.context["show_detailed_data"])
-        self.assertNotContains(employee_response, "ADMIN-ONLY-TASK-DETAIL")
-        self.assertEqual(employee_response.context["login_table"]["rows"], [])
+    def test_tabs_match_report_access(self):
+        self.client.force_login(self.project_manager)
+        response = self.client.get(reverse("reports:project_report"))
+        self.assertEqual(
+            [tab["key"] for tab in response.context["report_tabs"]],
+            ["projects", "employees"],
+        )
+        self.assertEqual(self.client.get(reverse("reports:sales_report")).status_code, 403)
 
         self.client.force_login(self.crm_manager)
-        sales_response = self.client.get(reverse("reports:sales_report"))
-        self.assertEqual(sales_response.status_code, 200)
-        self.assertFalse(sales_response.context["show_detailed_data"])
+        response = self.client.get(reverse("reports:sales_report"))
+        self.assertEqual([tab["key"] for tab in response.context["report_tabs"]], ["sales"])
+        self.assertEqual(self.client.get(reverse("reports:employee_work_report")).status_code, 403)
 
-    def test_admin_can_see_task_and_login_work_details(self):
+    def test_project_manager_gets_full_employee_report(self):
+        other_manager = make_user(username="report-other-manager")
+        other_manager.groups.add(self.manager_group)
+        other_project = Project.objects.create(name="Someone else's project", manager=other_manager)
+        other_task = Task.objects.create(project=other_project, name="Other task", assigned_to=self.employee)
+        WorkSession.objects.create(
+            user=self.employee,
+            project=other_project,
+            task=other_task,
+            status=WorkSessionStatus.PAUSED,
+            work_seconds=30 * 60,
+        )
+
+        self.client.force_login(self.project_manager)
+        response = self.client.get(reverse("reports:employee_work_report"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["show_detailed_data"])
+        self.assertContains(response, "ADMIN-ONLY-TASK-DETAIL")
+        # Work on projects this manager does not run is included too.
+        self.assertEqual(response.context["summary"]["total_work_seconds"], 90 * 60)
+        self.assertIn(self.employee, list(response.context["people"]))
+
+    def test_crm_manager_gets_full_sales_report(self):
+        other_crm = make_user(username="report-other-crm")
+        other_crm.groups.add(self.crm_group)
+
+        self.client.force_login(self.crm_manager)
+        response = self.client.get(reverse("reports:sales_report"))
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["show_detailed_data"])
+        self.assertIsNone(response.context["selected_user"])
+        self.assertIn(other_crm, list(response.context["people"]))
+
+        response = self.client.get(reverse("reports:sales_report"), {"user": other_crm.pk})
+        self.assertEqual(response.context["selected_user"], other_crm)
+
+    def test_project_manager_gets_full_project_report(self):
+        other_manager = make_user(username="report-other-pm")
+        other_manager.groups.add(self.manager_group)
+        Project.objects.create(name="OTHER-MANAGER-PROJECT", manager=other_manager)
+
+        self.client.force_login(self.project_manager)
+        response = self.client.get(reverse("reports:project_report"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.context["selected_user"])
+        self.assertTrue(response.context["show_detailed_data"])
+        self.assertContains(response, "ADMIN-ONLY-TASK-DETAIL")
+        self.assertContains(response, "OTHER-MANAGER-PROJECT")
+
+        response = self.client.get(reverse("reports:project_report"), {"user": other_manager.pk})
+        self.assertEqual(response.context["selected_user"], other_manager)
+        self.assertNotContains(response, "ADMIN-ONLY-TASK-DETAIL")
+
+    def test_employee_report_has_no_attendance_section(self):
         self.client.force_login(self.admin)
         response = self.client.get(
             reverse("reports:employee_work_report"),
@@ -306,9 +365,26 @@ class ReportRoleVisibilityTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertTrue(response.context["show_detailed_data"])
         self.assertContains(response, "ADMIN-ONLY-TASK-DETAIL")
-        self.assertContains(response, "Login Sessions")
+        self.assertNotContains(response, "Login Sessions")
+        self.assertNotIn("login_table", response.context)
+        self.assertContains(response, reverse("reports:attendance"))
+
+    def test_reports_render_chart_data(self):
+        self.client.force_login(self.admin)
+        for url_name in ("reports:sales_report", "reports:project_report", "reports:employee_work_report"):
+            response = self.client.get(reverse(url_name), {"date_from": "2026-01-01", "date_to": "2026-12-31"})
+            self.assertEqual(response.status_code, 200)
+            self.assertContains(response, 'id="report-charts"')
+            for key, chart in response.context["charts"].items():
+                self.assertContains(response, f'data-report-chart="{key}"')
+                for series in chart["series"]:
+                    self.assertLessEqual(len(series["values"]), len(chart["labels"]) or len(series["values"]))
+
+        response = self.client.get(reverse("reports:employee_work_report"))
+        hours = response.context["charts"]["employee_hours"]
+        self.assertEqual(hours["labels"], [self.employee.username])
+        self.assertEqual(hours["series"][0]["values"], [1.0])
 
     def test_project_manager_can_approve_managed_employee_checkout(self):
         login_at = timezone.now() - timedelta(hours=10)

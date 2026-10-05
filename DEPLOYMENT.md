@@ -76,7 +76,7 @@ labels only and go to the same people the views already allow (admins, the
 project manager, assignees, owners); data still loads through normal views.
 Saves never fail because of Redis: pushes are sent after commit and errors are
 only logged. Sockets close on logout, when a newer login replaces the session,
-and at the fixed 16-hour deadline. They do not count as presence activity.
+and at the fixed 12-hour deadline. They do not count as presence activity.
 
 The host Nginx must pass websocket upgrades. Both files in `deploy/` include a
 `location /ws/` block; after Certbot has added the HTTPS server block, copy the
@@ -93,23 +93,24 @@ Every login and logout is a `UserLoginSession` row. A login ends one of four way
 | End reason | When | Logout time recorded | Attendance |
 | --- | --- | --- | --- |
 | Manual Logout | the user clicks Logout | the click | counted |
-| Idle Logout (Last Activity) | no activity for `LOGIN_IDLE_TIMEOUT_MINUTES` (default 30) | the last activity | counted |
-| Fixed Session Expired | active right up to the 16-hour limit | the 16-hour limit | needs an approved checkout |
+| Idle Logout (Last Activity) | only if `LOGIN_IDLE_TIMEOUT_MINUTES` is set (off by default): no activity for that long | the last activity | counted |
+| Fixed Session Expired | active right up to the 12-hour limit | the 12-hour limit | needs an approved checkout |
 | Replaced by New Login | the user signs in elsewhere | the new login | needs an approved checkout |
 
 Activity means someone using the app: clicking a link, submitting a form,
 typing a URL, or clicking, typing, scrolling or moving the mouse on an open
 page (sent as a heartbeat, below). An open tab nobody touches, automatic page
 reloads from live updates, background fetches and the websocket itself are not
-activity. So a forgotten logout, a closed browser, or a sleeping computer all
-end as an idle logout whose time is the last real activity.
+activity. Idle sign-out is off by default, so a forgotten logout stays open
+until the 12-hour limit and then needs an approved checkout. With idle sign-out
+turned on, it instead ends as an idle logout at the last real activity.
 
 The `session-cleanup` service runs `close_expired_login_sessions` every minute;
 requests and heartbeats also close an ended login straight away. Closing a login
 deletes its Django session, pauses active work at the logout time, and tells
 open tabs over the websocket, which then go to the sign-in page with the reason.
-Set `LOGIN_IDLE_TIMEOUT_MINUTES` in `.env` to change the limit, or `0` to turn
-idle sign-out off.
+Set `LOGIN_IDLE_TIMEOUT_MINUTES` in `.env` to a number of minutes to turn idle
+sign-out on; leave it at `0` (the default) to keep only the 12-hour limit.
 
 ## Browser presence
 
@@ -128,7 +129,7 @@ Offline since is calculated as last seen plus the three-minute grace period.
 It is an estimate: browser suspension, computer sleep, or network loss can also
 stop heartbeats. It is not an exact browser-close or attendance checkout time.
 
-Heartbeats never extend the fixed 16-hour authentication deadline, acknowledge
+Heartbeats never extend the fixed 12-hour authentication deadline, acknowledge
 notices, or mark checkout. A heartbeat for a login that is idle or past its
 deadline ends that login and returns 401 with the end reason. Heartbeat
 requests skip the per-request global expiry scan and notice query, while still

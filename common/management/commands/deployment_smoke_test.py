@@ -26,11 +26,16 @@ class Command(BaseCommand):
         "projects:project_list",
         "projects:task_list",
         "projects:deliverable_list",
-        "reports:dashboard",
         "reports:sales_report",
         "reports:project_report",
         "reports:employee_work_report",
         "reports:attendance",
+    ]
+
+    # Pages that only send the user on: /reports/ opens the first report tab
+    # the user may see. Check the redirect and the page it lands on.
+    redirect_urls = [
+        "reports:dashboard",
     ]
 
     def handle(self, *args, **options):
@@ -77,6 +82,16 @@ class Command(BaseCommand):
                 response = client.get(reverse(url_name), secure=True)
                 if response.status_code != 200:
                     failures.append(f"{url_name}=HTTP {response.status_code}")
+            for url_name in self.redirect_urls:
+                response = client.get(reverse(url_name), secure=True)
+                if response.status_code != 302:
+                    failures.append(f"{url_name}=HTTP {response.status_code}")
+                    continue
+                target = client.get(response.url, secure=True)
+                if target.status_code != 200:
+                    failures.append(
+                        f"{url_name}->{response.url}=HTTP {target.status_code}"
+                    )
             transaction.set_rollback(True)
 
         if failures:
@@ -85,6 +100,7 @@ class Command(BaseCommand):
         self.stdout.write(
             self.style.SUCCESS(
                 f"Deployment smoke checks passed: database={connection.vendor}, "
-                f"login_page=200, authenticated_workflows={len(self.workflow_urls)}."
+                f"login_page=200, authenticated_workflows="
+                f"{len(self.workflow_urls) + len(self.redirect_urls)}."
             )
         )

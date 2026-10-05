@@ -24,7 +24,7 @@ env = environ.Env(
     DB_CONN_MAX_AGE=(int, 60),
     APP_VERSION=(str, "dev"),
     REDIS_URL=(str, ""),
-    LOGIN_IDLE_TIMEOUT_MINUTES=(int, 30),
+    LOGIN_IDLE_TIMEOUT_MINUTES=(int, 0),
     AWS_REGION=(str, ""),
     AWS_SES_SENDER=(str, ""),
     AWS_ACCESS_KEY_ID=(str, ""),
@@ -304,9 +304,9 @@ SESSION_COOKIE_AGE = LOGIN_SESSION_MAX_SECONDS
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 SESSION_SAVE_EVERY_REQUEST = False
 
-# A login with no user activity (clicks, typing, scrolling, page navigation)
-# for this long is signed out, and its logout time is the last activity time.
-# 0 turns idle logout off; the fixed deadline above always applies.
+# Optional: a login with no user activity (clicks, typing, scrolling, page
+# navigation) for this many minutes is signed out at its last activity time.
+# Off by default (0), so a login lasts until logout or the fixed 12-hour limit.
 LOGIN_IDLE_TIMEOUT_SECONDS = env.int("LOGIN_IDLE_TIMEOUT_MINUTES") * 60
 
 # Heartbeats are sent only while someone interacts with an open page.

@@ -5,7 +5,7 @@ from asgiref.sync import sync_to_async
 from asgiref.testing import ApplicationCommunicator
 from django.conf import settings
 from django.contrib.auth.models import Group
-from django.test import Client, TransactionTestCase
+from django.test import Client, TransactionTestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -202,6 +202,7 @@ class LiveUpdatesTests(TransactionTestCase):
         output = await old_socket.output()
         self.assertEqual(output["type"], "websocket.close")
 
+    @override_settings(LOGIN_IDLE_TIMEOUT_SECONDS=30 * 60)
     async def test_idle_login_is_rejected(self):
         client = await sync_to_async(logged_in_client)(self.employee)
         await UserLoginSession.objects.filter(user=self.employee).aupdate(
@@ -211,6 +212,7 @@ class LiveUpdatesTests(TransactionTestCase):
         self.assertFalse(connected)
         self.assertEqual(code, 4401)
 
+    @override_settings(LOGIN_IDLE_TIMEOUT_SECONDS=30 * 60)
     async def test_idle_cleanup_tells_the_page_and_closes_its_socket(self):
         _, socket = await self.open_socket(self.employee)
         await UserLoginSession.objects.filter(user=self.employee).aupdate(

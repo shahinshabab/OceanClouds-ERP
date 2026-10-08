@@ -181,7 +181,7 @@ class EventWithoutProjectTests(TestCase):
 
         form_page = self.client.get(create_url)
         initial = form_page.context["form"].initial
-        self.assertEqual(initial["event"], event.pk)
+        self.assertEqual(initial["events"], [event.pk])
         self.assertEqual(initial["client"], self.client_obj.pk)
 
         self.client.post(
@@ -189,7 +189,7 @@ class EventWithoutProjectTests(TestCase):
             {
                 "name": "Anu - Wedding",
                 "client": self.client_obj.pk,
-                "event": event.pk,
+                "events": [event.pk],
                 "status": "planned",
                 "priority": "medium",
             },

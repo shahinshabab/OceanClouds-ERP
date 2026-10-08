@@ -465,7 +465,8 @@ def create_client_and_events_from_contract(contract, user):
     - Creates the client from the lead (or reuses one with the same
       email/phone), links it to the deal and lead, and adds a primary contact.
     - Creates one event per contract event day, carrying over its services
-      and packages. Events already created from this contract are kept.
+      and packages, all in the deal's project when one exists. Events
+      already created from this contract are kept.
 
     Returns (client, created_events, skipped_day_titles).
     """
@@ -501,6 +502,16 @@ def create_client_and_events_from_contract(contract, user):
 
     primary_contact = client.primary_contact or client.contacts.first()
 
+    # A project already planned for this deal takes every contract day.
+    from projects.models import Project, ProjectStatus
+
+    project = (
+        Project.objects.filter(deal=deal)
+        .exclude(status=ProjectStatus.CANCELLED)
+        .order_by("-created_at")
+        .first()
+    )
+
     created_events = []
     skipped_days = []
 
@@ -531,6 +542,7 @@ def create_client_and_events_from_contract(contract, user):
 
         event = Event.objects.create(
             owner=user,
+            project=project,
             client=client,
             primary_contact=primary_contact,
             contract=contract,
@@ -559,6 +571,7 @@ def create_client_and_events_from_contract(contract, user):
         if event_date:
             event = Event.objects.create(
                 owner=user,
+                project=project,
                 client=client,
                 primary_contact=primary_contact,
                 contract=contract,

@@ -697,7 +697,6 @@ class ProjectReportView(ProjectReportAccessMixin, ReportTabsMixin, ReportPDFMixi
             "owner",
             "client",
             "deal",
-            "event",
             "manager",
         ).prefetch_related(
             "tasks",

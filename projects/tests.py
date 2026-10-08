@@ -474,7 +474,7 @@ class ProjectManagerAccessTests(TestCase):
             reverse("projects:project_create") + f"?event={event.pk}",
             {
                 "name": "Asha Wedding",
-                "event": event.pk,
+                "events": [event.pk],
                 "status": ProjectStatus.PLANNED,
                 "priority": "medium",
             },
@@ -484,6 +484,101 @@ class ProjectManagerAccessTests(TestCase):
         self.assertFalse(
             Todo.objects.filter(event=event, status__in=["pending", "in_progress"]).exists()
         )
+
+    def _contract_events(self):
+        from events.models import Event
+        from sales.models import Contract, Deal
+
+        deal = Deal.objects.create(name="Meera Wedding", owner=self.crm)
+        contract = Contract.objects.create(deal=deal, owner=self.crm)
+        base = timezone.localdate() + timedelta(days=30)
+        with self.captureOnCommitCallbacks(execute=True):
+            events = [
+                Event.objects.create(name=name, date=base + timedelta(days=offset), owner=self.crm, contract=contract)
+                for name, offset in (("Haldi", 0), ("Wedding Day", 1), ("Reception", 2))
+            ]
+        return deal, events
+
+    def test_contract_events_share_one_project_request(self):
+        deal, (haldi, wedding, reception) = self._contract_events()
+
+        # One "create project" to-do per manager, not one per contract day.
+        self.assertEqual(Todo.objects.filter(assigned_to=self.pm).count(), 1)
+        todo = Todo.objects.get(assigned_to=self.pm)
+        self.assertEqual(todo.event, haldi)
+        self.assertIn("Reception", todo.description)
+
+        # Creating the project from one event offers all of the contract's days.
+        self.client.force_login(self.pm)
+        page = self.client.get(reverse("projects:project_create") + f"?event={haldi.pk}")
+        form = page.context["form"]
+        self.assertEqual(set(form.initial["events"]), {haldi.pk, wedding.pk, reception.pk})
+        self.assertEqual(form.initial["start_date"], haldi.date)
+        self.assertEqual(form.initial["due_date"], reception.date)
+
+        self.client.post(
+            reverse("projects:project_create"),
+            {
+                "name": "Meera Wedding",
+                "deal": deal.pk,
+                "events": [haldi.pk, wedding.pk, reception.pk],
+                "status": ProjectStatus.PLANNED,
+                "priority": "medium",
+            },
+        )
+        project = Project.objects.get(name="Meera Wedding")
+        self.assertEqual(
+            list(project.ordered_events.values_list("name", flat=True)),
+            ["Haldi", "Wedding Day", "Reception"],
+        )
+        self.assertFalse(
+            Todo.objects.filter(event__in=project.events.all(), status__in=["pending", "in_progress"]).exists()
+        )
+
+        page = self.client.get(reverse("projects:project_detail", args=[project.pk]))
+        for name in ("Haldi", "Wedding Day", "Reception"):
+            self.assertContains(page, name)
+        page = self.client.get(reverse("events:event_detail", args=[haldi.pk]))
+        self.assertContains(page, "Reception")
+        page = self.client.get(
+            reverse("events:event_calendar"),
+            {"project": project.pk, "show": "events", "view": "agenda", "date": wedding.date.isoformat()},
+        )
+        self.assertContains(page, "Wedding Day")
+
+    def test_editing_project_adds_and_removes_events(self):
+        from events.models import Event
+
+        project = Project.objects.create(name="Edit Events")
+        other = Project.objects.create(name="Other")
+        today = timezone.localdate()
+        kept = Event.objects.create(name="Wedding Day", date=today, project=project)
+        dropped = Event.objects.create(name="Engagement", date=today, project=project)
+        added = Event.objects.create(name="Reception", date=today)
+        taken = Event.objects.create(name="Taken", date=today, project=other)
+
+        from .forms import ProjectForm
+
+        offered = set(ProjectForm(instance=project, user=self.pm).fields["events"].queryset)
+        self.assertEqual(offered, {kept, dropped, added})
+        self.assertNotIn(taken, offered)
+
+        self.client.force_login(self.pm)
+        response = self.client.post(
+            reverse("projects:project_update", args=[project.pk]),
+            {
+                "name": "Edit Events",
+                "events": [kept.pk, added.pk],
+                "status": ProjectStatus.PLANNED,
+                "priority": "medium",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(set(project.events.all()), {kept, added})
+        dropped.refresh_from_db()
+        taken.refresh_from_db()
+        self.assertIsNone(dropped.project)
+        self.assertEqual(taken.project, other)
 
     def test_event_with_project_creates_no_todo(self):
         from events.models import Event

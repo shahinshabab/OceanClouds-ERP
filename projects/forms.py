@@ -5,6 +5,7 @@ from django.contrib.auth import get_user_model
 from django.db.models import F
 
 from common.forms import BootstrapModelForm
+from events.models import Event
 from common.roles import (
     ROLE_PROJECT_MANAGER,
     ROLE_EMPLOYEE,
@@ -69,14 +70,25 @@ class AssigneeChoiceMixin:
         field.label_from_instance = label
 
 
+class ProjectEventsField(forms.ModelMultipleChoiceField):
+    def label_from_instance(self, event):
+        return f"{event.date:%d %b %Y} · {event.name}"
+
+
 class ProjectForm(BootstrapModelForm):
+    events = ProjectEventsField(
+        queryset=Event.objects.none(),
+        required=False,
+        widget=forms.CheckboxSelectMultiple(),
+        help_text="All events this project covers, e.g. engagement, wedding day and reception.",
+    )
+
     class Meta:
         model = Project
         fields = [
             "name",
             "client",
             "deal",
-            "event",
             "project_directory",
             "description",
             "manager",
@@ -97,7 +109,6 @@ class ProjectForm(BootstrapModelForm):
 
         self.fields["client"].required = False
         self.fields["deal"].required = False
-        self.fields["event"].required = False
         self.fields["project_directory"].required = False
         self.fields["manager"].required = False
 
@@ -105,6 +116,26 @@ class ProjectForm(BootstrapModelForm):
 
         if self.user and user_has_role(self.user, ROLE_PROJECT_MANAGER):
             self.fields["manager"].initial = self.user
+
+        # An event belongs to one project: offer the free ones plus this
+        # project's own.
+        events = Event.objects.filter(project__isnull=True)
+        if self.instance.pk:
+            events = events | Event.objects.filter(project=self.instance)
+            self.fields["events"].initial = list(self.instance.events.values_list("pk", flat=True))
+        self.fields["events"].queryset = events.select_related("client").order_by("date", "start_time", "name")
+
+    def _save_m2m(self):
+        super()._save_m2m()
+        selected = {event.pk for event in self.cleaned_data.get("events") or []}
+
+        for event in self.instance.events.exclude(pk__in=selected):
+            event.project = None
+            event.save(update_fields=["project", "updated_at"])
+
+        for event in Event.objects.filter(pk__in=selected).exclude(project=self.instance):
+            event.project = self.instance
+            event.save(update_fields=["project", "updated_at"])
 
 
 class TaskForm(AssigneeChoiceMixin, BootstrapModelForm):

@@ -302,11 +302,3 @@ def request_project_for_new_event(sender, instance, created, **kwargs):
     if created:
         actor = getattr(instance, "_notification_actor", None) or instance.owner
         transaction.on_commit(lambda: request_project_for_event(instance, actor=actor))
-
-
-@receiver(post_save, sender=Project)
-def close_event_todos_when_project_linked(sender, instance, created, **kwargs):
-    if kwargs.get("raw") or not instance.event_id:
-        return
-
-    close_event_project_todos(instance.event)

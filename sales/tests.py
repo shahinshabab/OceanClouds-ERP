@@ -544,6 +544,18 @@ class ContractApprovalTests(TestCase):
         self.assertNotContains(page, reverse("sales:contract_approve", args=[self.contract.pk]))
         self.assertContains(page, "Complete")
 
+    def test_approval_puts_every_contract_day_in_the_deals_project(self):
+        from projects.models import Project
+
+        ContractEventDay.objects.create(contract=self.contract, title="Reception", event_date=date(2026, 12, 21))
+        project = Project.objects.create(name="Anu Wedding", deal=self.deal)
+        self._sign()
+        self.client.post(reverse("sales:contract_approve", args=[self.contract.pk]), {"client": ""})
+
+        events = Event.objects.filter(contract=self.contract)
+        self.assertEqual(events.count(), 2)
+        self.assertEqual(set(project.events.all()), set(events))
+
     def test_second_approval_does_nothing_and_message_is_shown(self):
         self._sign()
         url = reverse("sales:contract_approve", args=[self.contract.pk])

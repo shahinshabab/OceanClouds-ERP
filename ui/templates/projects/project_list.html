@@ -78,7 +78,7 @@
                 <a href="{% url 'projects:project_detail' project.pk %}" class="cell-title">{{ project.name }}</a>
                 <span class="cell-sub">
                   {% status_pill project.priority project.get_priority_display %}
-                  {% if project.event %}<span class="ms-1">{{ project.event }}</span>{% endif %}
+                  {% with count=project.events.all|length %}{% if count %}<span class="ms-1"><i class="bi bi-stars"></i> {{ count }} event{{ count|pluralize }}</span>{% endif %}{% endwith %}
                 </span>
                 {% if project.project_directory %}<span class="cell-sub text-truncate" style="max-width: 320px;" title="{{ project.project_directory }}"><i class="bi bi-folder2"></i> {{ project.project_directory }}</span>{% endif %}
               </td>

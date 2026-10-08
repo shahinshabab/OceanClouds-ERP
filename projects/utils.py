@@ -111,10 +111,10 @@ def visible_projects_for(user):
         "client",
         "deal",
         "manager",
-        "event",
     ).prefetch_related(
         "tasks",
         "deliverables",
+        "events",
     )
 
     # Project Managers have full project access, not only their own projects.
@@ -242,7 +242,23 @@ def project_managers():
 
 
 def event_needs_project(event):
-    return not event.project_id and not event.projects.exists()
+    return not event.project_id
+
+
+def contract_sibling_events(event):
+    """
+    Other events created from the same contract (reception, wedding day, ...)
+    that are not in a project yet. They belong in the same project.
+    """
+    from events.models import Event
+
+    if not event.contract_id:
+        return Event.objects.none()
+    return (
+        Event.objects.filter(contract_id=event.contract_id, project__isnull=True)
+        .exclude(pk=event.pk)
+        .order_by("date", "start_time", "name")
+    )
 
 
 def request_project_for_event(event, actor=None):
@@ -258,6 +274,11 @@ def request_project_for_event(event, actor=None):
     if not event_needs_project(event):
         return []
 
+    # A contract creates one event per day; one project covers them all, so
+    # only the first of them asks for it.
+    if contract_sibling_events(event).filter(pk__lt=event.pk).exists():
+        return []
+
     created = []
     when = event.date.strftime("%d %b %Y") if event.date else "date not set"
     description = (
@@ -265,6 +286,11 @@ def request_project_for_event(event, actor=None):
         "Open the event, check the client and the contract, then create the project "
         "and schedule its tasks and deliverables."
     )
+    siblings = list(contract_sibling_events(event))
+    if siblings:
+        description += " The same project covers the contract's other events: " + ", ".join(
+            sibling.name for sibling in siblings
+        ) + "."
 
     for manager in project_managers():
         notify_user(

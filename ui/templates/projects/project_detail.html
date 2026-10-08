@@ -243,18 +243,36 @@
             <li><span class="k">Manager</span><span class="v">{% if project.manager %}{{ project.manager.get_full_name|default:project.manager.username }}{% else %}<span class="text-muted fw-normal">Unassigned</span>{% endif %}</span></li>
             <li><span class="k">Client</span><span class="v">{% if project.client %}{{ project.client }}{% else %}<span class="text-warning">Not linked</span>{% endif %}</span></li>
             {% if project.deal %}<li><span class="k">Deal</span><span class="v">{{ project.deal }}</span></li>{% endif %}
-            {% if project.event %}
-              <li><span class="k">Event</span><span class="v"><a href="{% url 'events:event_detail' project.event.pk %}">{{ project.event }}</a></span></li>
-              {% if project.event.contract_id %}
-                <li><span class="k">Contract</span><span class="v"><a href="{% url 'sales:contract_document' project.event.contract_id %}">{{ project.event.contract.number|default:"View" }}</a></span></li>
-              {% endif %}
-            {% endif %}
+            {% for contract in contracts %}
+              <li><span class="k">Contract</span><span class="v"><a href="{% url 'sales:contract_document' contract.pk %}">{{ contract.number|default:"View" }}</a></span></li>
+            {% endfor %}
             <li><span class="k">Start</span><span class="v">{{ project.start_date|date:"d M Y"|default:"—" }}</span></li>
             <li><span class="k">Due</span><span class="v{% if project.is_overdue %} text-danger{% endif %}">{{ project.due_date|date:"d M Y"|default:"—" }}</span></li>
             <li><span class="k">Priority</span><span class="v">{{ project.get_priority_display }}</span></li>
           </ul>
           <div class="info-label mt-3">Directory</div>
           <div class="small text-break">{% if project.project_directory %}<code>{{ project.project_directory }}</code>{% else %}<span class="text-muted">—</span>{% endif %}</div>
+        </div>
+      </div>
+
+      <div class="card mb-4">
+        <div class="card-header"><h2 class="section-title"><i class="bi bi-stars"></i>Events{% if events %} <span class="text-muted fw-normal">({{ events|length }})</span>{% endif %}</h2></div>
+        <div class="card-body">
+          {% if events %}
+            <ul class="info-list">
+              {% for event in events %}
+                <li>
+                  <span class="k">{{ event.date|date:"d M Y" }}</span>
+                  <span class="v">
+                    <a href="{% url 'events:event_detail' event.pk %}">{{ event.name }}</a>
+                    <span class="d-block small text-muted fw-normal">{{ event.get_event_type_display }}{% if event.start_time %} · {{ event.start_time|time:"g:i A" }}{% endif %}{% if event.venue %} · {{ event.venue.name }}{% endif %}</span>
+                  </span>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <span class="text-muted">No events linked. Edit the project to add its events.</span>
+          {% endif %}
         </div>
       </div>
 

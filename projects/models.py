@@ -131,6 +131,8 @@ class Project(TimeStamped, Owned):
     """
     One wedding/event production project.
 
+    A project can cover several events (engagement, wedding day,
+    reception, ...); each event points at its project via Event.project.
     Client/deal are optional so old projects can be created first
     and linked later.
     """
@@ -155,14 +157,6 @@ class Project(TimeStamped, Owned):
         help_text="Optional linked deal. Can be linked later.",
     )
 
-    event = models.ForeignKey(
-        "events.Event",
-        on_delete=models.SET_NULL,
-        related_name="projects",
-        null=True,
-        blank=True,
-        help_text="Optional linked wedding/event.",
-    )
     project_directory = models.CharField(
         max_length=500,
         blank=True,
@@ -216,6 +210,10 @@ class Project(TimeStamped, Owned):
 
     def get_absolute_url(self):
         return reverse("projects:project_detail", args=[self.pk])
+
+    @property
+    def ordered_events(self):
+        return self.events.order_by("date", "start_time", "name")
 
     @property
     def is_overdue(self):

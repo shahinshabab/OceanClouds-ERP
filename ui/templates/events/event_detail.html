@@ -300,6 +300,15 @@
             {% if linked_project %}
               <li><span class="k">Project status</span><span class="v">{% status_pill linked_project.status linked_project.get_status_display %}</span></li>
               <li><span class="k">Project manager</span><span class="v">{% if linked_project.manager %}{{ linked_project.manager.get_full_name|default:linked_project.manager.username }}{% else %}—{% endif %}</span></li>
+              {% if project_events %}
+                <li><span class="k">Other events</span>
+                  <span class="v">
+                    {% for other in project_events %}
+                      <a class="d-block" href="{% url 'events:event_detail' other.pk %}">{{ other.date|date:"d M" }} · {{ other.name }}</a>
+                    {% endfor %}
+                  </span>
+                </li>
+              {% endif %}
             {% endif %}
             <li><span class="k">Event owner</span><span class="v">{% if event.owner %}{{ event.owner.get_full_name|default:event.owner.username }}{% else %}—{% endif %}</span></li>
             <li><span class="k">Vendors</span><span class="v tabular">{{ event.vendors.all|length }}</span></li>

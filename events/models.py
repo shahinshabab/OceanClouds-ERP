@@ -92,10 +92,10 @@ class Event(TimeStamped, Owned):
     project = models.ForeignKey(
         "projects.Project",
         on_delete=models.SET_NULL,
-        related_name="linked_events",
+        related_name="events",
         null=True,
         blank=True,
-        help_text=_("Optional for now. Can be made required later."),
+        help_text=_("Project this event belongs to. One project can hold several events."),
     )
 
     client = models.ForeignKey(
@@ -214,14 +214,9 @@ class Event(TimeStamped, Owned):
     @property
     def linked_project(self):
         """
-        Project for this event, whichever side holds the link.
+        Project for this event.
         """
-        if self.project_id:
-            return self.project
-        projects = list(self.projects.all())
-        if not projects:
-            return None
-        return max(projects, key=lambda project: project.created_at)
+        return self.project
 
     @property
     def checklist(self):

@@ -51,6 +51,7 @@ from .utils import (
     _scope_tags,
     _validation_error_message,
     close_active_work_for_target,
+    contract_sibling_events,
     is_admin_or_project_manager,
     is_employee,
     is_project_manager,
@@ -131,6 +132,16 @@ class ProjectDetailView(ProjectAccessMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         project = self.object
+
+        events = list(
+            project.events.select_related("venue", "contract").order_by("date", "start_time", "name")
+        )
+        context["events"] = events
+        contracts = {}
+        for event in events:
+            if event.contract_id:
+                contracts.setdefault(event.contract_id, event.contract)
+        context["contracts"] = list(contracts.values())
 
         context["tasks"] = project.tasks.select_related("assigned_to").order_by(
             F("due_date").asc(nulls_last=True),
@@ -260,10 +271,12 @@ class ProjectCreateView(ProjectAccessMixin, CreateView):
         # Event page -> Create Project.
         event = self.get_source_event()
         if event:
-            initial["event"] = event.pk
+            # The contract's other days (reception, ...) join the same project.
+            events = [event, *contract_sibling_events(event)]
+            initial["events"] = [item.pk for item in events]
             initial["name"] = event.name
-            initial["start_date"] = event.date
-            initial["due_date"] = event.date
+            initial["start_date"] = min(item.date for item in events)
+            initial["due_date"] = max(item.date for item in events)
             if event.client_id:
                 initial["client"] = event.client_id
             if event.contract_id and event.contract.deal_id:
@@ -278,11 +291,6 @@ class ProjectCreateView(ProjectAccessMixin, CreateView):
         form.instance.owner = form.instance.owner or self.request.user
         form.instance._notification_actor = self.request.user
         response = super().form_valid(form)
-
-        event = self.object.event
-        if event and not event.project_id:
-            event.project = self.object
-            event.save(update_fields=["project", "updated_at"])
 
         messages.success(
             self.request,

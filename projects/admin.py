@@ -72,7 +72,6 @@ class ProjectAdmin(admin.ModelAdmin):
         "name",
         "client",
         "deal",
-        "event",
         "manager",
         "status",
         "priority",
@@ -100,7 +99,7 @@ class ProjectAdmin(admin.ModelAdmin):
         "client__name",
         "client__display_name",
         "deal__name",
-        "event__name",
+        "events__name",
         "manager__username",
         "manager__first_name",
         "manager__last_name",
@@ -122,7 +121,6 @@ class ProjectAdmin(admin.ModelAdmin):
         "owner",
         "client",
         "deal",
-        "event",
         "manager",
     )
     inlines = (
@@ -137,7 +135,6 @@ class ProjectAdmin(admin.ModelAdmin):
                 "name",
                 "client",
                 "deal",
-                "event",
                 "project_directory",
                 "description",
                 "manager",

@@ -143,7 +143,6 @@ class EventCalendarView(EventCalendarAccessMixin, TemplateView):
             .filter(date__range=(cal.start, cal.end))
             .exclude(status=EventStatus.CANCELLED)
             .select_related("client", "project", "venue")
-            .prefetch_related("projects")
             .order_by("date", "start_time", "name")
         )
 
@@ -173,7 +172,7 @@ class EventCalendarView(EventCalendarAccessMixin, TemplateView):
         if project_id.isdigit():
             tasks = tasks.filter(project_id=project_id)
             deliverables = deliverables.filter(project_id=project_id)
-            events = events.filter(Q(project_id=project_id) | Q(projects__id=project_id)).distinct()
+            events = events.filter(project_id=project_id)
 
         if staff_id.isdigit():
             tasks = tasks.filter(assigned_to_id=staff_id)
@@ -390,7 +389,7 @@ class EventListView(EventManageMixin, ListView):
             super()
             .get_queryset()
             .select_related("project", "client", "primary_contact", "venue")
-            .prefetch_related("services", "packages", "vendors", "inventory_items", "projects")
+            .prefetch_related("services", "packages", "vendors", "inventory_items")
         )
 
         q = (self.request.GET.get("q") or "").strip()
@@ -455,6 +454,11 @@ class EventDetailView(EventCalendarAccessMixin, DetailView):
         checklist = self.object.checklist
 
         context["linked_project"] = self.object.linked_project
+        context["project_events"] = (
+            self.object.project.events.exclude(pk=self.object.pk).order_by("date", "start_time", "name")
+            if self.object.project_id
+            else []
+        )
         context["checklist"] = checklist
         context["checklist_items"] = (
             checklist.items

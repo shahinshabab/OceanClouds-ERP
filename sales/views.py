@@ -2901,7 +2901,7 @@ class ContractApproveView(SalesAccessMixin, View):
     def post(self, request, pk):
         # Lock the row so a double click cannot approve twice.
         contract = get_object_or_404(
-            Contract.objects.select_for_update().select_related("deal", "deal__client", "deal__lead"),
+            Contract.objects.select_for_update(of=("self",)).select_related("deal", "deal__client", "deal__lead"),
             pk=pk,
         )
         if contract.approved_at:

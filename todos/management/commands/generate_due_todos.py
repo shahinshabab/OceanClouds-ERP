@@ -71,6 +71,7 @@ class Command(BaseCommand):
 
     def generate_lead_next_action_todos(self):
         from crm.models import Lead
+        from crm.signals import LEAD_ACTION_TODO_PREFIX
 
         leads = (
             Lead.objects
@@ -91,7 +92,7 @@ class Command(BaseCommand):
             note = lead.next_action_note or "Please follow up this lead."
 
             _, created = self.create_todo(
-                title=f"Lead next action: {lead.name}",
+                title=f"{LEAD_ACTION_TODO_PREFIX}{lead.name}",
                 description=note,
                 owner=assigned_user,
                 assigned_to=assigned_user,

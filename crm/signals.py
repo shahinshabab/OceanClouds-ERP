@@ -10,6 +10,11 @@ from todos.services import create_todo_once
 from crm.models import Inquiry
 
 
+# Follow-up to-do titles; the sales report counts the completed ones.
+INQUIRY_FOLLOW_UP_TODO_PREFIX = "Follow up inquiry: "
+LEAD_ACTION_TODO_PREFIX = "Lead next action: "
+
+
 @receiver(pre_save, sender=Inquiry)
 def cache_old_inquiry_handler(sender, instance, **kwargs):
     if kwargs.get("raw"):
@@ -50,7 +55,7 @@ def notify_and_todo_inquiry_assigned(sender, instance, created, **kwargs):
     )
 
     create_todo_once(
-        title=f"Follow up inquiry: {instance}",
+        title=f"{INQUIRY_FOLLOW_UP_TODO_PREFIX}{instance}",
         description=(
             "This inquiry has been assigned to you. "
             "Please contact the client and update the inquiry status."

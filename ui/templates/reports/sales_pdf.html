@@ -91,6 +91,28 @@
 
   <div class="summary-grid">
     <div class="card">
+      <div class="label">Follow-ups done</div>
+      <div class="value">{{ summary.follow_up_done_count }}</div>
+    </div>
+
+    <div class="card">
+      <div class="label">Inquiries created</div>
+      <div class="value">{{ summary.inquiry_count }}</div>
+    </div>
+
+    <div class="card">
+      <div class="label">Sales (deals won)</div>
+      <div class="value">{{ summary.sales_count }}</div>
+    </div>
+
+    <div class="card">
+      <div class="label">Sales value</div>
+      <div class="value">Rs. {{ summary.sales_value }}</div>
+    </div>
+  </div>
+
+  <div class="summary-grid">
+    <div class="card">
       <div class="label">Inquiries</div>
       <div class="value">{{ summary.inquiry_count }}</div>
     </div>

@@ -51,6 +51,10 @@ from sales.models import (
     net_paid_amount,
 )
 
+from sales.signals import DEAL_ACTION_TODO_PREFIX
+from crm.signals import INQUIRY_FOLLOW_UP_TODO_PREFIX, LEAD_ACTION_TODO_PREFIX
+from todos.models import Todo, TodoStatus
+
 from projects.models import (
     Project,
     Task,
@@ -64,6 +68,7 @@ from projects.models import (
 )
 from .utils import (
     _base_date_filter,
+    _base_plain_date_filter,
     _build_attendance_summary,
     _chart,
     _choice_counts,
@@ -496,6 +501,30 @@ class SalesReportView(SalesReportAccessMixin, ReportTabsMixin, ReportPDFMixin, T
         invoices_in_period = _base_date_filter(invoices, "created_at", date_from, date_to)
         payments_in_period = _base_date_filter(payments, "created_at", date_from, date_to)
 
+        # Follow-ups done: inquiry, lead and deal follow-up to-dos completed in the period.
+        follow_ups_done = _base_date_filter(
+            Todo.objects.filter(status=TodoStatus.COMPLETED).filter(
+                Q(title__startswith=INQUIRY_FOLLOW_UP_TODO_PREFIX)
+                | Q(title__startswith=LEAD_ACTION_TODO_PREFIX)
+                | Q(title__startswith=DEAL_ACTION_TODO_PREFIX)
+            ),
+            "completed_at",
+            date_from,
+            date_to,
+        )
+        if selected_user:
+            follow_ups_done = follow_ups_done.filter(assigned_to=selected_user)
+        follow_up_done_count = follow_ups_done.count()
+
+        # Sales created: deals won in the period (closed_on is set when the contract is signed).
+        sales_won = deals.filter(stage=DealStage.WON)
+        sales_won_in_period = (
+            _base_plain_date_filter(sales_won, "closed_on", date_from, date_to)
+            | _base_date_filter(sales_won.filter(closed_on__isnull=True), "updated_at", date_from, date_to)
+        )
+        sales_count = sales_won_in_period.count()
+        sales_value = _money(sales_won_in_period.aggregate(total=Sum("amount"))["total"])
+
         inquiry_to_lead_count = inquiries_in_period.filter(
             Q(lead__isnull=False) |
             Q(status=Inquiry.STATUS_CONVERTED_TO_LEAD)
@@ -583,7 +612,9 @@ class SalesReportView(SalesReportAccessMixin, ReportTabsMixin, ReportPDFMixin, T
             "show_detailed_data": True,
             "charts": charts,
             "kpis": [
+                _kpi("Follow-ups done", follow_up_done_count, "Inquiry, lead and deal follow-ups", "bi-telephone-outbound"),
                 _kpi("Inquiries", inquiry_count, "Created in this period", "bi-inbox"),
+                _kpi("Sales", sales_count, f"Deals won, worth {inr(sales_value)}", "bi-trophy"),
                 _kpi("Leads", lead_count, f"{inquiry_to_lead_rate:g}% of inquiries became leads", "bi-person-plus"),
                 _kpi(
                     "Deals",
@@ -604,6 +635,9 @@ class SalesReportView(SalesReportAccessMixin, ReportTabsMixin, ReportPDFMixin, T
             ],
 
             "summary": {
+                "follow_up_done_count": follow_up_done_count,
+                "sales_count": sales_count,
+                "sales_value": sales_value,
                 "inquiry_count": inquiry_count,
                 "lead_count": lead_count,
                 "client_count": clients_in_period.count(),

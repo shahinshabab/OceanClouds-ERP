@@ -339,6 +339,59 @@ class ReportRoleVisibilityTests(TestCase):
         response = self.client.get(reverse("reports:sales_report"), {"user": other_crm.pk})
         self.assertEqual(response.context["selected_user"], other_crm)
 
+    def test_sales_report_kpis_follow_the_date_filter(self):
+        from datetime import date
+        from decimal import Decimal
+
+        from crm.models import Inquiry
+        from sales.models import Deal, DealStage
+        from todos.models import Todo, TodoStatus
+
+        in_range = timezone.make_aware(datetime(2026, 3, 10, 12))
+        out_of_range = timezone.make_aware(datetime(2026, 5, 10, 12))
+
+        for title, completed_at in (
+            ("Follow up inquiry: Asha", in_range),
+            ("Lead next action: Ravi", in_range),
+            ("Deal next action: Call - Wedding", in_range),
+            ("Deal next action: Call - Later", out_of_range),
+            ("Unrelated to-do", in_range),
+        ):
+            Todo.objects.create(
+                title=title,
+                owner=self.crm_manager,
+                assigned_to=self.crm_manager,
+                status=TodoStatus.COMPLETED,
+                completed_at=completed_at,
+            )
+        Todo.objects.create(
+            title="Follow up inquiry: still open",
+            owner=self.crm_manager,
+            assigned_to=self.crm_manager,
+        )
+
+        for created_at in (in_range, in_range, out_of_range):
+            inquiry = Inquiry.objects.create(name="Lead", owner=self.crm_manager)
+            Inquiry.objects.filter(pk=inquiry.pk).update(created_at=created_at)
+
+        Deal.objects.create(name="Won in March", stage=DealStage.WON, closed_on=date(2026, 3, 5), amount=Decimal("1000"))
+        Deal.objects.create(name="Won in May", stage=DealStage.WON, closed_on=date(2026, 5, 5), amount=Decimal("500"))
+        Deal.objects.create(name="Open deal", stage=DealStage.NEW, amount=Decimal("700"))
+
+        self.client.force_login(self.crm_manager)
+        response = self.client.get(
+            reverse("reports:sales_report"),
+            {"date_from": "2026-03-01", "date_to": "2026-03-31"},
+        )
+
+        summary = response.context["summary"]
+        self.assertEqual(summary["follow_up_done_count"], 3)
+        self.assertEqual(summary["inquiry_count"], 2)
+        self.assertEqual(summary["sales_count"], 1)
+        self.assertEqual(summary["sales_value"], Decimal("1000"))
+        kpi_labels = [kpi["label"] for kpi in response.context["kpis"]]
+        self.assertEqual(kpi_labels[:3], ["Follow-ups done", "Inquiries", "Sales"])
+
     def test_project_manager_gets_full_project_report(self):
         other_manager = make_user(username="report-other-pm")
         other_manager.groups.add(self.manager_group)
